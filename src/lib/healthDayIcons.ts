@@ -1,0 +1,23 @@
+// Metro requires static string literals, so each health-day icon is mapped explicitly.
+export const healthDayIcons: Record<string, number> = {
+  '01_ntd': require('../../assets/health-days/01_ntd.png'),
+  '02_hearing': require('../../assets/health-days/02_hearing.png'),
+  '03_tb': require('../../assets/health-days/03_tb.png'),
+  '04_health': require('../../assets/health-days/04_health.png'),
+  '05_chagas': require('../../assets/health-days/05_chagas.png'),
+  '06_immunization': require('../../assets/health-days/06_immunization.png'),
+  '07_malaria': require('../../assets/health-days/07_malaria.png'),
+  '08_hands': require('../../assets/health-days/08_hands.png'),
+  '09_tobacco': require('../../assets/health-days/09_tobacco.png'),
+  '10_blood': require('../../assets/health-days/10_blood.png'),
+  '11_drowning': require('../../assets/health-days/11_drowning.png'),
+  '12_hepatitis': require('../../assets/health-days/12_hepatitis.png'),
+  '13_suicide': require('../../assets/health-days/13_suicide.png'),
+  '14_patient_safety': require('../../assets/health-days/14_patient_safety.png'),
+  '15_mental': require('../../assets/health-days/15_mental.png'),
+  '16_diabetes': require('../../assets/health-days/16_diabetes.png'),
+  '17_prematurity': require('../../assets/health-days/17_prematurity.png'),
+  '18_cervical': require('../../assets/health-days/18_cervical.png'),
+  '19_amr': require('../../assets/health-days/19_amr.png'),
+  '20_aids': require('../../assets/health-days/20_aids.png'),
+};
