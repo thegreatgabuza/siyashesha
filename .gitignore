@@ -41,3 +41,6 @@ example
 # generated native folders
 /ios
 /android
+
+# source material, not part of the shipped app
+/reference
