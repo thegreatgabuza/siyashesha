@@ -12,6 +12,7 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { useToast } from '@/components/ui/Toast';
 import { recordCategories, type MedicalRecord, type RecordCategory } from '@/data/records';
+import { saveOriginal } from '@/lib/documents';
 import { useAppStore } from '@/store/useAppStore';
 import { useAccent } from '@/hooks/useAccent';
 
@@ -24,6 +25,7 @@ export default function UploadRecordScreen() {
 
   const [method, setMethod] = useState<Method>('upload');
   const [fileName, setFileName] = useState<string | null>(null);
+  const [picked, setPicked] = useState<{ uri: string; name: string; mimeType: string } | null>(null);
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<RecordCategory>('Other');
   const [eventDate, setEventDate] = useState(dayjs().format('YYYY-MM-DD'));
@@ -37,6 +39,7 @@ export default function UploadRecordScreen() {
     const result = await DocumentPicker.getDocumentAsync({ type: ['image/*', 'application/pdf'] });
     if (!result.canceled && result.assets[0]) {
       setFileName(result.assets[0].name);
+      setPicked({ uri: result.assets[0].uri, name: result.assets[0].name, mimeType: result.assets[0].mimeType ?? 'application/octet-stream' });
       if (!title) setTitle(result.assets[0].name.replace(/\.[^/.]+$/, ''));
     }
   };
@@ -50,16 +53,28 @@ export default function UploadRecordScreen() {
     const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
     if (!result.canceled && result.assets[0]) {
       setFileName('Scanned document.jpg');
+      setPicked({ uri: result.assets[0].uri, name: 'Scanned document.jpg', mimeType: 'image/jpeg' });
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!title.trim()) {
       toast.show('Add a title for this record', 'warning');
       return;
     }
+    const id = `rec-${Date.now()}`;
+    let originalFile: MedicalRecord['originalFile'];
+    if (picked) {
+      try {
+        originalFile = await saveOriginal(picked.uri, id, picked.name, picked.mimeType);
+      } catch {
+        toast.show('Could not keep a copy of the file. Please try again.', 'warning');
+        return;
+      }
+    }
     const record: MedicalRecord = {
-      id: `rec-${Date.now()}`,
+      id,
+      originalFile,
       category,
       title: title.trim(),
       facility: facility.trim() || 'Not recorded',

@@ -1,6 +1,7 @@
 import dayjs from 'dayjs';
 import { router, useLocalSearchParams } from 'expo-router';
-import { CheckCircle2, Download, Languages, Pencil, Share2, Trash2 } from 'lucide-react-native';
+import { CheckCircle2, Download, FileText, Languages, Pencil, Share2, Trash2 } from 'lucide-react-native';
+import * as Sharing from 'expo-sharing';
 import { useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 
@@ -10,13 +11,14 @@ import { Screen } from '@/components/ui/Screen';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { useToast } from '@/components/ui/Toast';
 import { TranslationSheet } from '@/components/TranslationSheet';
+import { removeOriginal } from '@/lib/documents';
 import { formatEventDate, reviewLabel } from '@/lib/recordSearch';
 import { baseDocumentStyles, printAndShareHtml } from '@/lib/pdf';
 import { useAppStore } from '@/store/useAppStore';
 import { useAccent } from '@/hooks/useAccent';
 
 export default function RecordDetailScreen() {
-  const { accentSoft } = useAccent();
+  const { accent, accentSoft } = useAccent();
   const { id } = useLocalSearchParams<{ id: string }>();
   const toast = useToast();
   const records = useAppStore((s) => s.records);
@@ -66,6 +68,7 @@ export default function RecordDetailScreen() {
         text: 'Delete',
         style: 'destructive',
         onPress: () => {
+          removeOriginal(record.originalFile);
           deleteRecord(record.id);
           toast.show('Record deleted', 'info');
           router.back();
@@ -177,10 +180,35 @@ export default function RecordDetailScreen() {
         </DetailCard>
 
         <DetailCard title="Original document">
-          <Text className="px-4 py-3 font-sans text-[13px] leading-[19px] text-ink-soft dark:text-slate-300">
-            No original file is stored for this record. The details above are what was entered into your
-            vault.
-          </Text>
+          {record.originalFile ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Open original file ${record.originalFile.name}`}
+              onPress={async () => {
+                try {
+                  await Sharing.shareAsync(record.originalFile!.uri, {
+                    mimeType: record.originalFile!.mimeType,
+                    dialogTitle: record.originalFile!.name,
+                  });
+                } catch {
+                  toast.show('Could not open the original file.', 'warning');
+                }
+              }}
+              className="flex-row items-center gap-3 px-4 py-3"
+            >
+              <View className="h-9 w-9 items-center justify-center rounded-2xl bg-brand-100 dark:bg-brand-500/20">
+                <FileText size={16} color={accent} />
+              </View>
+              <Text className="flex-1 font-sans-medium text-[13px] text-ink dark:text-slate-50" numberOfLines={1}>
+                {record.originalFile.name}
+              </Text>
+              <Text className="font-sans-semibold text-[12px] text-brand-500 dark:text-brand-300">Open or save</Text>
+            </Pressable>
+          ) : (
+            <Text className="px-4 py-3 font-sans text-[13px] leading-[19px] text-ink-soft dark:text-slate-300">
+              No original file was kept for this record. It was entered by hand, or added before files were stored.
+            </Text>
+          )}
         </DetailCard>
       </ScrollView>
 

@@ -14,6 +14,7 @@ import { RewardModal } from '@/components/onboarding/RewardModal';
 import { SpeechBubble } from '@/components/onboarding/SpeechBubble';
 import type { MedicalRecord } from '@/data/records';
 import type { StampId } from '@/store/useAppStore';
+import { saveOriginal } from '@/lib/documents';
 import { useAppStore } from '@/store/useAppStore';
 
 export default function RecordsOnboardingScreen() {
@@ -25,10 +26,23 @@ export default function RecordsOnboardingScreen() {
 
   const next = () => router.push('/(onboarding)/reveal' as any);
 
-  const saveRecord = (title: string, sourceType: MedicalRecord['sourceType']) => {
+  const saveRecord = async (
+    title: string,
+    sourceType: MedicalRecord['sourceType'],
+    file: { uri: string; name: string; mimeType: string }
+  ) => {
     const today = dayjs().format('YYYY-MM-DD');
+    const id = `rec-${Date.now()}`;
+    let originalFile: MedicalRecord['originalFile'];
+    try {
+      originalFile = await saveOriginal(file.uri, id, file.name, file.mimeType);
+    } catch {
+      setMessage('Could not keep a copy of that file. Please try again.');
+      return;
+    }
     addRecord({
-      id: `rec-${Date.now()}`,
+      id,
+      originalFile,
       category: 'Other',
       title,
       facility: 'Not recorded',
@@ -48,7 +62,12 @@ export default function RecordsOnboardingScreen() {
     const result = await DocumentPicker.getDocumentAsync({ type: ['image/*', 'application/pdf'] });
     if (result.canceled || !result.assets[0]) return;
     const name = result.assets[0].name.replace(/\.[^/.]+$/, '');
-    saveRecord(name || 'Uploaded document', 'Upload');
+    const asset = result.assets[0];
+    saveRecord(name || 'Uploaded document', 'Upload', {
+      uri: asset.uri,
+      name: asset.name,
+      mimeType: asset.mimeType ?? 'application/octet-stream',
+    });
   };
 
   const scan = async () => {
@@ -59,7 +78,11 @@ export default function RecordsOnboardingScreen() {
     }
     const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
     if (result.canceled || !result.assets[0]) return;
-    saveRecord(`Scanned document ${dayjs().format('D MMM YYYY')}`, 'Scan');
+    saveRecord(`Scanned document ${dayjs().format('D MMM YYYY')}`, 'Scan', {
+      uri: result.assets[0].uri,
+      name: `Scanned document ${dayjs().format('YYYY-MM-DD')}.jpg`,
+      mimeType: 'image/jpeg',
+    });
   };
 
   return (

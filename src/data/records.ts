@@ -30,8 +30,16 @@ export interface RecordField {
   value: string;
 }
 
+/** The file the patient gave us, copied into the app's own storage. */
+export interface OriginalFile {
+  uri: string;
+  name: string;
+  mimeType: string;
+}
+
 export interface MedicalRecord {
   id: string;
+  originalFile?: OriginalFile;
   category: RecordCategory;
   title: string;
   facility: string;
