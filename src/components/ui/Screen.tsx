@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { RefreshControl, ScrollView, View, type ScrollViewProps } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAccent } from '@/hooks/useAccent';
 
 export function Screen({
   children,
@@ -16,6 +17,7 @@ export function Screen({
   contentClassName?: string;
   bottomInset?: number;
 } & ScrollViewProps) {
+  const { accent } = useAccent();
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -43,7 +45,7 @@ export function Screen({
         showsVerticalScrollIndicator={false}
         refreshControl={
           handleRefresh ? (
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#6D5BD0" />
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={accent} />
           ) : undefined
         }
         {...rest}

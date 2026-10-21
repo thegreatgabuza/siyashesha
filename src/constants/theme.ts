@@ -1,17 +1,19 @@
 export const Colors = {
   light: {
-    ink: '#0B1E40',
+    ink: '#0B2559',
     inkSoft: '#2A3B5C',
-    inkMuted: '#5B6B8A',
-    background: '#F8FAFC',
+    inkMuted: '#5B6478',
+    background: '#F4F6FB',
     surface: '#FFFFFF',
     surfaceMuted: '#F1F4F9',
     border: '#E3E8F0',
-    emergency: '#DC2626',
+    emergency: '#DC1F26',
     emergencySoft: '#FDECEC',
-    success: '#0D9488',
-    successSoft: '#E7F7F3',
-    tabBarBg: '#0B1E40',
+    success: '#16A34A',
+    successSoft: '#E9F7EE',
+    tabBarBg: '#0B2559',
+    accent: '#0B2559',
+    accentSoft: '#A9BCD8',
   },
   dark: {
     ink: '#F4F6FB',
@@ -26,17 +28,19 @@ export const Colors = {
     success: '#2DD4BF',
     successSoft: '#123A35',
     tabBarBg: '#060A18',
+    accent: '#8FB0DA',
+    accentSoft: '#3B5378',
   },
 } as const;
 
 export type ThemeMode = keyof typeof Colors;
 
 export const Gradients = {
-  heroLight: ['#EDE9FB', '#DCE6FB', '#F8FAFC'],
-  heroDark: ['#1B1440', '#141A33', '#0B1024'],
-  emergency: ['#DC2626', '#B91C1C'],
-  success: ['#0D9488', '#0B7A70'],
-  cardLight: ['#FFFFFF', '#F3F0FD'],
+  heroLight: ['#E6EBF4', '#C5D0E3', '#F4F6FB'],
+  heroDark: ['#0E2A56', '#0A1A38', '#0B1024'],
+  emergency: ['#DC1F26', '#B3181E'],
+  success: ['#16A34A', '#15803D'],
+  cardLight: ['#FFFFFF', '#F4F6FB'],
   cardDark: ['#1C2545', '#141B33'],
 } as const;
 
@@ -58,9 +62,9 @@ export const Spacing = {
 };
 
 export const ChartColors = {
-  line: '#6D5BD0',
-  fillFrom: 'rgba(109,91,208,0.35)',
-  fillTo: 'rgba(109,91,208,0.02)',
-  point: '#0B1E40',
+  line: '#3F5A8A',
+  fillFrom: 'rgba(11,37,89,0.35)',
+  fillTo: 'rgba(11,37,89,0.02)',
+  point: '#0B2559',
   grid: '#E3E8F0',
 };

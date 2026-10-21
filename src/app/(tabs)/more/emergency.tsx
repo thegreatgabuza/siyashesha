@@ -10,6 +10,8 @@ import { Screen } from '@/components/ui/Screen';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { useToast } from '@/components/ui/Toast';
 import { emergencyFieldDefs } from '@/data/emergencyProfile';
+import { activeMedications } from '@/data/medications';
+import { SectionHeader } from '@/components/ui/SectionHeader';
 import { baseDocumentStyles, printAndShareHtml } from '@/lib/pdf';
 import { useAppStore } from '@/store/useAppStore';
 
@@ -27,7 +29,7 @@ export default function EmergencyProfileScreen() {
       bloodGroup: patient.bloodGroup,
       allergies: patient.allergies.map((a) => `${a.substance} — ${a.reaction}`).join('; '),
       chronicConditions: patient.chronicConditions.join('; '),
-      currentMedications: 'Metformin, Amlodipine, Atorvastatin, Aspirin',
+      currentMedications: activeMedications.map((m) => `${m.name} ${m.strength}`).join(', ') || 'None recorded',
       previousProcedures: patient.previousProcedures.join('; ') || 'None recorded',
       medicalDevices: patient.medicalDevices.join('; ') || 'None recorded',
     }),
@@ -70,10 +72,10 @@ export default function EmergencyProfileScreen() {
   };
 
   return (
-    <Screen bottomInset={60}>
+    <Screen bottomInset={120}>
       <ScreenHeader title="Emergency Profile" onBack={() => router.back()} />
       <ScrollView className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 48 }}>
-        <View className="overflow-hidden rounded-[28px]">
+        <View className="overflow-hidden rounded-[32px]">
           <GradientBackground variant="emergency">
             <View className="p-5">
               <View className="mb-3 flex-row items-center gap-2">
@@ -82,7 +84,7 @@ export default function EmergencyProfileScreen() {
                   Emergency ICE Card
                 </Text>
               </View>
-              <Text className="mb-4 font-serif text-[22px] text-white">
+              <Text className="mb-4 font-sans-bold text-[22px] text-white">
                 {patient.firstName} {patient.lastName}
               </Text>
               <View className="gap-2">
@@ -107,7 +109,7 @@ export default function EmergencyProfileScreen() {
               </View>
 
               <View className="mt-5 items-center self-center rounded-2xl bg-white p-3">
-                <QRCode value={qrValue} size={120} color="#0B1E40" backgroundColor="#FFFFFF" />
+                <QRCode value={qrValue} size={120} color="#0B2559" backgroundColor="#FFFFFF" />
               </View>
             </View>
           </GradientBackground>
@@ -122,16 +124,16 @@ export default function EmergencyProfileScreen() {
           onPress={() => Linking.openURL(`tel:${patient.emergencyContact.phone.replace(/\s/g, '')}`)}
           className="mt-3 min-h-[44px] flex-row items-center justify-center gap-2 rounded-full border border-emergency-500 py-3"
         >
-          <Phone size={16} color="#DC2626" />
+          <Phone size={16} color="#DC1F26" />
           <Text className="font-sans-semibold text-[14px] text-emergency-500">
             Call {patient.emergencyContact.name}
           </Text>
         </Pressable>
 
-        <Text className="mt-7 mb-3 font-sans-semibold text-[13px] text-ink-muted dark:text-slate-400">
-          Choose what first responders can see
-        </Text>
-        <View className="rounded-2xl border border-slate-200 bg-white dark:border-canvasdark-card dark:bg-canvasdark-card">
+        <View className="pt-7">
+          <SectionHeader title="What first responders can see" />
+        </View>
+        <View className="rounded-3xl border border-slate-200 bg-white dark:border-canvasdark-card dark:bg-canvasdark-card">
           {emergencyFieldDefs.map((field, i) => (
             <View
               key={field.key}
@@ -145,7 +147,7 @@ export default function EmergencyProfileScreen() {
               <Switch
                 value={visibility[field.key]}
                 onValueChange={(v) => setVisible(field.key, v)}
-                trackColor={{ true: '#DC2626', false: '#E3E8F0' }}
+                trackColor={{ true: '#DC1F26', false: '#E3E8F0' }}
                 accessibilityLabel={`Show ${field.label} on emergency card`}
               />
             </View>

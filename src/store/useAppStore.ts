@@ -35,11 +35,45 @@ function buildSeedAdherenceLog(): Record<string, boolean> {
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 
+export type StampId = 'profile' | 'emergency' | 'medication' | 'record' | 'biometric';
+
+export interface UserMedication {
+  id: string;
+  name: string;
+  dose: string;
+  time: 'Morning' | 'Afternoon' | 'Evening' | 'Night';
+}
+
+export interface OnboardingDraft {
+  goal: string | null;
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+  bloodGroup: string;
+  allergies: string[];
+  conditions: string[];
+  contactName: string;
+  contactRelationship: string;
+  contactPhone: string;
+}
+
+export const emptyOnboardingDraft: OnboardingDraft = {
+  goal: null,
+  firstName: '',
+  lastName: '',
+  dateOfBirth: '',
+  bloodGroup: '',
+  allergies: [],
+  conditions: [],
+  contactName: '',
+  contactRelationship: '',
+  contactPhone: '',
+};
+
 export interface NotificationSettings {
   medicationReminders: boolean;
   educationalTips: boolean;
   wellnessCheckins: boolean;
-  healthDayReminders: boolean;
 }
 
 interface AppState {
@@ -111,6 +145,17 @@ interface AppState {
   // Patient profile
   patientProfile: PatientProfile;
   updatePatientProfile: (patch: Partial<PatientProfile>) => void;
+
+  // Guided onboarding
+  onboardingDraft: OnboardingDraft;
+  updateOnboardingDraft: (patch: Partial<OnboardingDraft>) => void;
+  stamps: StampId[];
+  earnStamp: (id: StampId) => boolean;
+  userMedications: UserMedication[];
+  addUserMedication: (med: Omit<UserMedication, 'id'>) => void;
+  biometricLock: boolean;
+  setBiometricLock: (v: boolean) => void;
+  finishOnboarding: () => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -127,7 +172,8 @@ export const useAppStore = create<AppState>()(
             description: 'Signed in with 2FA verification',
             timestamp: new Date().toISOString(),
           };
-          return { isSignedIn: true, auditEvents: [event, ...s.auditEvents] };
+          // Returning users with an account skip the guided setup.
+          return { isSignedIn: true, hasCompletedOnboarding: true, auditEvents: [event, ...s.auditEvents] };
         }),
       signOut: () => set({ isSignedIn: false, pendingPhone: '' }),
 
@@ -155,7 +201,6 @@ export const useAppStore = create<AppState>()(
         medicationReminders: true,
         educationalTips: true,
         wellnessCheckins: true,
-        healthDayReminders: true,
       },
       setNotification: (key, value) =>
         set((s) => ({ notifications: { ...s.notifications, [key]: value } })),
@@ -304,6 +349,52 @@ export const useAppStore = create<AppState>()(
 
       hasCompletedOnboarding: false,
       completeOnboarding: () => set({ hasCompletedOnboarding: true }),
+
+      onboardingDraft: emptyOnboardingDraft,
+      updateOnboardingDraft: (patch) => set((s) => ({ onboardingDraft: { ...s.onboardingDraft, ...patch } })),
+      stamps: [],
+      earnStamp: (id) => {
+        let earned = false;
+        set((s) => {
+          if (s.stamps.includes(id)) return {};
+          earned = true;
+          return { stamps: [...s.stamps, id] };
+        });
+        return earned;
+      },
+      userMedications: [],
+      addUserMedication: (med) =>
+        set((s) => ({ userMedications: [...s.userMedications, { ...med, id: makeId('med') }] })),
+      biometricLock: false,
+      setBiometricLock: (v) => set({ biometricLock: v }),
+      finishOnboarding: () =>
+        set((s) => {
+          const d = s.onboardingDraft;
+          const event: AuditEvent = {
+            id: makeId('audit'),
+            type: 'login',
+            description: 'Passport created during guided setup',
+            timestamp: new Date().toISOString(),
+          };
+          const patch: Partial<PatientProfile> = {
+            firstName: d.firstName || s.patientProfile.firstName,
+            lastName: d.lastName || s.patientProfile.lastName,
+            preferredName: d.firstName || s.patientProfile.preferredName,
+            dateOfBirth: d.dateOfBirth || s.patientProfile.dateOfBirth,
+            bloodGroup: d.bloodGroup || s.patientProfile.bloodGroup,
+            allergies: d.allergies.map((substance) => ({ substance, reaction: 'Not recorded' })),
+            chronicConditions: d.conditions,
+            emergencyContact: d.contactName
+              ? { name: d.contactName, relationship: d.contactRelationship || 'Not recorded', phone: d.contactPhone }
+              : s.patientProfile.emergencyContact,
+          };
+          return {
+            hasCompletedOnboarding: true,
+            isSignedIn: true,
+            patientProfile: { ...s.patientProfile, ...patch },
+            auditEvents: [event, ...s.auditEvents],
+          };
+        }),
 
       patientProfile: patient,
       updatePatientProfile: (patch) =>

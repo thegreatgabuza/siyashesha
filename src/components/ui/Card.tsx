@@ -13,7 +13,7 @@ export function Card({ children, className, style, ...rest }: ViewProps & { clas
 }
 
 const shadowStyle = {
-  shadowColor: '#0B1E40',
+  shadowColor: '#0B2559',
   shadowOpacity: 0.08,
   shadowRadius: 16,
   shadowOffset: { width: 0, height: 6 },

@@ -6,44 +6,36 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        // Brand palette from the Siyashesha logo: navy #0B2559, red #DC1F26.
         ink: {
-          DEFAULT: '#0B1E40',
+          DEFAULT: '#0B2559',
           soft: '#2A3B5C',
-          muted: '#5B6B8A',
-        },
-        lavender: {
-          50: '#F6F4FD',
-          100: '#ECE8FB',
-          200: '#DCD5F7',
-          300: '#C3B6F0',
-          400: '#A58FE6',
-        },
-        skyglass: {
-          50: '#F2F7FE',
-          100: '#E3EEFC',
-          200: '#CFE2FA',
-          300: '#AECBF2',
+          muted: '#5B6478',
         },
         brand: {
-          400: '#8471D9',
-          500: '#6D5BD0',
-          600: '#5944B8',
-          700: '#473998',
+          50: '#F4F6FB',
+          100: '#E6EBF4',
+          200: '#C5D0E3',
+          300: '#8FA0C2',
+          400: '#3F5A8A',
+          500: '#0B2559',
+          600: '#091F4A',
+          700: '#071739',
         },
         emergency: {
           50: '#FDECEC',
           100: '#FBD5D5',
-          500: '#DC2626',
-          600: '#B91C1C',
+          500: '#DC1F26',
+          600: '#B3181E',
         },
         success: {
-          50: '#E7F7F3',
-          100: '#CFEFE7',
-          500: '#0D9488',
-          600: '#0B7A70',
+          50: '#E9F7EE',
+          100: '#D1F0DD',
+          500: '#16A34A',
+          600: '#15803D',
         },
         slate: {
-          50: '#F8FAFC',
+          50: '#F4F6FB',
           100: '#F1F4F9',
           200: '#E3E8F0',
         },
@@ -62,7 +54,7 @@ module.exports = {
         xl4: '28px',
       },
       fontFamily: {
-        serif: ['InstrumentSerif_400Regular'],
+        display: ['BebasNeue_400Regular'],
         sans: ['Inter_400Regular'],
         'sans-medium': ['Inter_500Medium'],
         'sans-semibold': ['Inter_600SemiBold'],

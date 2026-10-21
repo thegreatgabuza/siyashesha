@@ -24,7 +24,7 @@ export function CalendarDayCell(props: any) {
     >
       <View
         className={`h-9 w-9 items-center justify-center rounded-full ${
-          isSelected ? 'bg-ink dark:bg-brand-500' : isToday ? 'bg-lavender-200 dark:bg-brand-500/30' : ''
+          isSelected ? 'bg-ink dark:bg-brand-400' : isToday ? 'bg-brand-200 dark:bg-brand-500/30' : ''
         }`}
       >
         <Text

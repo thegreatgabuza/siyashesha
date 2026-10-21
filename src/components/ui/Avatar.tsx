@@ -11,7 +11,7 @@ export function Avatar({ name, size = 48 }: { name: string; size?: number }) {
   return (
     <View
       style={{ width: size, height: size, borderRadius: size / 2 }}
-      className="items-center justify-center bg-brand-500"
+      className="items-center justify-center bg-brand-500 dark:bg-brand-400"
     >
       <Text className="font-sans-bold text-white" style={{ fontSize: size * 0.36 }}>
         {initials}

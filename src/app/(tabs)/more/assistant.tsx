@@ -77,11 +77,11 @@ export default function AssistantScreen() {
 
   return (
     <KeyboardAvoidingView
-      className="flex-1 bg-[#E7F5EF] dark:bg-canvasdark"
+      className="flex-1 bg-slate-50 dark:bg-canvasdark"
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View
-        className="flex-row items-center gap-3 bg-[#128C7E] px-4 pb-3"
+        className="flex-row items-center gap-3 bg-ink px-4 pb-3 dark:bg-canvasdark-card"
         style={{ paddingTop: insets.top + 10 }}
       >
         <IconButton accessibilityLabel="Go back" variant="ghost" onPress={() => router.back()}>
@@ -93,7 +93,7 @@ export default function AssistantScreen() {
         <View className="flex-1">
           <Text className="font-sans-bold text-[15px] text-white">Siyashesha Assistant</Text>
           <Text className="font-sans text-[11px] text-white/80">
-            {typing ? 'typing…' : 'Online · Verified health account'}
+            {typing ? 'typing…' : 'Online · Health information assistant'}
           </Text>
         </View>
       </View>
@@ -107,7 +107,7 @@ export default function AssistantScreen() {
         ListHeaderComponent={
           <View className="mb-3 items-center">
             <View className="flex-row items-center gap-1.5 rounded-xl bg-white/70 px-3 py-2 dark:bg-white/10">
-              <Lock size={11} color="#5B6B8A" />
+              <Lock size={11} color="#5B6478" />
               <Text className="font-sans text-[10px] text-ink-muted dark:text-slate-400">
                 {assistantEncryptionNotice}
               </Text>
@@ -118,7 +118,7 @@ export default function AssistantScreen() {
           <View className={`flex-row ${item.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
             <View
               className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 ${
-                item.sender === 'user' ? 'bg-[#DCF8C6] dark:bg-success-500/25' : 'bg-white dark:bg-canvasdark-card'
+                item.sender === 'user' ? 'bg-brand-100 dark:bg-brand-500/25' : 'bg-white dark:bg-canvasdark-card'
               }`}
             >
               <Text className="font-sans text-[14px] leading-[20px] text-ink dark:text-slate-50">
@@ -148,7 +148,7 @@ export default function AssistantScreen() {
                   onPress={() => handleSend(String(c.number))}
                   className="min-h-[36px] rounded-full bg-white px-3.5 py-2 dark:bg-canvasdark-card"
                 >
-                  <Text className="font-sans-medium text-[12px] text-[#128C7E] dark:text-success-500">
+                  <Text className="font-sans-medium text-[12px] text-ink dark:text-brand-300">
                     {c.number}. {c.label}
                   </Text>
                 </Pressable>
@@ -175,7 +175,7 @@ export default function AssistantScreen() {
           accessibilityRole="button"
           accessibilityLabel="Send message"
           onPress={() => handleSend()}
-          className="h-11 w-11 items-center justify-center rounded-full bg-[#128C7E]"
+          className="h-11 w-11 items-center justify-center rounded-full bg-ink dark:bg-brand-400"
         >
           <Send size={18} color="#FFFFFF" />
         </Pressable>

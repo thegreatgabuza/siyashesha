@@ -13,10 +13,12 @@ import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { useToast } from '@/components/ui/Toast';
 import { recordCategories, type MedicalRecord, type RecordCategory } from '@/data/records';
 import { useAppStore } from '@/store/useAppStore';
+import { useAccent } from '@/hooks/useAccent';
 
 type Method = 'upload' | 'scan' | 'manual';
 
 export default function UploadRecordScreen() {
+  const { accent } = useAccent();
   const toast = useToast();
   const addRecord = useAppStore((s) => s.addRecord);
 
@@ -27,6 +29,7 @@ export default function UploadRecordScreen() {
   const [eventDate, setEventDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [facility, setFacility] = useState('');
   const [doctor, setDoctor] = useState('');
+  const [diagnosis, setDiagnosis] = useState('');
   const [notes, setNotes] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
 
@@ -61,6 +64,7 @@ export default function UploadRecordScreen() {
       title: title.trim(),
       facility: facility.trim() || 'Not recorded',
       doctor: doctor.trim() || undefined,
+      diagnosis: diagnosis.trim() || undefined,
       eventDate,
       uploadedAt: dayjs().format('YYYY-MM-DD'),
       sourceType: method === 'upload' ? 'Upload' : method === 'scan' ? 'Scan' : 'Manual',
@@ -68,7 +72,12 @@ export default function UploadRecordScreen() {
       status: method === 'manual' ? 'Patient confirmed' : 'Extracted from document',
       clinicalNotes: notes.trim() || 'No additional notes recorded.',
     };
-    addRecord(record);
+    try {
+      addRecord(record);
+    } catch {
+      toast.show('Could not save the record. Please try again.', 'warning');
+      return;
+    }
     toast.show('Record added to your vault', 'success');
     router.back();
   };
@@ -91,14 +100,14 @@ export default function UploadRecordScreen() {
             accessibilityRole="button"
             accessibilityLabel={method === 'upload' ? 'Choose a file' : 'Open camera'}
             onPress={method === 'upload' ? pickFile : captureScan}
-            className="mb-5 min-h-[96px] items-center justify-center gap-2 rounded-3xl border border-dashed border-lavender-300 bg-lavender-50 p-6 dark:border-brand-500/40 dark:bg-brand-500/10"
+            className="mb-5 min-h-[96px] items-center justify-center gap-2 rounded-3xl border border-dashed border-brand-300 bg-brand-50 p-6 dark:border-brand-500/40 dark:bg-brand-500/10"
           >
             {method === 'upload' ? (
-              <FileUp size={24} color="#6D5BD0" />
+              <FileUp size={24} color={accent} />
             ) : (
-              <Camera size={24} color="#6D5BD0" />
+              <Camera size={24} color={accent} />
             )}
-            <Text className="font-sans-medium text-[13px] text-brand-600 dark:text-brand-400">
+            <Text className="font-sans-medium text-[13px] text-brand-600 dark:text-brand-300">
               {fileName ?? (method === 'upload' ? 'Choose a PDF or image' : 'Open camera to scan')}
             </Text>
           </Pressable>
@@ -119,9 +128,9 @@ export default function UploadRecordScreen() {
           accessibilityRole="button"
           accessibilityLabel={`Event date ${eventDate}`}
           onPress={() => setShowDatePicker(true)}
-          className="mb-4 min-h-[44px] flex-row items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 dark:border-canvasdark-card dark:bg-canvasdark-card"
+          className="mb-4 min-h-[44px] flex-row items-center gap-2 rounded-3xl border border-slate-200 bg-white px-4 py-3 dark:border-canvasdark-card dark:bg-canvasdark-card"
         >
-          <CalendarIcon size={16} color="#5B6B8A" />
+          <CalendarIcon size={16} color="#5B6478" />
           <Text className="font-sans text-[14px] text-ink dark:text-slate-50">
             {dayjs(eventDate).format('D MMMM YYYY')}
           </Text>
@@ -144,6 +153,9 @@ export default function UploadRecordScreen() {
         <Label text="Doctor (optional)" />
         <Input value={doctor} onChangeText={setDoctor} placeholder="e.g. Dr N. Mokoena" />
 
+        <Label text="Diagnosis or reason for visit (optional)" />
+        <Input value={diagnosis} onChangeText={setDiagnosis} placeholder="e.g. Type 2 diabetes review" />
+
         <Label text="Clinical notes" />
         <TextInput
           value={notes}
@@ -153,7 +165,7 @@ export default function UploadRecordScreen() {
           multiline
           textAlignVertical="top"
           style={{ minHeight: 100 }}
-          className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 font-sans text-[14px] text-ink dark:border-canvasdark-card dark:bg-canvasdark-card dark:text-slate-50"
+          className="mb-6 rounded-3xl border border-slate-200 bg-white p-4 font-sans text-[14px] text-ink dark:border-canvasdark-card dark:bg-canvasdark-card dark:text-slate-50"
         />
 
         <PrimaryButton label="Save record" onPress={handleSave} />
@@ -173,7 +185,7 @@ function Input(props: React.ComponentProps<typeof TextInput>) {
     <TextInput
       {...props}
       placeholderTextColor="#8C98B8"
-      className="mb-4 min-h-[44px] rounded-2xl border border-slate-200 bg-white px-4 font-sans text-[14px] text-ink dark:border-canvasdark-card dark:bg-canvasdark-card dark:text-slate-50"
+      className="mb-4 min-h-[44px] rounded-3xl border border-slate-200 bg-white px-4 font-sans text-[14px] text-ink dark:border-canvasdark-card dark:bg-canvasdark-card dark:text-slate-50"
     />
   );
 }
@@ -195,10 +207,10 @@ function MethodChip({
       accessibilityLabel={label}
       onPress={onPress}
       className={`min-h-[44px] flex-1 flex-row items-center justify-center gap-1.5 rounded-2xl px-2 py-3 ${
-        active ? 'bg-ink dark:bg-brand-500' : 'bg-white dark:bg-canvasdark-card'
+        active ? 'bg-ink dark:bg-brand-400' : 'bg-white dark:bg-canvasdark-card'
       }`}
     >
-      {isValidElement(icon) ? cloneElement(icon as React.ReactElement<any>, { color: active ? '#FFFFFF' : '#5B6B8A' }) : icon}
+      {isValidElement(icon) ? cloneElement(icon as React.ReactElement<any>, { color: active ? '#FFFFFF' : '#5B6478' }) : icon}
       <Text className={`font-sans-medium text-[11px] ${active ? 'text-white' : 'text-ink-muted dark:text-slate-400'}`}>
         {label}
       </Text>

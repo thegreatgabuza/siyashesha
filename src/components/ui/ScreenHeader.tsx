@@ -26,7 +26,7 @@ export function ScreenHeader({
         accessibilityLabel="Go back"
         onPress={onBack ?? (() => router.back())}
       >
-        <ChevronLeft size={22} color="#0B1E40" />
+        <ChevronLeft size={22} color="#0B2559" />
       </IconButton>
       <View className="flex-1">
         <Text className="font-sans-bold text-[18px] text-ink dark:text-slate-50" numberOfLines={1}>

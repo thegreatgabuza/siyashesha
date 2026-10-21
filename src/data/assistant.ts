@@ -14,7 +14,7 @@ export const assistantGreeting =
   "Hi Jessica, I'm the Siyashesha Assistant. I can help with your records, medications, sharing and your emergency profile. Reply with a number below or ask me a question.";
 
 export const assistantEncryptionNotice =
-  'Messages in this chat are end-to-end encrypted and stay within your Siyashesha account.';
+  'This demo assistant answers from sample data on this phone. Nothing you type is sent anywhere.';
 
 export const quickCommands: QuickCommand[] = [
   {

@@ -4,11 +4,12 @@ import { Flame } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { ScrollView, Switch, Text, View } from 'react-native';
 
-import { AdherenceRing } from '@/components/AdherenceRing';
 import { Pill } from '@/components/ui/Pill';
 import { Screen } from '@/components/ui/Screen';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
+import { heroShadow } from '@/components/ui/HeroAction';
 import { activeMedications, pastMedications } from '@/data/medications';
+import { syncMedicationReminders } from '@/lib/reminders';
 import { computeAdherence } from '@/lib/adherence';
 import { useAppStore } from '@/store/useAppStore';
 
@@ -19,22 +20,37 @@ export default function MedicationsScreen() {
   const setReminderEnabled = useAppStore((s) => s.setMedicationReminderEnabled);
 
   const adherence = useMemo(() => computeAdherence(takenLog, 7), [takenLog]);
+  const userMedications = useAppStore((s) => s.userMedications);
+  const remindersOn = activeMedications.filter((m) => reminderEnabled[m.id] ?? true).length;
 
   return (
     <Screen bottomInset={120}>
       <ScreenHeader title="Medications" onBack={() => router.back()} />
       <ScrollView className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 24 }}>
-        <View className="mb-5 flex-row items-center gap-4 rounded-3xl border border-slate-200 bg-white p-4 dark:border-canvasdark-card dark:bg-canvasdark-card">
-          <AdherenceRing percent={adherence.percent} />
-          <View className="flex-1">
-            <Text className="font-sans-semibold text-[14px] text-ink dark:text-slate-50">
-              7-day adherence
-            </Text>
-            <View className="mt-1 flex-row items-center gap-1.5">
-              <Flame size={14} color="#DC2626" />
-              <Text className="font-sans text-[12px] text-ink-muted dark:text-slate-400">
-                {adherence.streak}-day streak of taking every dose
-              </Text>
+        <View className="mb-5 rounded-[32px] bg-ink p-5 dark:bg-canvasdark-card" style={heroShadow}>
+          <View className="flex-row items-center justify-between">
+            <Text className="font-sans-semibold text-[13px] text-white/70">Adherence · last 7 days</Text>
+            <View className="flex-row items-center gap-1.5 rounded-full bg-white/15 px-3 py-1">
+              <Flame size={12} color="#FFFFFF" />
+              <Text className="font-sans-semibold text-[11px] text-white">{adherence.streak}-day streak</Text>
+            </View>
+          </View>
+          <View className="items-center py-5">
+            <Text className="font-sans-bold text-[44px] leading-[48px] text-white">{adherence.percent}%</Text>
+            <Text className="mt-1 font-sans text-[13px] text-white/60">of scheduled doses taken</Text>
+          </View>
+          <View className="flex-row rounded-2xl bg-white/10 px-4 py-3">
+            <View className="flex-1">
+              <Text className="font-sans text-[11px] text-white/60">Active</Text>
+              <Text className="font-sans-bold text-[16px] text-white">{activeMedications.length}</Text>
+            </View>
+            <View className="flex-1">
+              <Text className="font-sans text-[11px] text-white/60">Past</Text>
+              <Text className="font-sans-bold text-[16px] text-white">{pastMedications.length}</Text>
+            </View>
+            <View className="flex-1">
+              <Text className="font-sans text-[11px] text-white/60">Reminders on</Text>
+              <Text className="font-sans-bold text-[16px] text-white">{remindersOn}</Text>
             </View>
           </View>
         </View>
@@ -46,6 +62,14 @@ export default function MedicationsScreen() {
 
         {tab === 'active' ? (
           <View className="gap-3">
+            {userMedications.map((med) => (
+              <View key={med.id} className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-canvasdark-card dark:bg-canvasdark-card">
+                <Text className="font-sans-bold text-[16px] text-ink dark:text-slate-50">
+                  {med.name} {med.dose}
+                </Text>
+                <Text className="mt-0.5 font-sans text-[12px] text-ink-muted dark:text-slate-400">{med.time} · added by you</Text>
+              </View>
+            ))}
             {activeMedications.map((med) => (
               <View
                 key={med.id}
@@ -62,8 +86,11 @@ export default function MedicationsScreen() {
                   </View>
                   <Switch
                     value={reminderEnabled[med.id] ?? true}
-                    onValueChange={(v) => setReminderEnabled(med.id, v)}
-                    trackColor={{ true: '#0D9488', false: '#E3E8F0' }}
+                    onValueChange={(v) => {
+                      setReminderEnabled(med.id, v);
+                      syncMedicationReminders();
+                    }}
+                    trackColor={{ true: '#16A34A', false: '#E3E8F0' }}
                     accessibilityLabel={`Reminders for ${med.name}`}
                   />
                 </View>

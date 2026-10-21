@@ -8,7 +8,6 @@ import {
   FileText,
   Image as ImageIcon,
   Link2,
-  Mic,
   X,
 } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
@@ -30,8 +29,10 @@ import { useToast } from '@/components/ui/Toast';
 import { appointments } from '@/data/appointments';
 import { diaryCategories, type DiaryAttachment, type DiaryCategory } from '@/data/diarySeed';
 import { useAppStore } from '@/store/useAppStore';
+import { useAccent } from '@/hooks/useAccent';
 
 export default function DiaryEditorScreen() {
+  const { accent } = useAccent();
   const params = useLocalSearchParams<{
     id?: string;
     linkedAppointmentId?: string;
@@ -169,7 +170,7 @@ export default function DiaryEditorScreen() {
           onPress={() => setShowDatePicker(true)}
           className="mb-4 flex-row items-center gap-2 self-start rounded-full bg-slate-100 px-3 py-1.5 dark:bg-canvasdark-card"
         >
-          <CalendarIcon size={14} color="#5B6B8A" />
+          <CalendarIcon size={14} color="#5B6478" />
           <Text className="font-sans-medium text-[12px] text-ink-soft dark:text-slate-200">
             {dayjs(entryDate).format('D MMMM YYYY')}
           </Text>
@@ -189,14 +190,6 @@ export default function DiaryEditorScreen() {
           <Text className="font-sans-semibold text-[13px] text-ink-muted dark:text-slate-400">
             Your note
           </Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Dictate this note"
-            onPress={() => bodyRef.current?.focus()}
-            className="h-9 w-9 items-center justify-center rounded-full bg-lavender-100 dark:bg-brand-500/20"
-          >
-            <Mic size={16} color="#6D5BD0" />
-          </Pressable>
         </View>
         <TextInput
           ref={bodyRef}
@@ -207,7 +200,7 @@ export default function DiaryEditorScreen() {
           multiline
           textAlignVertical="top"
           style={{ minHeight: 140 }}
-          className="mb-1.5 rounded-2xl border border-slate-200 bg-white p-4 font-sans text-[15px] leading-[22px] text-ink dark:border-canvasdark-card dark:bg-canvasdark-card dark:text-slate-50"
+          className="mb-1.5 rounded-3xl border border-slate-200 bg-white p-4 font-sans text-[15px] leading-[22px] text-ink dark:border-canvasdark-card dark:bg-canvasdark-card dark:text-slate-50"
           accessibilityLabel="Note text"
         />
         <Text className="mb-5 font-sans text-[11px] text-ink-muted dark:text-slate-500">
@@ -232,8 +225,8 @@ export default function DiaryEditorScreen() {
           Attachments
         </Text>
         <View className="mb-2 flex-row gap-2">
-          <AttachButton label="Add photo" icon={<ImageIcon size={16} color="#6D5BD0" />} onPress={addPhoto} />
-          <AttachButton label="Add document" icon={<FileText size={16} color="#6D5BD0" />} onPress={addDocument} />
+          <AttachButton label="Add photo" icon={<ImageIcon size={16} color={accent} />} onPress={addPhoto} />
+          <AttachButton label="Add document" icon={<FileText size={16} color={accent} />} onPress={addDocument} />
         </View>
         {attachments.length > 0 ? (
           <View className="mb-5 gap-2">
@@ -243,9 +236,9 @@ export default function DiaryEditorScreen() {
                 className="flex-row items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 dark:border-canvasdark-card dark:bg-canvasdark-card"
               >
                 {att.kind === 'photo' ? (
-                  <ImageIcon size={14} color="#5B6B8A" />
+                  <ImageIcon size={14} color="#5B6478" />
                 ) : (
-                  <FileText size={14} color="#5B6B8A" />
+                  <FileText size={14} color="#5B6478" />
                 )}
                 <Text className="flex-1 font-sans text-[12px] text-ink-soft dark:text-slate-200" numberOfLines={1}>
                   {att.name}
@@ -255,7 +248,7 @@ export default function DiaryEditorScreen() {
                   accessibilityLabel={`Remove attachment ${att.name}`}
                   onPress={() => setAttachments((a) => a.filter((x) => x.id !== att.id))}
                 >
-                  <X size={14} color="#5B6B8A" />
+                  <X size={14} color="#5B6478" />
                 </Pressable>
               </View>
             ))}
@@ -264,14 +257,14 @@ export default function DiaryEditorScreen() {
           <View className="mb-5" />
         )}
 
-        <View className="mb-5 flex-row items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3.5 dark:border-canvasdark-card dark:bg-canvasdark-card">
+        <View className="mb-5 flex-row items-center justify-between rounded-3xl border border-slate-200 bg-white px-4 py-3.5 dark:border-canvasdark-card dark:bg-canvasdark-card">
           <View className="flex-1 pr-3">
             <Text className="font-sans-semibold text-[14px] text-ink dark:text-slate-50">
               Remind me about this note
             </Text>
             {reminderEnabled ? (
               <Pressable accessibilityRole="button" onPress={() => setShowTimePicker(true)}>
-                <Text className="font-sans text-[12px] text-brand-500">
+                <Text className="font-sans text-[12px] text-brand-500 dark:text-brand-300">
                   {reminderAt ? dayjs(reminderAt).format('D MMM, h:mm A') : 'Set a time'}
                 </Text>
               </Pressable>
@@ -285,7 +278,7 @@ export default function DiaryEditorScreen() {
                 setReminderAt(dayjs(entryDate).hour(9).minute(0).toISOString());
               }
             }}
-            trackColor={{ true: '#6D5BD0', false: '#E3E8F0' }}
+            trackColor={{ true: accent, false: '#E3E8F0' }}
           />
         </View>
         {showTimePicker ? (
@@ -303,8 +296,8 @@ export default function DiaryEditorScreen() {
           Link to an appointment (optional)
         </Text>
         {linkedAppointment ? (
-          <View className="mb-5 flex-row items-center gap-2 rounded-2xl border border-lavender-200 bg-lavender-50 px-4 py-3 dark:border-brand-500/30 dark:bg-brand-500/10">
-            <Link2 size={16} color="#6D5BD0" />
+          <View className="mb-5 flex-row items-center gap-2 rounded-3xl border border-brand-200 bg-brand-50 px-4 py-3 dark:border-brand-500/30 dark:bg-brand-500/10">
+            <Link2 size={16} color={accent} />
             <Text className="flex-1 font-sans-medium text-[13px] text-ink dark:text-slate-100" numberOfLines={1}>
               {linkedAppointment.title}
             </Text>
@@ -313,7 +306,7 @@ export default function DiaryEditorScreen() {
               accessibilityLabel="Remove appointment link"
               onPress={() => setLinkedAppointmentId(undefined)}
             >
-              <X size={16} color="#6D5BD0" />
+              <X size={16} color={accent} />
             </Pressable>
           </View>
         ) : (
@@ -321,9 +314,9 @@ export default function DiaryEditorScreen() {
             accessibilityRole="button"
             accessibilityLabel="Link to an appointment"
             onPress={() => setPickingAppointment((v) => !v)}
-            className="mb-3 min-h-[44px] flex-row items-center gap-2 rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-3 dark:border-canvasdark-card dark:bg-canvasdark-card"
+            className="mb-3 min-h-[44px] flex-row items-center gap-2 rounded-3xl border border-dashed border-slate-300 bg-white px-4 py-3 dark:border-canvasdark-card dark:bg-canvasdark-card"
           >
-            <Link2 size={16} color="#5B6B8A" />
+            <Link2 size={16} color="#5B6478" />
             <Text className="font-sans-medium text-[13px] text-ink-muted dark:text-slate-400">
               Link this note to an appointment
             </Text>
@@ -364,7 +357,7 @@ function PrimaryButtonSmall({ label, onPress }: { label: string; onPress: () => 
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
-      className="min-h-[36px] rounded-full bg-ink px-4 py-1.5 dark:bg-brand-500"
+      className="min-h-[36px] rounded-full bg-ink px-4 py-1.5 dark:bg-brand-400"
     >
       <Text className="font-sans-semibold text-[13px] text-white">{label}</Text>
     </Pressable>
@@ -385,7 +378,7 @@ function AttachButton({
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
-      className="min-h-[44px] flex-1 flex-row items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white py-3 dark:border-canvasdark-card dark:bg-canvasdark-card"
+      className="min-h-[44px] flex-1 flex-row items-center justify-center gap-2 rounded-3xl border border-slate-200 bg-white py-3 dark:border-canvasdark-card dark:bg-canvasdark-card"
     >
       {icon}
       <Text className="font-sans-medium text-[13px] text-ink dark:text-slate-50">{label}</Text>

@@ -31,7 +31,14 @@
         }
       ],
       "expo-font",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-sharing",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow Siyashesha to use Face ID to lock your health passport."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

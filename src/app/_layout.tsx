@@ -4,7 +4,7 @@ import {
   Inter_600SemiBold,
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
-import { InstrumentSerif_400Regular } from '@expo-google-fonts/instrument-serif';
+import { BebasNeue_400Regular } from '@expo-google-fonts/bebas-neue';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -21,6 +21,7 @@ SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const isSignedIn = useAppStore((s) => s.isSignedIn);
+  const hasCompletedOnboarding = useAppStore((s) => s.hasCompletedOnboarding);
   useSyncColorScheme();
 
   const [fontsLoaded] = useFonts({
@@ -28,7 +29,7 @@ export default function RootLayout() {
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
-    InstrumentSerif_400Regular,
+    BebasNeue_400Regular,
   });
 
   useEffect(() => {
@@ -44,6 +45,9 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <ToastProvider>
           <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Protected guard={!hasCompletedOnboarding}>
+              <Stack.Screen name="(onboarding)" />
+            </Stack.Protected>
             <Stack.Protected guard={isSignedIn}>
               <Stack.Screen name="(tabs)" />
             </Stack.Protected>

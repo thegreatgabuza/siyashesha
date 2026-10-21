@@ -19,7 +19,7 @@ export function SectionHeader({
           onPress={onActionPress}
           className="min-h-[36px] justify-center"
         >
-          <Text className="font-sans-semibold text-[13px] text-brand-500">{action}</Text>
+          <Text className="font-sans-semibold text-[13px] text-brand-500 dark:text-brand-300">{action}</Text>
         </Pressable>
       ) : null}
     </View>

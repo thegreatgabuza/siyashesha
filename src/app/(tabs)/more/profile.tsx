@@ -4,6 +4,8 @@ import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } fro
 
 import { Avatar } from '@/components/ui/Avatar';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { SectionHeader } from '@/components/ui/SectionHeader';
+import { heroShadow } from '@/components/ui/HeroAction';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { useToast } from '@/components/ui/Toast';
 import { useAppStore } from '@/store/useAppStore';
@@ -37,14 +39,32 @@ export default function ProfileScreen() {
     >
       <ScreenHeader title="Profile" onBack={() => router.back()} />
       <ScrollView className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 48 }}>
-        <View className="mb-5 items-center gap-2">
-          <Avatar name={profile.preferredName} size={72} />
-          <Text className="font-serif text-[20px] text-ink dark:text-slate-50">
-            {profile.firstName} {profile.lastName}
-          </Text>
-          <Text className="font-sans text-[12px] text-ink-muted dark:text-slate-400">
-            Member since {new Date(profile.memberSince).toLocaleDateString('en-ZA', { month: 'long', year: 'numeric' })}
-          </Text>
+        <View className="mt-2 rounded-[32px] bg-ink p-5 dark:bg-canvasdark-card" style={heroShadow}>
+          <View className="flex-row items-center gap-4">
+            <Avatar name={profile.preferredName} size={64} />
+            <View className="flex-1">
+              <Text className="font-sans-bold text-[20px] text-white" numberOfLines={1}>
+                {profile.firstName} {profile.lastName}
+              </Text>
+              <Text className="font-sans text-[12px] text-white/60">
+                Member since {new Date(profile.memberSince).toLocaleDateString('en-ZA', { month: 'long', year: 'numeric' })}
+              </Text>
+            </View>
+          </View>
+          <View className="mt-4 flex-row rounded-2xl bg-white/10 px-4 py-3">
+            <View className="flex-1">
+              <Text className="font-sans text-[11px] text-white/60">Blood group</Text>
+              <Text className="font-sans-bold text-[16px] text-white">{profile.bloodGroup}</Text>
+            </View>
+            <View className="flex-1">
+              <Text className="font-sans text-[11px] text-white/60">Province</Text>
+              <Text className="font-sans-bold text-[16px] text-white" numberOfLines={1}>{profile.province}</Text>
+            </View>
+            <View className="flex-1">
+              <Text className="font-sans text-[11px] text-white/60">Contact</Text>
+              <Text className="font-sans-bold text-[16px] text-white">{profile.emergencyContact.name.split(' ')[0]}</Text>
+            </View>
+          </View>
         </View>
 
         <SectionLabel text="Demographics" />
@@ -85,9 +105,9 @@ export default function ProfileScreen() {
 
 function SectionLabel({ text }: { text: string }) {
   return (
-    <Text className="mb-2 mt-5 font-sans-semibold text-[12px] uppercase tracking-wide text-ink-muted dark:text-slate-400">
-      {text}
-    </Text>
+    <View className="pt-6">
+      <SectionHeader title={text} />
+    </View>
   );
 }
 

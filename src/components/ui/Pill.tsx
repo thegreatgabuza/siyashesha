@@ -15,7 +15,7 @@ export function Pill({
   const bg = selected
     ? tone === 'emergency'
       ? 'bg-emergency-500'
-      : 'bg-ink dark:bg-brand-500'
+      : 'bg-ink dark:bg-brand-400'
     : 'bg-slate-100 dark:bg-canvasdark-card';
   const textClass = selected
     ? 'font-sans-semibold text-[13px] text-white'

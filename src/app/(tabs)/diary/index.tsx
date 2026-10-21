@@ -2,26 +2,30 @@ import dayjs from 'dayjs';
 import { router } from 'expo-router';
 import {
   BookHeart,
-  Mic,
   Paperclip,
   Pin,
   Plus,
   Search,
   Trash2,
 } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { BrandLockup } from '@/components/ui/BrandLockup';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { HeroAction, heroShadow } from '@/components/ui/HeroAction';
 import { Pill } from '@/components/ui/Pill';
 import { Screen } from '@/components/ui/Screen';
+import { SectionHeader } from '@/components/ui/SectionHeader';
 import { useToast } from '@/components/ui/Toast';
 import { diaryCategories, type DiaryCategory, type DiaryNote } from '@/data/diarySeed';
 import { useAppStore } from '@/store/useAppStore';
+import { useAccent } from '@/hooks/useAccent';
 
 export default function DiaryScreen() {
+  const { accent, accentSoft } = useAccent();
   const insets = useSafeAreaInsets();
   const toast = useToast();
   const notes = useAppStore((s) => s.diaryNotes);
@@ -30,9 +34,21 @@ export default function DiaryScreen() {
   const restoreDiaryNote = useAppStore((s) => s.restoreDiaryNote);
   const togglePin = useAppStore((s) => s.toggleDiaryPin);
 
+  const searchInput = useRef<TextInput>(null);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<DiaryCategory | 'All'>('All');
   const [lastDeleted, setLastDeleted] = useState<{ note: DiaryNote; index: number } | null>(null);
+
+  // Summary figures come from every note, not the filtered list.
+  const summary = useMemo(() => {
+    const pinnedCount = notes.filter((n) => n.pinned).length;
+    const attachmentCount = notes.reduce((total, n) => total + n.attachments.length, 0);
+    const latest = notes.reduce<string | null>((latestDate, n) => {
+      if (!n.entryDate || !dayjs(n.entryDate).isValid()) return latestDate;
+      return latestDate === null || n.entryDate > latestDate ? n.entryDate : latestDate;
+    }, null);
+    return { pinnedCount, attachmentCount, latest };
+  }, [notes]);
 
   const filtered = useMemo(() => {
     return notes
@@ -65,110 +81,167 @@ export default function DiaryScreen() {
 
   return (
     <Screen contentClassName="px-5" bottomInset={160}>
-      <View className="pb-2 pt-4">
-        <Text className="font-serif text-[26px] text-ink dark:text-slate-50">My Diary</Text>
-        <Text className="mt-1 font-sans text-[13px] leading-[19px] text-ink-muted dark:text-slate-400">
-          Write down your thoughts, questions or anything you want to remember about your health.
-        </Text>
+      <View className="pb-1 pt-4">
+        <BrandLockup />
       </View>
 
-      <View className="mb-3 flex-row items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-1 dark:border-canvasdark-card dark:bg-canvasdark-card">
-        <Search size={16} color="#5B6B8A" />
-        <TextInput
-          value={search}
-          onChangeText={setSearch}
-          placeholder="Search your notes"
-          placeholderTextColor="#8C98B8"
-          className="min-h-[44px] flex-1 font-sans text-[14px] text-ink dark:text-slate-50"
-          accessibilityLabel="Search diary notes"
-        />
+      <View className="pb-4 pt-5">
+        <Text className="font-sans text-[14px] text-ink-muted dark:text-slate-400">Write down your thoughts, questions or anything you want to remember about your health.</Text>
+        <Text className="font-sans-bold text-[32px] leading-[36px] text-ink dark:text-slate-50">My Diary</Text>
       </View>
 
-      <View className="mb-4 flex-row gap-2">
-        <Pill label="All" selected={category === 'All'} onPress={() => setCategory('All')} />
-        {diaryCategories.map((c) => (
-          <Pill key={c} label={c} selected={category === c} onPress={() => setCategory(c)} />
-        ))}
-      </View>
-
-      {draft ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Continue your draft note"
-          onPress={() => router.push('/diary/new')}
-          className="mb-4 flex-row items-center gap-3 rounded-2xl border border-lavender-200 bg-lavender-50 px-4 py-3 dark:border-brand-500/30 dark:bg-brand-500/10"
-        >
-          <Mic size={18} color="#6D5BD0" />
-          <Text className="flex-1 font-sans-medium text-[13px] text-ink dark:text-slate-100">
-            Continue your unfinished note — {draft.title || 'Untitled note'}
-          </Text>
-        </Pressable>
-      ) : null}
-
-      {filtered.length === 0 ? (
-        <EmptyState
-          icon={<BookHeart size={32} color="#C3B6F0" />}
-          title="No notes yet"
-          subtitle="Add your first note to start your diary."
-        />
-      ) : (
-        <View className="gap-3">
-          {pinned.length > 0 ? (
-            <View className="gap-2.5">
-              <Text className="font-sans-semibold text-[12px] uppercase tracking-wide text-ink-muted dark:text-slate-400">
-                Pinned
-              </Text>
-              {pinned.map((note, i) => (
-                <DiaryRow
-                  key={note.id}
-                  note={note}
-                  onDelete={() => handleDelete(note, i)}
-                  onTogglePin={() => togglePin(note.id)}
-                />
-              ))}
-            </View>
-          ) : null}
-          <View className="gap-2.5">
-            {pinned.length > 0 ? (
-              <Text className="font-sans-semibold text-[12px] uppercase tracking-wide text-ink-muted dark:text-slate-400">
-                All notes
-              </Text>
-            ) : null}
-            {rest.map((note, i) => (
-              <DiaryRow
-                key={note.id}
-                note={note}
-                onDelete={() => handleDelete(note, i)}
-                onTogglePin={() => togglePin(note.id)}
-              />
-            ))}
+      {/* Summary card */}
+      <View className="rounded-[32px] bg-ink p-5 dark:bg-canvasdark-card" style={heroShadow}>
+        <View className="flex-row items-center justify-between">
+          <Text className="font-sans-semibold text-[13px] text-white/70">Notes in your diary</Text>
+          <View className="rounded-full bg-white/15 px-3 py-1">
+            <Text className="font-sans-semibold text-[11px] text-white">{summary.pinnedCount} pinned</Text>
           </View>
         </View>
-      )}
+
+        <View className="items-center py-6">
+          <Text className="font-sans-bold text-[44px] leading-[48px] text-white">{notes.length}</Text>
+          <Text className="mt-1 font-sans text-[13px] text-white/60">
+            {summary.latest ? `Last entry ${dayjs(summary.latest).format('D MMM YYYY')}` : 'No entries yet'}
+          </Text>
+        </View>
+
+        <View className="flex-row items-center gap-2">
+          <HeroAction label="Add a note" icon={<Plus size={16} color="#FFFFFF" />} onPress={() => router.push('/diary/new')} />
+          <HeroAction
+            label="Search"
+            icon={<Search size={16} color="#FFFFFF" />}
+            onPress={() => searchInput.current?.focus()}
+          />
+        </View>
+      </View>
+
+      {/* Stat row */}
+      <View className="mt-4 flex-row gap-3">
+        <View className="flex-1 rounded-3xl border border-slate-200 bg-white p-4 dark:border-canvasdark-card dark:bg-canvasdark-card">
+          <Text className="font-sans-medium text-[12px] text-ink-muted dark:text-slate-400">Pinned</Text>
+          <Text className="mt-2 font-sans-bold text-[30px] text-ink dark:text-slate-50">{summary.pinnedCount}</Text>
+          <Text className="mt-0.5 font-sans text-[11px] text-ink-muted dark:text-slate-500">kept at the top</Text>
+        </View>
+        <View className="flex-1 rounded-3xl border border-slate-200 bg-white p-4 dark:border-canvasdark-card dark:bg-canvasdark-card">
+          <Text className="font-sans-medium text-[12px] text-ink-muted dark:text-slate-400">Attachments</Text>
+          <Text className="mt-2 font-sans-bold text-[30px] text-ink dark:text-slate-50">{summary.attachmentCount}</Text>
+          <Text className="mt-0.5 font-sans text-[11px] text-ink-muted dark:text-slate-500">files on your notes</Text>
+        </View>
+      </View>
+
+      <View className="pt-7">
+        <SectionHeader title="Your notes" />
+
+        <View className="mb-3 flex-row items-center gap-2 rounded-full border border-slate-200 bg-white px-4 dark:border-canvasdark-card dark:bg-canvasdark-card">
+          <Search size={16} color="#5B6478" />
+          <TextInput
+            ref={searchInput}
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search your notes"
+            placeholderTextColor="#8C98B8"
+            className="min-h-[44px] flex-1 font-sans text-[14px] text-ink dark:text-slate-50"
+            accessibilityLabel="Search diary notes"
+          />
+        </View>
+
+        <View className="mb-4 flex-row flex-wrap gap-2">
+          <Pill label="All" selected={category === 'All'} onPress={() => setCategory('All')} />
+          {diaryCategories.map((c) => (
+            <Pill key={c} label={c} selected={category === c} onPress={() => setCategory(c)} />
+          ))}
+        </View>
+
+        {draft ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Continue your draft note"
+            onPress={() => router.push('/diary/new')}
+            className="mb-4 flex-row items-center gap-3 rounded-2xl border border-brand-200 bg-brand-50 px-4 py-3 dark:border-brand-500/30 dark:bg-brand-500/10"
+          >
+            <BookHeart size={18} color={accent} />
+            <Text className="flex-1 font-sans-medium text-[13px] text-ink dark:text-slate-100">
+              Continue your unfinished note — {draft.title || 'Untitled note'}
+            </Text>
+          </Pressable>
+        ) : null}
+
+        {filtered.length === 0 ? (
+          <EmptyState
+            icon={<BookHeart size={32} color={accentSoft} />}
+            title={search.trim() ? `No notes match "${search.trim()}"` : 'No notes yet'}
+            subtitle={search.trim() ? 'Try a different word or clear the search.' : 'Add your first note to start your diary.'}
+            action={
+              search.trim() ? (
+                <ActionButton label="Clear search" onPress={() => setSearch('')} />
+              ) : (
+                <ActionButton label="Add a note" onPress={() => router.push('/diary/new')} />
+              )
+            }
+          />
+        ) : (
+          <View className="gap-4">
+            {pinned.length > 0 ? (
+              <View>
+                <SectionHeader title="Pinned" />
+                <View className="gap-2.5">
+                  {pinned.map((note, i) => (
+                    <DiaryRow
+                      key={note.id}
+                      note={note}
+                      onDelete={() => handleDelete(note, i)}
+                      onTogglePin={() => togglePin(note.id)}
+                    />
+                  ))}
+                </View>
+              </View>
+            ) : null}
+            {rest.length > 0 ? (
+              <View>
+                {pinned.length > 0 ? <SectionHeader title="All notes" /> : null}
+                <View className="gap-2.5">
+                  {rest.map((note, i) => (
+                    <DiaryRow
+                      key={note.id}
+                      note={note}
+                      onDelete={() => handleDelete(note, i)}
+                      onTogglePin={() => togglePin(note.id)}
+                    />
+                  ))}
+                </View>
+              </View>
+            ) : null}
+          </View>
+        )}
+      </View>
 
       {lastDeleted ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Undo delete"
           onPress={handleUndo}
-          className="absolute left-5 right-20 flex-row items-center justify-between rounded-2xl bg-ink px-4 py-3 dark:bg-canvasdark-card"
+          className="absolute left-5 right-5 flex-row items-center justify-between rounded-2xl bg-ink px-4 py-3 dark:bg-canvasdark-card"
           style={{ bottom: insets.bottom + 96 }}
         >
           <Text className="font-sans text-[13px] text-white">Note deleted</Text>
           <Text className="font-sans-semibold text-[13px] text-brand-400">Undo</Text>
         </Pressable>
       ) : null}
-
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Add a note"
-        onPress={() => router.push('/diary/new')}
-        className="absolute h-14 w-14 items-center justify-center rounded-full bg-ink shadow-lg dark:bg-brand-500"
-        style={{ right: 4, bottom: insets.bottom + 96 }}
-      >
-        <Plus size={24} color="#FFFFFF" />
-      </Pressable>
     </Screen>
+  );
+}
+
+function ActionButton({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      className="min-h-[44px] items-center justify-center rounded-full bg-ink px-5 dark:bg-brand-400"
+    >
+      <Text className="font-sans-semibold text-[13px] text-white">{label}</Text>
+    </Pressable>
   );
 }
 
@@ -181,6 +254,7 @@ function DiaryRow({
   onDelete: () => void;
   onTogglePin: () => void;
 }) {
+  const { accent, accentSoft } = useAccent();
   return (
     <Swipeable
       renderRightActions={() => (
@@ -188,7 +262,7 @@ function DiaryRow({
           accessibilityRole="button"
           accessibilityLabel={`Delete note ${note.title}`}
           onPress={onDelete}
-          className="ml-2 w-20 items-center justify-center rounded-2xl bg-emergency-500"
+          className="ml-2 w-20 items-center justify-center rounded-3xl bg-emergency-500"
         >
           <Trash2 size={20} color="#FFFFFF" />
         </Pressable>
@@ -198,14 +272,14 @@ function DiaryRow({
         accessibilityRole="button"
         accessibilityLabel={`Open note ${note.title}`}
         onPress={() => router.push(`/diary/${note.id}`)}
-        className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-canvasdark-card dark:bg-canvasdark-card"
+        className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-canvasdark-card dark:bg-canvasdark-card"
       >
         <View className="flex-row items-start justify-between gap-3">
           <View className="flex-1">
-            <View className="flex-row items-center gap-2">
+            <View className="flex-row flex-wrap items-center gap-2">
               {note.category ? (
-                <View className="rounded-full bg-lavender-100 px-2.5 py-0.5 dark:bg-brand-500/20">
-                  <Text className="font-sans-medium text-[10px] text-brand-600 dark:text-brand-400">
+                <View className="rounded-full bg-brand-100 px-2.5 py-0.5 dark:bg-brand-500/20">
+                  <Text className="font-sans-medium text-[10px] text-brand-600 dark:text-brand-300">
                     {note.category}
                   </Text>
                 </View>
@@ -214,7 +288,7 @@ function DiaryRow({
                 {dayjs(note.entryDate).format('D MMM YYYY')}
               </Text>
             </View>
-            <Text className="mt-1 font-sans-semibold text-[15px] text-ink dark:text-slate-50" numberOfLines={1}>
+            <Text className="mt-1.5 font-sans-semibold text-[15px] text-ink dark:text-slate-50" numberOfLines={1}>
               {note.title}
             </Text>
             <Text className="mt-0.5 font-sans text-[13px] text-ink-muted dark:text-slate-400" numberOfLines={2}>
@@ -222,7 +296,7 @@ function DiaryRow({
             </Text>
             {note.attachments.length > 0 ? (
               <View className="mt-2 flex-row items-center gap-1.5">
-                <Paperclip size={12} color="#5B6B8A" />
+                <Paperclip size={12} color="#5B6478" />
                 <Text className="font-sans text-[11px] text-ink-muted dark:text-slate-400">
                   {note.attachments.length} attachment{note.attachments.length > 1 ? 's' : ''}
                 </Text>
@@ -233,9 +307,10 @@ function DiaryRow({
             accessibilityRole="button"
             accessibilityLabel={note.pinned ? 'Unpin note' : 'Pin note'}
             onPress={onTogglePin}
-            className="h-9 w-9 items-center justify-center rounded-full"
+            hitSlop={8}
+            className="h-11 w-11 items-center justify-center rounded-full"
           >
-            <Pin size={18} color={note.pinned ? '#6D5BD0' : '#C3B6F0'} fill={note.pinned ? '#6D5BD0' : 'none'} />
+            <Pin size={18} color={note.pinned ? accent : accentSoft} fill={note.pinned ? accent : 'none'} />
           </Pressable>
         </View>
       </Pressable>

@@ -1,12 +1,14 @@
 import { Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
+import { useAccent } from '@/hooks/useAccent';
 
 export function AdherenceRing({ percent, size = 92 }: { percent: number; size?: number }) {
+  const { accentSoft } = useAccent();
   const strokeWidth = 9;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference * (1 - percent / 100);
-  const color = percent >= 80 ? '#0D9488' : percent >= 50 ? '#A58FE6' : '#DC2626';
+  const color = percent >= 80 ? '#16A34A' : percent >= 50 ? accentSoft : '#DC1F26';
 
   return (
     <View style={{ width: size, height: size }} className="items-center justify-center">

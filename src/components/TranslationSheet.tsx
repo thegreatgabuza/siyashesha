@@ -7,6 +7,7 @@ import { Pill } from '@/components/ui/Pill';
 import type { MedicalRecord } from '@/data/records';
 import { languageNames, type LanguageCode } from '@/i18n/translations';
 import { isFullyTranslated, translateRecordNotes, translationSafetyNotice } from '@/lib/translate';
+import { useAccent } from '@/hooks/useAccent';
 
 type ViewMode = 'side-by-side' | 'translated' | 'original';
 
@@ -23,6 +24,7 @@ export function TranslationSheet({
   record: MedicalRecord;
   defaultLanguage: LanguageCode;
 }) {
+  const { accent } = useAccent();
   const insets = useSafeAreaInsets();
   const [mode, setMode] = useState<ViewMode>('side-by-side');
   const [lang, setLang] = useState<LanguageCode>(
@@ -44,13 +46,13 @@ export function TranslationSheet({
               Translate document
             </Text>
             <Pressable accessibilityRole="button" accessibilityLabel="Close translation" onPress={onClose}>
-              <X size={22} color="#5B6B8A" />
+              <X size={22} color="#5B6478" />
             </Pressable>
           </View>
 
           <ScrollView className="px-5 pt-4" contentContainerStyle={{ paddingBottom: 12 }}>
-            <View className="mb-4 flex-row items-start gap-2 rounded-2xl bg-lavender-50 p-3.5 dark:bg-brand-500/10">
-              <ShieldCheck size={16} color="#6D5BD0" style={{ marginTop: 1 }} />
+            <View className="mb-4 flex-row items-start gap-2 rounded-2xl bg-brand-50 p-3.5 dark:bg-brand-500/10">
+              <ShieldCheck size={16} color={accent} style={{ marginTop: 1 }} />
               <Text className="flex-1 font-sans text-[12px] leading-[18px] text-ink-soft dark:text-slate-300">
                 {translationSafetyNotice}
               </Text>
@@ -58,7 +60,7 @@ export function TranslationSheet({
 
             <View className="mb-4 flex-row gap-2">
               <Pill label="Side-by-Side" selected={mode === 'side-by-side'} onPress={() => setMode('side-by-side')} />
-              <Pill label="Translated" selected={mode === 'translated'} onPress={() => setMode('translated')} />
+              <Pill label="Translation" selected={mode === 'translated'} onPress={() => setMode('translated')} />
               <Pill label="Original" selected={mode === 'original'} onPress={() => setMode('original')} />
             </View>
 
@@ -70,8 +72,7 @@ export function TranslationSheet({
 
             {!fullyTranslated ? (
               <Text className="mb-3 font-sans text-[11px] text-ink-muted dark:text-slate-500">
-                Full line-by-line translation is available in isiZulu and Afrikaans. {languageNames[lang]}{' '}
-                shows a safety-preserving summary while full translation is extended to more languages.
+                Full translations are available in isiZulu and Afrikaans only. Other languages are not translated yet.
               </Text>
             ) : null}
 
@@ -92,7 +93,7 @@ export function TranslationSheet({
                   {languageNames[lang]}
                 </Text>
                 <Text className="font-sans text-[14px] leading-[22px] text-ink dark:text-slate-100">
-                  {translated}
+                  {translated ?? `Not translated into ${languageNames[lang]} yet. Read the original above.`}
                 </Text>
               </View>
             ) : null}

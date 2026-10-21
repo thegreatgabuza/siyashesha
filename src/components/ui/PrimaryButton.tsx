@@ -4,7 +4,7 @@ import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 type Tone = 'ink' | 'emergency' | 'success' | 'white';
 
 const toneClasses: Record<Tone, { bg: string; text: string }> = {
-  ink: { bg: 'bg-ink dark:bg-brand-500', text: 'text-white' },
+  ink: { bg: 'bg-ink dark:bg-brand-400', text: 'text-white' },
   emergency: { bg: 'bg-emergency-500', text: 'text-white' },
   success: { bg: 'bg-success-500', text: 'text-white' },
   white: { bg: 'bg-white', text: 'text-ink' },
@@ -42,7 +42,7 @@ export function PrimaryButton({
       } ${disabled ? 'opacity-50' : ''}`}
     >
       {loading ? (
-        <ActivityIndicator color={tone === 'white' ? '#0B1E40' : '#FFFFFF'} />
+        <ActivityIndicator color={tone === 'white' ? '#0B2559' : '#FFFFFF'} />
       ) : (
         <>
           {icon ? <View>{icon}</View> : null}

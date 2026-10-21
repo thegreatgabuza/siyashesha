@@ -1,24 +1,22 @@
 import dayjs from 'dayjs';
 import { router, useLocalSearchParams } from 'expo-router';
-import {
-  CheckCircle2,
-  Download,
-  Languages,
-  Share2,
-  Trash2,
-} from 'lucide-react-native';
+import { CheckCircle2, Download, Languages, Share2, Trash2 } from 'lucide-react-native';
 import { useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 
+import { HeroAction, heroShadow } from '@/components/ui/HeroAction';
 import { IconButton } from '@/components/ui/IconButton';
 import { Screen } from '@/components/ui/Screen';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { useToast } from '@/components/ui/Toast';
 import { TranslationSheet } from '@/components/TranslationSheet';
+import { formatEventDate, reviewLabel } from '@/lib/recordSearch';
 import { baseDocumentStyles, printAndShareHtml } from '@/lib/pdf';
 import { useAppStore } from '@/store/useAppStore';
+import { useAccent } from '@/hooks/useAccent';
 
 export default function RecordDetailScreen() {
+  const { accentSoft } = useAccent();
   const { id } = useLocalSearchParams<{ id: string }>();
   const toast = useToast();
   const records = useAppStore((s) => s.records);
@@ -33,19 +31,20 @@ export default function RecordDetailScreen() {
     return (
       <Screen>
         <ScreenHeader title="Record" onBack={() => router.back()} />
-        <Text className="px-5 font-sans text-ink-muted dark:text-slate-400">
-          This record could not be found.
-        </Text>
+        <Text className="px-5 font-sans text-ink-muted dark:text-slate-400">This record could not be found.</Text>
       </Screen>
     );
   }
+
+  const review = reviewLabel(record);
+  const provider = [record.doctor, record.facility].filter(Boolean).join(' · ');
 
   const handleDownload = async () => {
     try {
       const html = `
         <html><head>${baseDocumentStyles()}</head><body>
           <h1>${record.title}</h1>
-          <div class="muted">${record.facility}${record.doctor ? ` · ${record.doctor}` : ''} · ${dayjs(record.eventDate).format('D MMMM YYYY')}</div>
+          <div class="muted">${record.facility}${record.doctor ? ` · ${record.doctor}` : ''} · ${formatEventDate(record)}</div>
           <div class="section-title">Diagnosis</div>
           <div>${record.diagnosis ?? 'Not recorded'}</div>
           <div class="section-title">Clinical Notes</div>
@@ -76,94 +75,110 @@ export default function RecordDetailScreen() {
   };
 
   return (
-    <Screen bottomInset={60}>
+    <Screen bottomInset={120}>
       <ScreenHeader
         title={record.category}
         onBack={() => router.back()}
         right={
           <View className="flex-row gap-2">
             <IconButton accessibilityLabel="Translate document" onPress={() => setTranslateOpen(true)}>
-              <Languages size={18} color="#5B6B8A" />
+              <Languages size={18} color="#5B6478" />
             </IconButton>
             <IconButton accessibilityLabel="Delete record" variant="danger" onPress={handleDelete}>
-              <Trash2 size={18} color="#DC2626" />
+              <Trash2 size={18} color="#DC1F26" />
             </IconButton>
           </View>
         }
       />
-      <ScrollView className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 48 }}>
-        <Text className="mb-1 font-serif text-[22px] leading-[28px] text-ink dark:text-slate-50">
-          {record.title}
-        </Text>
-        <Text className="mb-4 font-sans text-[13px] text-ink-muted dark:text-slate-400">
-          {record.facility}
-          {record.doctor ? ` · ${record.doctor}` : ''} · {dayjs(record.eventDate).format('D MMMM YYYY')}
-        </Text>
+      <ScrollView className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 48, gap: 12 }}>
+        {/* Summary */}
+        <View className="rounded-[32px] bg-ink p-5 dark:bg-canvasdark-card" style={heroShadow}>
+          <View className="flex-row items-center justify-between">
+            <View className="rounded-full bg-white/15 px-3 py-1">
+              <Text className="font-sans-semibold text-[11px] text-white">{record.documentType}</Text>
+            </View>
+            <Text className="font-sans-semibold text-[11px] text-white/70">{review}</Text>
+          </View>
+          <Text className="mt-4 font-sans-bold text-[22px] leading-[28px] text-white">{record.title}</Text>
+          <Text className="mt-2 font-sans text-[13px] leading-[19px] text-white/60">
+            {provider || 'Provider not recorded'}
+          </Text>
+          <Text className="mt-1 font-sans text-[13px] text-white/60">{formatEventDate(record)}</Text>
 
-        <View className="mb-5 flex-row gap-2">
-          <ActionChip label="Share securely" icon={<Share2 size={14} color="#6D5BD0" />} onPress={() => router.push({ pathname: '/more/sharing', params: { recordId: record.id } })} />
-          <ActionChip label="Download" icon={<Download size={14} color="#6D5BD0" />} onPress={handleDownload} />
+          <View className="mt-5 flex-row items-center gap-2">
+            <HeroAction
+              label="Share securely"
+              icon={<Share2 size={16} color="#FFFFFF" />}
+              onPress={() => router.push({ pathname: '/more/sharing', params: { recordId: record.id } })}
+            />
+            <HeroAction label="Download summary" icon={<Download size={16} color="#FFFFFF" />} onPress={handleDownload} />
+          </View>
         </View>
 
-        <View className="mb-5 flex-row items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 dark:border-canvasdark-card dark:bg-canvasdark-card">
-          <CheckCircle2
-            size={16}
-            color={record.status === 'Patient confirmed' ? '#0D9488' : '#A58FE6'}
-          />
-          <Text className="flex-1 font-sans text-[12px] text-ink-soft dark:text-slate-300">
+        {/* Review status */}
+        <View className="flex-row items-center gap-3 rounded-3xl border border-slate-200 bg-white px-4 py-3 dark:border-canvasdark-card dark:bg-canvasdark-card">
+          <CheckCircle2 size={18} color={record.status === 'Patient confirmed' ? '#16A34A' : accentSoft} />
+          <Text className="flex-1 font-sans text-[12px] leading-[17px] text-ink-soft dark:text-slate-300">
             {record.status === 'Patient confirmed'
-              ? 'Patient confirmed — you have reviewed this extracted information.'
-              : 'Extracted from document — please review before confirming.'}
+              ? 'Confirmed — you have checked these details.'
+              : 'Added from a file — please check the details, then confirm.'}
           </Text>
           {record.status !== 'Patient confirmed' ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Confirm extracted information"
+              accessibilityLabel="Confirm these details"
               onPress={() => {
                 updateRecord(record.id, { status: 'Patient confirmed' });
                 toast.show('Marked as patient confirmed', 'success');
               }}
+              className="min-h-[44px] justify-center"
             >
-              <Text className="font-sans-semibold text-[12px] text-brand-500">Confirm</Text>
+              <Text className="font-sans-semibold text-[13px] text-brand-500 dark:text-brand-300">Confirm</Text>
             </Pressable>
           ) : null}
         </View>
 
-        <Section title="Document Type" value={record.documentType} />
-        {record.diagnosis ? <Section title="Diagnosis" value={record.diagnosis} /> : null}
-        {record.followUp ? <Section title="Follow-up instructions" value={record.followUp} /> : null}
+        {/* Details */}
+        <DetailCard title="Record details">
+          <DetailRow label="Record type" value={record.documentType} />
+          <DetailRow label="Date of visit or issue" value={formatEventDate(record)} />
+          {record.doctor ? <DetailRow label="Healthcare provider" value={record.doctor} /> : null}
+          <DetailRow label="Facility" value={record.facility} />
+          <DetailRow
+            label="Added to vault"
+            value={`${dayjs(record.uploadedAt).isValid() ? dayjs(record.uploadedAt).format('D MMM YYYY') : 'Date not recorded'} · ${
+              record.sourceType === 'Upload' ? 'uploaded file' : record.sourceType === 'Scan' ? 'camera scan' : 'entered by hand'
+            }`}
+          />
+        </DetailCard>
 
-        {record.fields && record.fields.length > 0 ? (
-          <View className="mb-5">
-            <Text className="mb-2 font-sans-semibold text-[13px] text-ink-muted dark:text-slate-400">
-              Results
-            </Text>
-            <View className="rounded-2xl border border-slate-200 bg-white dark:border-canvasdark-card dark:bg-canvasdark-card">
-              {record.fields.map((f, i) => (
-                <View
-                  key={f.label}
-                  className={`flex-row items-center justify-between px-4 py-3 ${
-                    i > 0 ? 'border-t border-slate-100 dark:border-canvasdark' : ''
-                  }`}
-                >
-                  <Text className="font-sans text-[13px] text-ink-muted dark:text-slate-400">{f.label}</Text>
-                  <Text className="font-sans-semibold text-[13px] text-ink dark:text-slate-50">{f.value}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
+        {record.diagnosis || record.followUp ? (
+          <DetailCard title="Clinical context">
+            {record.diagnosis ? <DetailRow label="Diagnosis or reason for visit" value={record.diagnosis} /> : null}
+            {record.followUp ? <DetailRow label="Follow-up instructions" value={record.followUp} /> : null}
+          </DetailCard>
         ) : null}
 
-        <View className="mb-2">
-          <Text className="mb-2 font-sans-semibold text-[13px] text-ink-muted dark:text-slate-400">
-            Clinical notes (verbatim)
+        {record.fields && record.fields.length > 0 ? (
+          <DetailCard title="Results">
+            {record.fields.map((f) => (
+              <DetailRow key={f.label} label={f.label} value={f.value} />
+            ))}
+          </DetailCard>
+        ) : null}
+
+        <DetailCard title="Clinical notes (verbatim)">
+          <Text className="px-4 py-3 font-sans text-[14px] leading-[22px] text-ink dark:text-slate-100">
+            {record.clinicalNotes}
           </Text>
-          <View className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-canvasdark-card dark:bg-canvasdark-card">
-            <Text className="font-sans text-[14px] leading-[22px] text-ink dark:text-slate-100">
-              {record.clinicalNotes}
-            </Text>
-          </View>
-        </View>
+        </DetailCard>
+
+        <DetailCard title="Original document">
+          <Text className="px-4 py-3 font-sans text-[13px] leading-[19px] text-ink-soft dark:text-slate-300">
+            No original file is stored for this record. The details above are what was entered into your
+            vault.
+          </Text>
+        </DetailCard>
       </ScrollView>
 
       <TranslationSheet
@@ -176,35 +191,22 @@ export default function RecordDetailScreen() {
   );
 }
 
-function Section({ title, value }: { title: string; value: string }) {
+function DetailCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <View className="mb-5">
-      <Text className="mb-1.5 font-sans-semibold text-[13px] text-ink-muted dark:text-slate-400">
-        {title}
-      </Text>
-      <Text className="font-sans text-[14px] leading-[21px] text-ink dark:text-slate-100">{value}</Text>
+    <View>
+      <Text className="mb-2 px-1 font-sans-bold text-[15px] text-ink dark:text-slate-50">{title}</Text>
+      <View className="rounded-3xl border border-slate-200 bg-white dark:border-canvasdark-card dark:bg-canvasdark-card">
+        {children}
+      </View>
     </View>
   );
 }
 
-function ActionChip({
-  label,
-  icon,
-  onPress,
-}: {
-  label: string;
-  icon: React.ReactNode;
-  onPress: () => void;
-}) {
+function DetailRow({ label, value }: { label: string; value: string }) {
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      className="min-h-[40px] flex-row items-center gap-1.5 rounded-full bg-lavender-100 px-3.5 py-2 dark:bg-brand-500/20"
-    >
-      {icon}
-      <Text className="font-sans-semibold text-[12px] text-brand-600 dark:text-brand-400">{label}</Text>
-    </Pressable>
+    <View className="gap-0.5 border-t border-slate-100 px-4 py-3 first:border-t-0 dark:border-canvasdark">
+      <Text className="font-sans text-[12px] text-ink-muted dark:text-slate-400">{label}</Text>
+      <Text className="font-sans-medium text-[14px] leading-[20px] text-ink dark:text-slate-50">{value}</Text>
+    </View>
   );
 }

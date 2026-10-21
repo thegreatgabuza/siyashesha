@@ -8,6 +8,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAccent } from '@/hooks/useAccent';
 
 type ToastKind = 'success' | 'info' | 'warning';
 
@@ -35,13 +36,13 @@ const icons: Record<ToastKind, any> = {
   warning: TriangleAlert,
 };
 
-const tint: Record<ToastKind, string> = {
-  success: '#0D9488',
-  info: '#6D5BD0',
-  warning: '#DC2626',
-};
-
 export function ToastProvider({ children }: { children: React.ReactNode }) {
+  const { accent } = useAccent();
+  const tint: Record<ToastKind, string> = {
+    success: '#16A34A',
+    info: accent,
+    warning: '#DC1F26',
+  };
   const [toast, setToast] = useState<ToastState | null>(null);
   const progress = useSharedValue(0);
   const insets = useSafeAreaInsets();

@@ -2,8 +2,10 @@ import { router } from 'expo-router';
 import { Check } from 'lucide-react-native';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
+import { heroShadow } from '@/components/ui/HeroAction';
 import { Screen } from '@/components/ui/Screen';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
+import { SectionHeader } from '@/components/ui/SectionHeader';
 import { useToast } from '@/components/ui/Toast';
 import { dictionaries, languageNames, type LanguageCode } from '@/i18n/translations';
 import { useAppStore } from '@/store/useAppStore';
@@ -16,13 +18,24 @@ export default function LanguageScreen() {
   const setLanguage = useAppStore((s) => s.setLanguage);
 
   return (
-    <Screen bottomInset={60}>
+    <Screen bottomInset={120}>
       <ScreenHeader title="Language" onBack={() => router.back()} />
       <ScrollView className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 48 }}>
-        <Text className="mb-4 font-sans text-[13px] text-ink-muted dark:text-slate-400">
-          Choose the language used across Siyashesha. The tab bar and home screen update
-          immediately — isiZulu and Afrikaans are fully translated today.
-        </Text>
+        <View className="mt-2 rounded-[32px] bg-ink p-5 dark:bg-canvasdark-card" style={heroShadow}>
+          <View className="flex-row items-center justify-between">
+            <Text className="font-sans-semibold text-[13px] text-white/70">Current language</Text>
+            <View className="rounded-full bg-white/15 px-3 py-1">
+              <Text className="font-sans-semibold text-[11px] text-white">{languages.length} available</Text>
+            </View>
+          </View>
+          <Text className="mt-4 font-sans-bold text-[28px] leading-[32px] text-white">{languageNames[language]}</Text>
+          <Text className="mt-3 font-sans text-[12px] leading-[17px] text-white/60">
+            The tab bar and home screen update immediately. isiZulu and Afrikaans are fully translated today.
+          </Text>
+        </View>
+        <View className="pt-6">
+          <SectionHeader title="Choose a language" />
+        </View>
         <View className="rounded-3xl border border-slate-200 bg-white dark:border-canvasdark-card dark:bg-canvasdark-card">
           {languages.map((code, i) => {
             const preview = dictionaries[code]['tabs.home'] ?? dictionaries.en['tabs.home'];
@@ -49,7 +62,7 @@ export default function LanguageScreen() {
                   </Text>
                 </View>
                 {language === code ? (
-                  <View className="h-6 w-6 items-center justify-center rounded-full bg-brand-500">
+                  <View className="h-6 w-6 items-center justify-center rounded-full bg-brand-500 dark:bg-brand-400">
                     <Check size={14} color="#FFFFFF" />
                   </View>
                 ) : null}

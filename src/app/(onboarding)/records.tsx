@@ -1,0 +1,132 @@
+import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
+import dayjs from 'dayjs';
+import { router } from 'expo-router';
+import { Camera, FileUp, SkipForward } from 'lucide-react-native';
+import { useState } from 'react';
+import { Text, View } from 'react-native';
+
+import { ChunkyButton } from '@/components/onboarding/ChunkyButton';
+import { Mascot } from '@/components/onboarding/Mascot';
+import { OnboardingShell } from '@/components/onboarding/OnboardingShell';
+import { OptionCard } from '@/components/onboarding/OptionCard';
+import { RewardModal } from '@/components/onboarding/RewardModal';
+import { SpeechBubble } from '@/components/onboarding/SpeechBubble';
+import type { MedicalRecord } from '@/data/records';
+import type { StampId } from '@/store/useAppStore';
+import { useAppStore } from '@/store/useAppStore';
+
+export default function RecordsOnboardingScreen() {
+  const addRecord = useAppStore((s) => s.addRecord);
+  const earnStamp = useAppStore((s) => s.earnStamp);
+  const [added, setAdded] = useState<string | null>(null);
+  const [reward, setReward] = useState<StampId | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const next = () => router.push('/(onboarding)/reveal' as any);
+
+  const saveRecord = (title: string, sourceType: MedicalRecord['sourceType']) => {
+    const today = dayjs().format('YYYY-MM-DD');
+    addRecord({
+      id: `rec-${Date.now()}`,
+      category: 'Other',
+      title,
+      facility: 'Not recorded',
+      eventDate: today,
+      uploadedAt: today,
+      sourceType,
+      documentType: 'Uploaded document',
+      status: 'Extracted from document',
+      clinicalNotes: 'No notes yet. The date is the day this was added, and you can review it in the record.',
+    });
+    setAdded(title);
+    setMessage(null);
+    if (earnStamp('record')) setReward('record');
+  };
+
+  const pickFile = async () => {
+    const result = await DocumentPicker.getDocumentAsync({ type: ['image/*', 'application/pdf'] });
+    if (result.canceled || !result.assets[0]) return;
+    const name = result.assets[0].name.replace(/\.[^/.]+$/, '');
+    saveRecord(name || 'Uploaded document', 'Upload');
+  };
+
+  const scan = async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      setMessage('Camera access is needed to scan. You can allow it in your phone settings, or upload a file instead.');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
+    if (result.canceled || !result.assets[0]) return;
+    saveRecord(`Scanned document ${dayjs().format('D MMM YYYY')}`, 'Scan');
+  };
+
+  return (
+    <OnboardingShell
+      footer={
+        added ? (
+          <ChunkyButton label="Continue" onPress={() => (reward ? null : next())} />
+        ) : (
+          <ChunkyButton variant="ghost" label="Skip for now" onPress={next} />
+        )
+      }
+    >
+      <View className="gap-5 py-2">
+        <View className="items-center gap-4">
+          <Mascot mood={added ? 'cheer' : 'curious'} size={88} />
+          <SpeechBubble>{added ? 'Your vault has its first document.' : 'Got a letter, a lab result or a scan? Add it here.'}</SpeechBubble>
+        </View>
+
+        <View className="gap-3">
+          <OptionCard
+            title="Upload a PDF or photo"
+            subtitle="Pick a file from your phone"
+            icon={<FileUp size={24} color="#0B2559" />}
+            selected={false}
+            onPress={pickFile}
+          />
+          <OptionCard
+            title="Scan with my camera"
+            subtitle="Photograph a paper document"
+            icon={<Camera size={24} color="#0B2559" />}
+            selected={false}
+            onPress={scan}
+          />
+          {message ? <Text className="font-sans text-[13px] leading-[18px] text-ink-soft dark:text-slate-300">{message}</Text> : null}
+          {added ? (
+            <View className="flex-row items-center gap-2 rounded-2xl bg-success-50 p-3 dark:bg-success-500/15">
+              <SkipForward size={16} color="#16A34A" />
+              <Text className="flex-1 font-sans-semibold text-[13px] text-success-600">Added: {added}</Text>
+            </View>
+          ) : null}
+        </View>
+
+        {/* Example of where records will live. Clearly labelled, not real data. */}
+        <View className="gap-2">
+          <Text className="font-sans-semibold text-[12px] uppercase tracking-wide text-ink-muted dark:text-slate-400">
+            Example · where it will live
+          </Text>
+          <View className="rounded-3xl border-2 border-dashed border-slate-300 bg-white/60 p-4 dark:border-slate-600 dark:bg-canvasdark-card/60">
+            <View className="flex-row items-center justify-between">
+              <Text className="font-sans-medium text-[12px] text-ink-muted dark:text-slate-400">Example date</Text>
+              <View className="rounded-full bg-brand-100 px-2.5 py-0.5 dark:bg-brand-500/20">
+                <Text className="font-sans-medium text-[10px] text-brand-600 dark:text-brand-300">Example</Text>
+              </View>
+            </View>
+            <Text className="mt-2 font-sans-bold text-[15px] text-ink dark:text-slate-50">Example: clinic visit letter</Text>
+            <Text className="mt-0.5 font-sans text-[12px] text-ink-muted dark:text-slate-400">Your clinic · in date order</Text>
+          </View>
+        </View>
+      </View>
+
+      <RewardModal
+        stampId={reward}
+        onDone={() => {
+          setReward(null);
+          next();
+        }}
+      />
+    </OnboardingShell>
+  );
+}
