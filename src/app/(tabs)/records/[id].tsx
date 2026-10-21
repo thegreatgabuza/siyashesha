@@ -1,6 +1,6 @@
 import dayjs from 'dayjs';
 import { router, useLocalSearchParams } from 'expo-router';
-import { CheckCircle2, Download, Languages, Share2, Trash2 } from 'lucide-react-native';
+import { CheckCircle2, Download, Languages, Pencil, Share2, Trash2 } from 'lucide-react-native';
 import { useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 
@@ -81,6 +81,9 @@ export default function RecordDetailScreen() {
         onBack={() => router.back()}
         right={
           <View className="flex-row gap-2">
+            <IconButton accessibilityLabel="Edit details" onPress={() => router.push(`/records/edit?id=${record.id}` as any)}>
+              <Pencil size={18} color="#5B6478" />
+            </IconButton>
             <IconButton accessibilityLabel="Translate document" onPress={() => setTranslateOpen(true)}>
               <Languages size={18} color="#5B6478" />
             </IconButton>

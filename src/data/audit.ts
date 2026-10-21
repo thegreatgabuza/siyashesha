@@ -7,6 +7,7 @@ export type AuditEventType =
   | 'reminder'
   | 'language'
   | 'profile'
+  | 'edit'
   | 'export';
 
 export interface AuditEvent {

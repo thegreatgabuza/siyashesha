@@ -6,6 +6,7 @@ export default function RecordsLayout() {
       <Stack.Screen name="index" />
       <Stack.Screen name="[id]" />
       <Stack.Screen name="upload" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="edit" options={{ presentation: 'modal' }} />
     </Stack>
   );
 }
