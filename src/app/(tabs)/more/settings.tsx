@@ -145,12 +145,26 @@ export default function SettingsScreen() {
         <ToggleRow
           label="Educational health tips"
           value={notifications.educationalTips}
-          onValueChange={(v) => setNotification('educationalTips', v)}
+          onValueChange={async (v) => {
+            if (v && !(await ensureNotificationPermission())) {
+              toast.show('Allow notifications in your phone settings to get tips', 'warning');
+              return;
+            }
+            setNotification('educationalTips', v);
+            await syncReminders();
+          }}
         />
         <ToggleRow
           label="Wellness check-ins"
           value={notifications.wellnessCheckins}
-          onValueChange={(v) => setNotification('wellnessCheckins', v)}
+          onValueChange={async (v) => {
+            if (v && !(await ensureNotificationPermission())) {
+              toast.show('Allow notifications in your phone settings to get check-ins', 'warning');
+              return;
+            }
+            setNotification('wellnessCheckins', v);
+            await syncReminders();
+          }}
         />
 
         <SectionLabel text="Appearance" />

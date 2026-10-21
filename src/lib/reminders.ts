@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
+import { healthDays } from '@/data/healthDays';
 import { activeMedications } from '@/data/medications';
 import { useAppStore } from '@/store/useAppStore';
 
@@ -48,6 +49,37 @@ export async function syncReminders(): Promise<void> {
 
   for (const reminder of customReminders) {
     await scheduleDaily(reminder.title, 'Your reminder', reminder.time);
+  }
+
+  // Educational tips: a reminder on each WHO health day, repeating every year at 08:00.
+  if (notifications.educationalTips) {
+    for (const card of healthDays) {
+      await Notifications.scheduleNotificationAsync({
+        content: { title: `Health day: ${card.title}`, body: 'Tap to read what this day is about.' },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.YEARLY,
+          month: card.month,
+          day: card.day,
+          hour: 8,
+          minute: 0,
+          channelId: CHANNEL_ID,
+        },
+      });
+    }
+  }
+
+  // Wellness check-in: every Sunday evening.
+  if (notifications.wellnessCheckins) {
+    await Notifications.scheduleNotificationAsync({
+      content: { title: 'Weekly check-in', body: 'How are you feeling this week? Add a note in your diary if you like.' },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+        weekday: 1,
+        hour: 18,
+        minute: 0,
+        channelId: CHANNEL_ID,
+      },
+    });
   }
 }
 

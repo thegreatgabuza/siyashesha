@@ -16,6 +16,7 @@ import '@/global.css';
 import { ToastProvider } from '@/components/ui/Toast';
 import { useSyncColorScheme } from '@/hooks/useColorSchemePreference';
 import { useAppStore } from '@/store/useAppStore';
+import { syncReminders } from '@/lib/reminders';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -23,6 +24,11 @@ export default function RootLayout() {
   const isSignedIn = useAppStore((s) => s.isSignedIn);
   const hasCompletedOnboarding = useAppStore((s) => s.hasCompletedOnboarding);
   useSyncColorScheme();
+
+  // Keep scheduled reminders in step with the saved settings on every launch.
+  useEffect(() => {
+    syncReminders().catch(() => {});
+  }, []);
 
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
