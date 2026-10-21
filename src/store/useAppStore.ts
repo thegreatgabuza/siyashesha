@@ -44,6 +44,12 @@ export interface UserMedication {
   time: 'Morning' | 'Afternoon' | 'Evening' | 'Night';
 }
 
+export interface CustomReminder {
+  id: string;
+  title: string;
+  time: string; // HH:mm
+}
+
 export interface OnboardingDraft {
   goal: string | null;
   firstName: string;
@@ -99,8 +105,13 @@ interface AppState {
   // Medication adherence
   takenLog: Record<string, boolean>;
   toggleTaken: (reminderId: string, dateKey: string) => void;
+  skippedLog: Record<string, boolean>;
+  skipReminder: (reminderId: string, dateKey: string) => void;
   medicationReminderEnabled: Record<string, boolean>;
   setMedicationReminderEnabled: (medicationId: string, value: boolean) => void;
+  customReminders: CustomReminder[];
+  addCustomReminder: (reminder: Omit<CustomReminder, 'id'>) => void;
+  removeCustomReminder: (id: string) => void;
 
   // Records
   records: MedicalRecord[];
@@ -225,6 +236,21 @@ export const useAppStore = create<AppState>()(
             auditEvents: auditEntry ? [auditEntry, ...s.auditEvents] : s.auditEvents,
           };
         }),
+      skippedLog: {},
+      skipReminder: (reminderId, dateKey) =>
+        set((s) => {
+          const logKey = `${reminderId}__${dateKey}`;
+          const nowSkipped = !s.skippedLog[logKey];
+          return {
+            skippedLog: { ...s.skippedLog, [logKey]: nowSkipped },
+            // A skipped dose cannot also be marked taken.
+            takenLog: nowSkipped ? { ...s.takenLog, [logKey]: false } : s.takenLog,
+          };
+        }),
+      customReminders: [],
+      addCustomReminder: (reminder) =>
+        set((s) => ({ customReminders: [...s.customReminders, { ...reminder, id: makeId('reminder') }] })),
+      removeCustomReminder: (id) => set((s) => ({ customReminders: s.customReminders.filter((r) => r.id !== id) })),
       medicationReminderEnabled: activeMedications.reduce(
         (acc, m) => ({ ...acc, [m.id]: true }),
         {} as Record<string, boolean>

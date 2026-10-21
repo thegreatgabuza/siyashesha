@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import {
   ChevronRight,
   Clock,
+  BellRing,
   Globe,
   MessageCircle,
   Pill as PillIcon,
@@ -31,6 +32,7 @@ const sections: {
       { label: 'Medications', icon: PillIcon, route: '/more/medications', tint: '#16A34A' },
       { label: 'Emergency Profile', icon: ShieldAlert, route: '/more/emergency', tint: '#DC1F26' },
       { label: 'Health Timeline', icon: Clock, route: '/more/timeline', tint: 'accent' },
+      { label: 'Notifications', icon: BellRing, route: '/more/notifications', tint: 'accent' },
     ],
   },
   {

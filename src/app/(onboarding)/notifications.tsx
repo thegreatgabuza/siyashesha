@@ -7,7 +7,7 @@ import { Mascot } from '@/components/onboarding/Mascot';
 import { OnboardingShell } from '@/components/onboarding/OnboardingShell';
 import { SpeechBubble } from '@/components/onboarding/SpeechBubble';
 import { useAppStore } from '@/store/useAppStore';
-import { ensureNotificationPermission, syncMedicationReminders } from '@/lib/reminders';
+import { ensureNotificationPermission, syncReminders } from '@/lib/reminders';
 
 const benefits = [
   { icon: Pill, title: 'Medication reminders', body: 'A gentle nudge at the times you chose. Never a guilt message.' },
@@ -22,7 +22,7 @@ export default function NotificationsScreen() {
     const granted = await ensureNotificationPermission();
     setNotification('medicationReminders', granted);
     setNotification('wellnessCheckins', granted);
-    await syncMedicationReminders();
+    await syncReminders();
     router.push('/(onboarding)/privacy' as any);
   };
 

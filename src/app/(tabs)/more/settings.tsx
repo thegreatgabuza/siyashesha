@@ -17,7 +17,7 @@ import { languageNames } from '@/i18n/translations';
 import { useAppStore, type ThemePreference } from '@/store/useAppStore';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useAccent } from '@/hooks/useAccent';
-import { ensureNotificationPermission, syncMedicationReminders } from '@/lib/reminders';
+import { ensureNotificationPermission, syncReminders } from '@/lib/reminders';
 
 export default function SettingsScreen() {
   const { accent, accentSoft } = useAccent();
@@ -139,7 +139,7 @@ export default function SettingsScreen() {
               return;
             }
             setNotification('medicationReminders', v);
-            await syncMedicationReminders();
+            await syncReminders();
           }}
         />
         <ToggleRow

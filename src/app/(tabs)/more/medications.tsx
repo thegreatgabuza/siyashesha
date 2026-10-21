@@ -9,7 +9,7 @@ import { Screen } from '@/components/ui/Screen';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { heroShadow } from '@/components/ui/HeroAction';
 import { activeMedications, pastMedications } from '@/data/medications';
-import { syncMedicationReminders } from '@/lib/reminders';
+import { syncReminders } from '@/lib/reminders';
 import { computeAdherence } from '@/lib/adherence';
 import { useAppStore } from '@/store/useAppStore';
 
@@ -88,7 +88,7 @@ export default function MedicationsScreen() {
                     value={reminderEnabled[med.id] ?? true}
                     onValueChange={(v) => {
                       setReminderEnabled(med.id, v);
-                      syncMedicationReminders();
+                      syncReminders();
                     }}
                     trackColor={{ true: '#16A34A', false: '#E3E8F0' }}
                     accessibilityLabel={`Reminders for ${med.name}`}

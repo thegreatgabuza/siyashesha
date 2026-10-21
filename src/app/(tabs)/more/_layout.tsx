@@ -12,6 +12,7 @@ export default function MoreLayout() {
       <Stack.Screen name="language" />
       <Stack.Screen name="profile" />
       <Stack.Screen name="settings" />
+      <Stack.Screen name="notifications" />
     </Stack>
   );
 }

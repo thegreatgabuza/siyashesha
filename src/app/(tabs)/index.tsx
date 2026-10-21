@@ -41,7 +41,7 @@ const quickActions = [
   { label: 'Medications', icon: Pill, route: '/more/medications' },
   { label: 'Emergency profile', icon: ShieldAlert, route: '/more/emergency' },
   { label: 'Share records', icon: Share2, route: '/more/sharing' },
-  { label: 'Set reminder', icon: BellRing, route: '/more/settings' },
+  { label: 'Set reminder', icon: BellRing, route: '/more/notifications' },
 ];
 
 export default function HomeScreen() {
@@ -73,7 +73,7 @@ export default function HomeScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Notifications"
-            onPress={() => router.push('/more/settings')}
+            onPress={() => router.push('/more/notifications' as any)}
             className="h-10 w-10 items-center justify-center rounded-full bg-slate-100 dark:bg-canvasdark-card"
           >
             <Bell size={18} color="#0B2559" />
