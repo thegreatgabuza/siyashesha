@@ -2,7 +2,6 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import dayjs from 'dayjs';
 import { router } from 'expo-router';
 import { BellRing, Check, Clock, SkipForward, Trash2 } from 'lucide-react-native';
-import * as Notifications from 'expo-notifications';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
@@ -13,7 +12,7 @@ import { SectionHeader } from '@/components/ui/SectionHeader';
 import { useToast } from '@/components/ui/Toast';
 import { todaysReminders } from '@/data/medications';
 import { todayKey } from '@/lib/date';
-import { ensureNotificationPermission, snoozeReminder, syncReminders } from '@/lib/reminders';
+import { ensureNotificationPermission, notificationsGranted, remindersAvailable, snoozeReminder, syncReminders } from '@/lib/reminders';
 import { tapFeedback } from '@/lib/feedback';
 import { useAppStore } from '@/store/useAppStore';
 
@@ -37,7 +36,7 @@ export default function NotificationsScreen() {
   const [showTimePicker, setShowTimePicker] = useState(false);
 
   useEffect(() => {
-    Notifications.getPermissionsAsync().then((p) => setPermitted(p.granted));
+    notificationsGranted().then(setPermitted);
   }, []);
 
   const items: Item[] = useMemo(
@@ -128,7 +127,16 @@ export default function NotificationsScreen() {
           </View>
         </View>
 
-        {permitted === false ? (
+        {!remindersAvailable() ? (
+          <View className="mt-4 rounded-3xl border border-slate-200 bg-white p-4 dark:border-canvasdark-card dark:bg-canvasdark-card">
+            <Text className="font-sans-semibold text-[13px] text-ink dark:text-slate-50">
+              Reminders are not available in this version of the app.
+            </Text>
+            <Text className="mt-1 font-sans text-[12px] leading-[17px] text-ink-muted dark:text-slate-400">
+              They work in a development build of Siyashesha.
+            </Text>
+          </View>
+        ) : permitted === false ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Turn on notifications"
