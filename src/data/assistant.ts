@@ -10,8 +10,24 @@ export interface QuickCommand {
   action: AssistantAction;
 }
 
-export const assistantGreeting =
-  "Hi Jessica, I'm the Siyashesha Assistant. I can help with your records, medications, sharing and your emergency profile. Reply with a number below or ask me a question.";
+/** Rich answers render as cards under the reply text. */
+export type AssistantCard = 'medications' | 'hba1c' | 'emergency' | 'records' | 'share';
+
+export interface AssistantMessage {
+  id: string;
+  sender: 'user' | 'assistant';
+  text: string;
+  card?: AssistantCard;
+  timestamp: string;
+}
+
+export function assistantGreeting(firstName: string): { title: string; body: string } {
+  const name = firstName.trim();
+  return {
+    title: name ? `Hi ${name}.` : 'Hi there.',
+    body: 'I can help with your records, medications, sharing and your emergency card. Tap a number or ask in your own words.',
+  };
+}
 
 export const assistantEncryptionNotice =
   'This demo assistant answers from sample data on this phone. Nothing you type is sent anywhere.';

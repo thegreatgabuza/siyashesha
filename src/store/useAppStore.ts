@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
+import type { AssistantMessage } from '@/data/assistant';
 import { auditSeed, type AuditEvent, type AuditEventType } from '@/data/audit';
 import { diaryNotesSeed, type DiaryNote } from '@/data/diarySeed';
 import {
@@ -144,6 +145,10 @@ interface AppState {
   restoreDiaryNote: (note: DiaryNote, index?: number) => void;
   toggleDiaryPin: (id: string) => void;
   saveDiaryDraft: (draft: Partial<DiaryNote> | null) => void;
+
+  // Assistant: one conversation per day, keyed by YYYY-MM-DD
+  assistantThreads: Record<string, AssistantMessage[]>;
+  addAssistantMessage: (day: string, message: AssistantMessage) => void;
 
   // Audit
   auditEvents: AuditEvent[];
@@ -363,6 +368,12 @@ export const useAppStore = create<AppState>()(
           diaryNotes: s.diaryNotes.map((n) => (n.id === id ? { ...n, pinned: !n.pinned } : n)),
         })),
       saveDiaryDraft: (draft) => set({ diaryDraft: draft }),
+
+      assistantThreads: {},
+      addAssistantMessage: (day, message) =>
+        set((s) => ({
+          assistantThreads: { ...s.assistantThreads, [day]: [...(s.assistantThreads[day] ?? []), message] },
+        })),
 
       auditEvents: auditSeed,
       logAudit: (type, description) =>

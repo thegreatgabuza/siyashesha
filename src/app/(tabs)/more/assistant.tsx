@@ -1,185 +1,290 @@
 import dayjs from 'dayjs';
-import { router } from 'expo-router';
-import { Lock, Send, ShieldCheck } from 'lucide-react-native';
-import { useRef, useState } from 'react';
-import {
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
+import { ArrowUp, ChevronLeft, ChevronRight, Lock, Sparkles } from 'lucide-react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from 'react-native';
+import Animated, { FadeIn, FadeInDown, FadeInUp, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { IconButton } from '@/components/ui/IconButton';
-import {
-  assistantEncryptionNotice,
-  assistantFallback,
-  assistantGreeting,
-  quickCommands,
-} from '@/data/assistant';
-import { hba1cSeries } from '@/data/timeline';
+import { AnswerCard } from '@/components/assistant/AnswerCards';
+import { StreamingText } from '@/components/assistant/StreamingText';
+import { Glass } from '@/components/ui/Glass';
+import { PressableScale } from '@/components/ui/PressableScale';
+import { Txt } from '@/components/ui/Txt';
+import { elevation, fonts, radii, springs } from '@/design/tokens';
+import { useTokens } from '@/design/useTokens';
+import { assistantEncryptionNotice, assistantGreeting, quickCommands, type AssistantMessage } from '@/data/assistant';
+import { useAboveTabBar } from '@/hooks/useTabBarInset';
+import { answer } from '@/lib/assistantEngine';
+import { todayKey } from '@/lib/date';
+import { tapFeedback } from '@/lib/feedback';
+import { useAppStore } from '@/store/useAppStore';
 
-interface ChatMessage {
-  id: string;
-  sender: 'user' | 'assistant';
-  text: string;
-  timestamp: string;
+function makeId() {
+  return `m-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
+function dayLabel(key: string) {
+  const d = dayjs(key);
+  if (d.isSame(dayjs(), 'day')) return 'Today';
+  if (d.isSame(dayjs().subtract(1, 'day'), 'day')) return 'Yesterday';
+  return d.format('ddd D MMM');
+}
+
+/**
+ * Siyashesha Assistant. Familiar numbered shortcuts, calm canvas, replies that stream in and
+ * render medications, results and emergency details as cards. One conversation per day; page
+ * back through earlier days from the header.
+ */
 export default function AssistantScreen() {
+  const t = useTokens();
   const insets = useSafeAreaInsets();
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: 'm0', sender: 'assistant', text: assistantGreeting, timestamp: dayjs().toISOString() },
-  ]);
+  const aboveTabBar = useAboveTabBar(10);
+  const reduced = useReducedMotion();
+  const params = useLocalSearchParams<{ q?: string }>();
+  const patient = useAppStore((s) => s.patientProfile);
+  const recordCount = useAppStore((s) => s.records.length);
+  const threads = useAppStore((s) => s.assistantThreads);
+  const addMessage = useAppStore((s) => s.addAssistantMessage);
+
+  const today = todayKey();
+  const days = useMemo(() => {
+    const keys = Object.keys(threads).filter((k) => threads[k]?.length);
+    if (!keys.includes(today)) keys.push(today);
+    return keys.sort();
+  }, [threads, today]);
+  const [dayIndex, setDayIndex] = useState<number | null>(null);
+  const activeIndex = dayIndex ?? days.length - 1;
+  const activeDay = days[activeIndex] ?? today;
+  const isToday = activeDay === today;
+  const messages = threads[activeDay] ?? [];
+  const greeting = assistantGreeting(patient.preferredName || patient.firstName || '');
+
   const [input, setInput] = useState('');
-  const [typing, setTyping] = useState(false);
-  const listRef = useRef<FlatList>(null);
+  const [thinking, setThinking] = useState(false);
+  // Only replies created in this session stream in; history renders at once.
+  const [fresh, setFresh] = useState<ReadonlySet<string>>(() => new Set());
+  const [cardsShown, setCardsShown] = useState<Record<string, boolean>>({});
+  const scrollRef = useRef<ScrollView>(null);
+  const handledQ = useRef<string | undefined>(undefined);
 
-  const pushMessage = (sender: 'user' | 'assistant', text: string) => {
-    setMessages((m) => [...m, { id: `m${Date.now()}-${Math.random()}`, sender, text, timestamp: dayjs().toISOString() }]);
-  };
-
-  const respond = (userText: string) => {
-    setTyping(true);
-    setTimeout(() => {
-      const numberMatch = userText.trim().match(/^[1-5]$/);
-      const command = numberMatch
-        ? quickCommands.find((c) => c.number === Number(userText.trim()))
-        : quickCommands.find((c) => c.keywords.some((k) => userText.toLowerCase().includes(k)));
-
-      setTyping(false);
-      if (command) {
-        let reply = command.reply;
-        if (command.number === 5) {
-          const latest = hba1cSeries[hba1cSeries.length - 1];
-          reply = `Your latest HbA1c result was ${latest.value}% on ${dayjs(latest.date).format('D MMMM YYYY')}. ${reply}`;
-        }
-        pushMessage('assistant', reply);
-        if (command.action.type === 'navigate') {
-          setTimeout(() => router.push(command.action.type === 'navigate' ? (command.action.target as any) : '/'), 700);
-        }
-      } else {
-        pushMessage('assistant', assistantFallback);
-      }
-    }, 900);
-  };
-
-  const handleSend = (text?: string) => {
-    const value = (text ?? input).trim();
-    if (!value) return;
-    pushMessage('user', value);
+  const send = (raw: string) => {
+    const value = raw.trim();
+    if (!value || thinking) return;
+    tapFeedback();
+    setDayIndex(null);
+    addMessage(today, { id: makeId(), sender: 'user', text: value, timestamp: new Date().toISOString() });
     setInput('');
-    respond(value);
+    setThinking(true);
+    setTimeout(
+      () => {
+        const reply = answer(value, { recordCount });
+        const msg: AssistantMessage = { id: makeId(), sender: 'assistant', text: reply.text, card: reply.card, timestamp: new Date().toISOString() };
+        setFresh((f) => new Set(f).add(msg.id));
+        setThinking(false);
+        addMessage(today, msg);
+      },
+      reduced ? 150 : 650
+    );
   };
+
+  // A question handed over from Home's Ask bar.
+  useEffect(() => {
+    if (params.q && handledQ.current !== params.q) {
+      handledQ.current = params.q;
+      send(params.q);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.q]);
+
+  const scrollToEnd = () => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: !reduced }), 60);
 
   return (
-    <KeyboardAvoidingView
-      className="flex-1 bg-slate-50 dark:bg-canvasdark"
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <View
-        className="flex-row items-center gap-3 bg-ink px-4 pb-3 dark:bg-canvasdark-card"
-        style={{ paddingTop: insets.top + 10 }}
-      >
-        <IconButton accessibilityLabel="Go back" variant="ghost" onPress={() => router.back()}>
-          <Text className="text-[22px] text-white">{'‹'}</Text>
-        </IconButton>
-        <View className="h-10 w-10 items-center justify-center rounded-full bg-white/20">
-          <ShieldCheck size={18} color="#FFFFFF" />
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: t.canvas }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      {/* Header with day pager */}
+      <View style={{ paddingTop: insets.top + 8, paddingHorizontal: 16, paddingBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: t.interactive, alignItems: 'center', justifyContent: 'center' }}>
+          <Sparkles size={18} color={t.scheme === 'dark' ? '#0B1024' : '#FFFFFF'} />
         </View>
-        <View className="flex-1">
-          <Text className="font-sans-bold text-[15px] text-white">Siyashesha Assistant</Text>
-          <Text className="font-sans text-[11px] text-white/80">
-            {typing ? 'typing…' : 'Online · Health information assistant'}
-          </Text>
+        <View style={{ flex: 1 }}>
+          <Txt variant="bodyStrong">Siyashesha</Txt>
+          <Txt variant="footnote" tone="muted">
+            {thinking ? 'Thinking…' : 'Your health assistant'}
+          </Txt>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <PressableScale
+            accessibilityLabel="Previous day's conversation"
+            disabled={activeIndex === 0}
+            onPress={() => setDayIndex(activeIndex - 1)}
+            haptic="selection"
+            style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center', opacity: activeIndex === 0 ? 0.3 : 1 }}
+          >
+            <ChevronLeft size={20} color={t.text} />
+          </PressableScale>
+          <Txt variant="footnote" style={{ fontFamily: fonts.semibold, minWidth: 64, textAlign: 'center' }} accessibilityLiveRegion="polite">
+            {dayLabel(activeDay)}
+          </Txt>
+          <PressableScale
+            accessibilityLabel="Next day's conversation"
+            disabled={activeIndex >= days.length - 1}
+            onPress={() => setDayIndex(activeIndex + 1)}
+            haptic="selection"
+            style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center', opacity: activeIndex >= days.length - 1 ? 0.3 : 1 }}
+          >
+            <ChevronRight size={20} color={t.text} />
+          </PressableScale>
         </View>
       </View>
 
-      <FlatList
-        ref={listRef}
-        data={messages}
-        keyExtractor={(m) => m.id}
-        contentContainerStyle={{ padding: 16, paddingBottom: 8, gap: 8 }}
-        onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
-        ListHeaderComponent={
-          <View className="mb-3 items-center">
-            <View className="flex-row items-center gap-1.5 rounded-xl bg-white/70 px-3 py-2 dark:bg-white/10">
-              <Lock size={11} color="#5B6478" />
-              <Text className="font-sans text-[10px] text-ink-muted dark:text-slate-400">
-                {assistantEncryptionNotice}
-              </Text>
-            </View>
-          </View>
-        }
-        renderItem={({ item }) => (
-          <View className={`flex-row ${item.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <View
-              className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 ${
-                item.sender === 'user' ? 'bg-brand-100 dark:bg-brand-500/25' : 'bg-white dark:bg-canvasdark-card'
-              }`}
-            >
-              <Text className="font-sans text-[14px] leading-[20px] text-ink dark:text-slate-50">
-                {item.text}
-              </Text>
-              <Text className="mt-1 text-right font-sans text-[10px] text-ink-muted dark:text-slate-500">
-                {dayjs(item.timestamp).format('h:mm A')}
-              </Text>
-            </View>
-          </View>
-        )}
-        ListFooterComponent={
-          <View className="mt-2 gap-2">
-            {typing ? (
-              <View className="flex-row justify-start">
-                <View className="rounded-2xl bg-white px-4 py-3 dark:bg-canvasdark-card">
-                  <Text className="font-sans text-[18px] text-ink-muted dark:text-slate-400">• • •</Text>
-                </View>
-              </View>
-            ) : null}
-            <View className="flex-row flex-wrap gap-2 pt-2">
-              {quickCommands.map((c) => (
-                <Pressable
-                  key={c.number}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${c.number}. ${c.label}`}
-                  onPress={() => handleSend(String(c.number))}
-                  className="min-h-[36px] rounded-full bg-white px-3.5 py-2 dark:bg-canvasdark-card"
-                >
-                  <Text className="font-sans-medium text-[12px] text-ink dark:text-brand-300">
-                    {c.number}. {c.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-        }
-      />
-
-      <View
-        className="flex-row items-center gap-2 border-t border-slate-200 bg-white px-3 py-2 dark:border-canvasdark-card dark:bg-canvasdark"
-        style={{ paddingBottom: insets.bottom + 8 }}
+      <ScrollView
+        ref={scrollRef}
+        key={activeDay}
+        onContentSizeChange={scrollToEnd}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: aboveTabBar + 72, gap: 20 }}
+        showsVerticalScrollIndicator={false}
       >
-        <TextInput
-          value={input}
-          onChangeText={setInput}
-          placeholder="Type a message"
-          placeholderTextColor="#8C98B8"
-          className="min-h-[44px] flex-1 rounded-full bg-slate-100 px-4 font-sans text-[14px] text-ink dark:bg-canvasdark-card dark:text-slate-50"
-          accessibilityLabel="Message the Siyashesha Assistant"
-          onSubmitEditing={() => handleSend()}
-        />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Send message"
-          onPress={() => handleSend()}
-          className="h-11 w-11 items-center justify-center rounded-full bg-ink dark:bg-brand-400"
+        {/* Greeting and numbered shortcuts */}
+        <Animated.View entering={reduced ? undefined : FadeIn.duration(300)} style={{ gap: 14 }}>
+          <Txt variant="title">{isToday ? greeting.title : dayjs(activeDay).format('dddd D MMMM')}</Txt>
+          {isToday ? (
+            <>
+              <Txt variant="body" tone="muted">
+                {greeting.body}
+              </Txt>
+              <View style={{ gap: 8 }}>
+                {quickCommands.map((c, i) => (
+                  <Animated.View key={c.number} entering={reduced ? undefined : FadeInDown.delay(80 + i * 45).springify().damping(springs.gentle.damping)}>
+                    <PressableScale
+                      accessibilityLabel={`${c.number}. ${c.label}`}
+                      onPress={() => send(String(c.number))}
+                      scaleTo={0.98}
+                      style={[{ minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 14, borderRadius: radii.md, backgroundColor: t.surface }, elevation[1]]}
+                    >
+                      <View style={{ width: 28, height: 28, borderRadius: 9, backgroundColor: t.interactiveSoft, alignItems: 'center', justifyContent: 'center' }}>
+                        <Txt variant="footnote" color={t.interactive} style={{ fontFamily: fonts.bold }}>
+                          {c.number}
+                        </Txt>
+                      </View>
+                      <Txt variant="callout" style={{ flex: 1, fontFamily: fonts.medium }}>
+                        {c.label}
+                      </Txt>
+                      <ChevronRight size={16} color={t.textMuted} />
+                    </PressableScale>
+                  </Animated.View>
+                ))}
+              </View>
+            </>
+          ) : null}
+        </Animated.View>
+
+        {messages.map((m) =>
+          m.sender === 'user' ? (
+            <Animated.View key={m.id} entering={reduced ? undefined : FadeInUp.springify().damping(springs.snappy.damping)} style={{ alignSelf: 'flex-end', maxWidth: '82%' }}>
+              <View style={{ backgroundColor: t.interactive, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 22, borderBottomRightRadius: 6 }}>
+                <Txt variant="body" color={t.scheme === 'dark' ? '#0B1024' : '#FFFFFF'}>
+                  {m.text}
+                </Txt>
+              </View>
+              <Txt variant="footnote" tone="muted" style={{ textAlign: 'right', marginTop: 4, fontSize: 12 }}>
+                {dayjs(m.timestamp).format('h:mm A')}
+              </Txt>
+            </Animated.View>
+          ) : (
+            <View key={m.id} style={{ flexDirection: 'row', gap: 10 }}>
+              <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: t.interactiveSoft, alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>
+                <Sparkles size={13} color={t.interactive} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <StreamingText
+                  text={m.text}
+                  animate={fresh.has(m.id)}
+                  onDone={() => {
+                    setCardsShown((c) => (c[m.id] ? c : { ...c, [m.id]: true }));
+                    scrollToEnd();
+                  }}
+                />
+                {m.card && (cardsShown[m.id] || !fresh.has(m.id)) ? <AnswerCard card={m.card} /> : null}
+              </View>
+            </View>
+          )
+        )}
+
+        {thinking ? <Thinking /> : null}
+
+        {!isToday && messages.length === 0 ? (
+          <Txt variant="callout" tone="muted">
+            No conversation on this day.
+          </Txt>
+        ) : null}
+
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingTop: 4 }}>
+          <Lock size={12} color={t.textMuted} />
+          <Txt variant="footnote" tone="muted" style={{ fontSize: 12, textAlign: 'center', flexShrink: 1 }}>
+            {assistantEncryptionNotice}
+          </Txt>
+        </View>
+      </ScrollView>
+
+      {/* Composer, floating above the tab bar */}
+      <View style={{ position: 'absolute', left: 16, right: 16, bottom: aboveTabBar }} pointerEvents="box-none">
+        <Glass
+          style={[
+            { minHeight: 56, borderRadius: 28, flexDirection: 'row', alignItems: 'center', paddingLeft: 18, paddingRight: 6, borderWidth: 1, borderColor: t.hairline },
+            elevation[2],
+          ]}
         >
-          <Send size={18} color="#FFFFFF" />
-        </Pressable>
+          <TextInput
+            value={input}
+            onChangeText={setInput}
+            placeholder={isToday ? 'Ask, or type a number' : 'Go to today to ask'}
+            editable={isToday}
+            placeholderTextColor={t.textMuted}
+            returnKeyType="send"
+            onSubmitEditing={() => send(input)}
+            accessibilityLabel="Message Siyashesha"
+            style={{ flex: 1, minHeight: 48, fontFamily: fonts.regular, fontSize: 16, color: t.text }}
+          />
+          <PressableScale
+            accessibilityLabel="Send message"
+            disabled={!input.trim()}
+            onPress={() => send(input)}
+            scaleTo={0.9}
+            style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: input.trim() ? t.interactive : t.border }}
+          >
+            <ArrowUp size={20} color={t.scheme === 'dark' ? '#0B1024' : '#FFFFFF'} />
+          </PressableScale>
+        </Glass>
       </View>
     </KeyboardAvoidingView>
   );
+}
+
+/** Three soft dots that breathe in sequence while a reply is prepared. */
+function Thinking() {
+  const t = useTokens();
+  return (
+    <View accessibilityLabel="Siyashesha is thinking" style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+      <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: t.interactiveSoft, alignItems: 'center', justifyContent: 'center' }}>
+        <Sparkles size={13} color={t.interactive} />
+      </View>
+      <View style={{ flexDirection: 'row', gap: 5 }}>
+        {[0, 1, 2].map((i) => (
+          <Dot key={i} delay={i * 140} color={t.textMuted} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function Dot({ delay, color }: { delay: number; color: string }) {
+  const reduced = useReducedMotion();
+  const v = useSharedValue(0.3);
+  useEffect(() => {
+    if (reduced) return;
+    v.value = withDelay(delay, withRepeat(withSequence(withTiming(1, { duration: 380 }), withTiming(0.3, { duration: 380 })), -1));
+  }, [delay, reduced, v]);
+  const style = useAnimatedStyle(() => ({ opacity: v.value, transform: [{ translateY: (1 - v.value) * 2 }] }));
+  return <Animated.View style={[{ width: 7, height: 7, borderRadius: 4, backgroundColor: color }, style]} />;
 }

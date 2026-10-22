@@ -27,10 +27,11 @@ export function PressableScale({
 }) {
   const reduced = useReducedMotion();
   const pressed = useSharedValue(0);
-  const animated = useAnimatedStyle(() => ({
-    transform: [{ scale: reduced ? 1 : 1 - (1 - scaleTo) * pressed.value }],
-    opacity: reduced ? 1 - pressed.value * 0.15 : 1,
-  }));
+  // With reduce motion the press shows as a dim instead of a scale. Opacity is only animated then,
+  // so a caller's own opacity (e.g. a disabled state) is otherwise left alone.
+  const animated = useAnimatedStyle(() =>
+    reduced ? { opacity: 1 - pressed.value * 0.15 } : { transform: [{ scale: 1 - (1 - scaleTo) * pressed.value }] }
+  );
 
   return (
     <AnimatedPressable
