@@ -88,7 +88,7 @@ export interface EmergencyReadiness {
 export function emergencyReadiness(p: PatientProfile): EmergencyReadiness {
   const gaps: EmergencyGap[] = [];
   if (!isKnownBloodGroup(p.bloodGroup)) gaps.push({ key: 'bloodGroup', label: 'Blood group' });
-  if (p.allergies.length === 0) gaps.push({ key: 'allergies', label: 'Allergies' });
+  if (!p.allergies?.length) gaps.push({ key: 'allergies', label: 'Allergies' });
   if (!p.emergencyContact?.phone?.trim()) gaps.push({ key: 'contact', label: 'Emergency contact' });
   return { ready: gaps.length === 0, gaps };
 }
@@ -109,7 +109,7 @@ export function derivePassportProgress(input: {
   biometricLock: boolean;
 }): PassportProgress {
   const doneById: Record<StampId, boolean> = {
-    profile: !!input.patient.firstName.trim(),
+    profile: !!input.patient.firstName?.trim(),
     emergency: emergencyReadiness(input.patient).ready,
     medication: input.medicationCount > 0,
     record: input.recordCount > 0,

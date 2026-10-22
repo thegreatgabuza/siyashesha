@@ -22,21 +22,22 @@ export function useEmergencyCard() {
       ...userMedications.map((m) => [m.name, m.dose].filter(Boolean).join(' ')),
     ];
     const bloodGroup = bloodGroupLabel(patient.bloodGroup);
-    const allergyList = patient.allergies.map((a) => a.substance);
+    const allergies = patient.allergies ?? [];
+    const allergyList = allergies.map((a) => a.substance);
     const contact = patient.emergencyContact;
     const hasContact = !!contact?.phone?.trim();
 
     const values: Record<EmergencyFieldKey, string> = {
-      fullName: `${patient.firstName} ${patient.lastName}`.trim() || 'Unknown',
+      fullName: [patient.firstName, patient.lastName].filter(Boolean).join(' ') || 'Unknown',
       dateOfBirth: patient.dateOfBirth || 'Unknown',
       bloodGroup,
       allergies:
-        patient.allergies.map((a) => (a.reaction && a.reaction !== 'Not recorded' ? `${a.substance} (${a.reaction})` : a.substance)).join('; ') ||
+        allergies.map((a) => (a.reaction && a.reaction !== 'Not recorded' ? `${a.substance} (${a.reaction})` : a.substance)).join('; ') ||
         'No allergies recorded',
-      chronicConditions: patient.chronicConditions.join('; ') || 'None recorded',
+      chronicConditions: (patient.chronicConditions ?? []).join('; ') || 'None recorded',
       currentMedications: meds.join(', ') || 'None recorded',
-      previousProcedures: patient.previousProcedures.join('; ') || 'None recorded',
-      medicalDevices: patient.medicalDevices.join('; ') || 'None recorded',
+      previousProcedures: (patient.previousProcedures ?? []).join('; ') || 'None recorded',
+      medicalDevices: (patient.medicalDevices ?? []).join('; ') || 'None recorded',
     };
 
     const visibleFields = emergencyFieldDefs.filter((f) => visibility[f.key]);

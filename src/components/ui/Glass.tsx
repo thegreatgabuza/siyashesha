@@ -40,9 +40,11 @@ export function Glass({
   }
 
   return (
-    <View style={[style, { overflow: 'hidden' }]}>
-      <BlurView intensity={intensity} tint={t.scheme === 'dark' ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: fill }]} pointerEvents="none" />
+    // The blur and fill layers sit at zIndex -1 inside their own stacking context: on web, absolute
+    // layers would otherwise paint over (and blur) the in-flow content.
+    <View style={[style, { overflow: 'hidden', zIndex: 0 }]}>
+      <BlurView intensity={intensity} tint={t.scheme === 'dark' ? 'dark' : 'light'} style={[StyleSheet.absoluteFill, { zIndex: -1 }]} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: fill, zIndex: -1 }]} pointerEvents="none" />
       {children}
     </View>
   );
