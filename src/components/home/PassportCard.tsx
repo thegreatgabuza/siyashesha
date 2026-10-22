@@ -38,6 +38,7 @@ export function PassportCard({ recordCount }: { recordCount: number }) {
   const { width } = useWindowDimensions();
   const cardW = Math.min(width - 40, MAX_WIDTH);
   const cardH = Math.max(cardW / CARD_RATIO, 210);
+  const narrow = cardW < 330;
   const reduced = useReducedMotion();
   const ice = useEmergencyCard();
   const t = useTokens();
@@ -143,7 +144,7 @@ export function PassportCard({ recordCount }: { recordCount: number }) {
 
             <View style={styles.inner}>
               <View style={styles.row}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
                   <RNImage source={require('../../../assets/images/splash-icon.png')} style={{ width: 26, height: 26 }} resizeMode="contain" />
                   <View>
                     <Txt style={{ fontFamily: fonts.display, fontSize: 17, lineHeight: 18, color: '#FF4D53', letterSpacing: 0.5 }}>SIYASHESHA</Txt>
@@ -152,7 +153,7 @@ export function PassportCard({ recordCount }: { recordCount: number }) {
                     </Txt>
                   </View>
                 </View>
-                <BloodChip known={ice.bloodGroupKnown} value={ice.bloodGroup} />
+                <BloodChip known={ice.bloodGroupKnown} value={ice.bloodGroup} short={narrow} />
               </View>
 
               <View style={{ gap: 2 }}>
@@ -165,7 +166,7 @@ export function PassportCard({ recordCount }: { recordCount: number }) {
               </View>
 
               <View style={[styles.row, { alignItems: 'flex-end' }]}>
-                <Embossed text={`••••  ••••  •${idTail}`} />
+                <Embossed text={narrow ? `••••  •${idTail}` : `••••  ••••  •${idTail}`} />
                 <View style={{ alignItems: 'flex-end' }}>
                   <Txt variant="footnote" tone="onNavy" style={{ fontFamily: fonts.bold }}>
                     {recordCount}
@@ -257,7 +258,7 @@ ${ice.contact.phone}` : 'Unknown'} lines={2} />
  * Blood group on the card front. Unknown is an outlined chip, never a filled value. Not pressable
  * itself (the whole card flips); the readiness card below carries the "Add" path.
  */
-function BloodChip({ known, value }: { known: boolean; value: string }) {
+function BloodChip({ known, value, short }: { known: boolean; value: string; short?: boolean }) {
   return (
     <View
       style={{
@@ -271,7 +272,7 @@ function BloodChip({ known, value }: { known: boolean; value: string }) {
       }}
     >
       <Txt variant="footnote" tone="onNavyMuted" style={{ fontSize: 12 }}>
-        Blood group ·{' '}
+        {short ? 'Blood' : 'Blood group'} ·{' '}
         <Txt variant="footnote" tone="onNavy" style={{ fontFamily: fonts.bold, fontSize: 12 }}>
           {value}
         </Txt>

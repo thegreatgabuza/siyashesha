@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { Bell, ChevronRight, Globe, LogOut, Settings, UserRound } from 'lucide-react-native';
 import { useState } from 'react';
-import { Modal, Pressable, View } from 'react-native';
+import { Modal, Pressable, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, ZoomIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -20,6 +20,7 @@ export function HomeHeader() {
   const patient = useAppStore((s) => s.patientProfile);
   const signOut = useAppStore((s) => s.signOut);
   const [menu, setMenu] = useState(false);
+  const { width } = useWindowDimensions();
 
   const go = (route: string) => {
     setMenu(false);
@@ -34,8 +35,8 @@ export function HomeHeader() {
 
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, paddingBottom: 4 }}>
-      <BrandLockup />
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+      <BrandLockup compact={width < 360} />
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         <PressableScale
           accessibilityLabel="Notifications and reminders"
           onPress={() => router.push('/more/notifications')}
