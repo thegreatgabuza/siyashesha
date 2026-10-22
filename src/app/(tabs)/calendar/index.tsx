@@ -8,11 +8,12 @@ import { Calendar } from 'react-native-calendars';
 
 import { healthDayIcons } from '@/lib/healthDayIcons';
 import { CalendarDayCell } from '@/components/CalendarDayCell';
-import { BrandLockup } from '@/components/ui/BrandLockup';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { HeroAction, heroShadow } from '@/components/ui/HeroAction';
+import { JournalSwitch } from '@/components/JournalSwitch';
 import { Screen } from '@/components/ui/Screen';
+import { Txt } from '@/components/ui/Txt';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { nextAppointment, type Appointment } from '@/data/appointments';
 import { getDayAgenda, getMonthMarks, upcomingHealthDays } from '@/lib/calendarMarks';
@@ -73,14 +74,16 @@ export default function CalendarScreen() {
   }, [monthMarks, selectedDate, accent]);
 
   return (
-    <Screen contentClassName="px-5" bottomInset={140}>
-      <View className="pb-1 pt-4">
-        <BrandLockup />
+    <Screen contentClassName="px-5">
+      <View className="pb-4 pt-4">
+        <JournalSwitch active="calendar" />
       </View>
 
-      <View className="pb-4 pt-5">
-        <Text className="font-sans text-[14px] text-ink-muted dark:text-slate-400">Plan ahead</Text>
-        <Text className="font-sans-bold text-[32px] leading-[36px] text-ink dark:text-slate-50">Health Calendar</Text>
+      <View className="pb-4 pt-2">
+        <Txt variant="title">Health Calendar</Txt>
+        <Txt variant="callout" tone="muted" style={{ marginTop: 2 }}>
+          Plan ahead
+        </Txt>
       </View>
 
       {/* Next visit summary */}

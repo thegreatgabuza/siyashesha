@@ -28,7 +28,7 @@ export default function HealthDayDetailScreen() {
   }
 
   return (
-    <Screen bottomInset={120}>
+    <Screen>
       <ScreenHeader title="Health Awareness Day" onBack={() => router.back()} />
       <View className="px-5">
         <View className="rounded-[32px] bg-ink p-5 dark:bg-canvasdark-card" style={heroShadow}>

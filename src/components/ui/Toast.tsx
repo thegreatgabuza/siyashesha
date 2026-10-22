@@ -7,7 +7,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAboveTabBar } from '@/hooks/useTabBarInset';
 import { useAccent } from '@/hooks/useAccent';
 
 type ToastKind = 'success' | 'info' | 'warning';
@@ -45,7 +45,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   };
   const [toast, setToast] = useState<ToastState | null>(null);
   const progress = useSharedValue(0);
-  const insets = useSafeAreaInsets();
+  const aboveTabBar = useAboveTabBar();
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const show = (message: string, kind: ToastKind = 'success') => {
@@ -71,7 +71,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
       {toast ? (
         <Animated.View
-          style={[{ position: 'absolute', left: 16, right: 16, bottom: insets.bottom + 96 }, animatedStyle]}
+          style={[{ position: 'absolute', left: 16, right: 16, bottom: aboveTabBar }, animatedStyle]}
           pointerEvents="none"
         >
           <View

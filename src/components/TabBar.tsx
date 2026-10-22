@@ -1,29 +1,29 @@
-import * as Haptics from 'expo-haptics';
-import { BookHeart, CalendarDays, FileText, Home, MoreHorizontal } from 'lucide-react-native';
-import { Pressable, Text, useWindowDimensions, View } from 'react-native';
-import Animated, { useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import { CalendarDays, FileText, Home, MoreHorizontal, Sparkles } from 'lucide-react-native';
+import { useEffect, useState } from 'react';
+import { Keyboard, Platform, Pressable, useWindowDimensions, View } from 'react-native';
+import Animated, { FadeIn, useAnimatedStyle, useReducedMotion, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Glass } from '@/components/ui/Glass';
+import { Txt } from '@/components/ui/Txt';
+import { elevation, fonts, navy, springs } from '@/design/tokens';
+import { TAB_BAR_GAP, TAB_BAR_HEIGHT } from '@/hooks/useTabBarInset';
 import { useI18n } from '@/i18n/useI18n';
+import { tapFeedback } from '@/lib/feedback';
 
-const icons: Record<string, any> = {
-  index: Home,
-  records: FileText,
-  calendar: CalendarDays,
-  diary: BookHeart,
-  more: MoreHorizontal,
-};
+/** The five tabs shown in the bar, in order. Diary is routable but lives under Calendar. */
+const tabs = [
+  { name: 'index', icon: Home, label: 'tabs.home' },
+  { name: 'records', icon: FileText, label: 'tabs.records' },
+  { name: 'assistant', icon: Sparkles, label: 'tabs.assistant' },
+  { name: 'calendar', icon: CalendarDays, label: 'tabs.calendar' },
+  { name: 'more', icon: MoreHorizontal, label: 'tabs.more' },
+] as const;
 
-const labelKeys: Record<string, string> = {
-  index: 'tabs.home',
-  records: 'tabs.records',
-  calendar: 'tabs.calendar',
-  diary: 'tabs.diary',
-  more: 'tabs.more',
-};
+/** Routes that light up another tab. */
+const parentTab: Record<string, string> = { diary: 'calendar' };
 
-// Bar is capped on tablets and desktops so it doesn't stretch across the screen.
-const MAX_BAR_WIDTH = 560;
+const MAX_BAR_WIDTH = 520;
 
 // expo-router vendors its own react-navigation types internally, which don't
 // structurally match the public @react-navigation/bottom-tabs package types,
@@ -38,98 +38,109 @@ interface TabBarProps {
   };
 }
 
+/**
+ * Floating navy glass bar. The active tab swells into a pill and shows its label; the others
+ * settle back to icons. Labels only appear on the roomy active pill, so long translations
+ * never get squeezed. Hidden while the keyboard is open.
+ */
 export function TabBar({ state, navigation }: TabBarProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { t } = useI18n();
+  const [keyboard, setKeyboard] = useState(false);
+
+  useEffect(() => {
+    const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setKeyboard(true));
+    const hide = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setKeyboard(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+
+  if (keyboard) return null;
+
+  const focusedName = state.routes[state.index]?.name;
+  const activeName = parentTab[focusedName] ?? focusedName;
 
   return (
     <View
-      style={{ position: 'absolute', left: 0, right: 0, bottom: insets.bottom + 10 }}
+      style={{ position: 'absolute', left: 0, right: 0, bottom: Math.max(insets.bottom, 8) + TAB_BAR_GAP }}
       pointerEvents="box-none"
     >
-      <View
-        className="flex-row items-center rounded-3xl bg-ink px-1.5 py-1.5 dark:bg-canvasdark-card"
-        style={[shadow, { width: Math.min(width - 32, MAX_BAR_WIDTH), alignSelf: 'center' }]}
-      >
-        {state.routes.map((route, index) => {
-          const isFocused = state.index === index;
-          const Icon = icons[route.name] ?? Home;
-          const label = t(labelKeys[route.name] ?? 'tabs.home');
-
-          const onPress = () => {
-            Haptics.selectionAsync();
-            const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-            if (!isFocused && !event.defaultPrevented) {
-              navigation.navigate(route.name);
-            }
-          };
-
-          return (
-            <TabItem
-              key={route.key}
-              label={label}
-              Icon={Icon}
-              isFocused={isFocused}
-              onPress={onPress}
-              accessibilityLabel={`${label} tab`}
-            />
-          );
-        })}
+      <View style={[{ width: Math.min(width - 24, MAX_BAR_WIDTH), alignSelf: 'center', borderRadius: TAB_BAR_HEIGHT / 2 }, elevation[3]]}>
+        <Glass
+          tint="rgba(11,30,64,0.86)"
+          intensity={80}
+          style={{
+            height: TAB_BAR_HEIGHT,
+            borderRadius: TAB_BAR_HEIGHT / 2,
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingHorizontal: 6,
+            borderWidth: 1,
+            borderColor: 'rgba(255,255,255,0.10)',
+          }}
+        >
+          {tabs.map((tab) => {
+            const route = state.routes.find((r) => r.name === tab.name);
+            if (!route) return null;
+            const isFocused = activeName === tab.name;
+            const label = t(tab.label);
+            return (
+              <TabItem
+                key={tab.name}
+                label={label}
+                Icon={tab.icon}
+                isFocused={isFocused}
+                onPress={() => {
+                  tapFeedback();
+                  const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+                  if ((!isFocused || focusedName !== tab.name) && !event.defaultPrevented) navigation.navigate(route.name);
+                }}
+              />
+            );
+          })}
+        </Glass>
       </View>
     </View>
   );
 }
 
-function TabItem({
-  label,
-  Icon,
-  isFocused,
-  onPress,
-  accessibilityLabel,
-}: {
-  label: string;
-  Icon: any;
-  isFocused: boolean;
-  onPress: () => void;
-  accessibilityLabel: string;
-}) {
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: withSpring(isFocused ? 1 : 0.96, { damping: 14 }) }],
+function TabItem({ label, Icon, isFocused, onPress }: { label: string; Icon: any; isFocused: boolean; onPress: () => void }) {
+  const reduced = useReducedMotion();
+  const spring = (v: number) => (reduced ? v : withSpring(v, springs.bouncy));
+
+  const container = useAnimatedStyle(() => ({ flexGrow: spring(isFocused ? 2.1 : 1) }));
+  const pill = useAnimatedStyle(() => ({
+    opacity: spring(isFocused ? 1 : 0),
+    transform: [{ scaleX: spring(isFocused ? 1 : 0.4) }, { scaleY: spring(isFocused ? 1 : 0.7) }],
   }));
 
   return (
-    <Pressable
-      accessibilityRole="tab"
-      accessibilityState={{ selected: isFocused }}
-      accessibilityLabel={accessibilityLabel}
-      onPress={onPress}
-      className="min-h-[52px] flex-1 items-center justify-center"
-    >
-      <Animated.View
-        style={animatedStyle}
-        className={`w-full items-center justify-center gap-1 rounded-2xl px-1 py-1.5 ${
-          isFocused ? 'bg-[#8FB0DA]/25' : ''
-        }`}
+    <Animated.View style={[{ flexBasis: 0, height: TAB_BAR_HEIGHT - 12 }, container]}>
+      <Pressable
+        accessibilityRole="tab"
+        accessibilityState={{ selected: isFocused }}
+        accessibilityLabel={`${label} tab`}
+        onPress={onPress}
+        style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
       >
-        <Icon size={20} color={isFocused ? '#FFFFFF' : '#8FA0C2'} />
-        <Text
-          numberOfLines={1}
-          adjustsFontSizeToFit
-          minimumFontScale={0.8}
-          className={`text-[11px] ${isFocused ? 'font-sans-bold text-white' : 'font-sans-medium text-[#8FA0C2]'}`}
-        >
-          {label}
-        </Text>
-      </Animated.View>
-    </Pressable>
+        <Animated.View
+          pointerEvents="none"
+          style={[{ position: 'absolute', top: 0, bottom: 0, left: 2, right: 2, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.95)' }, pill]}
+        />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8 }}>
+          <Icon size={21} color={isFocused ? navy[700] : 'rgba(255,255,255,0.78)'} strokeWidth={isFocused ? 2.3 : 1.9} />
+          {isFocused ? (
+            <Animated.View entering={reduced ? undefined : FadeIn.duration(180).delay(60)} style={{ flexShrink: 1 }}>
+              <Txt numberOfLines={1} maxFontSizeMultiplier={1.3} variant="footnote" color={navy[700]} style={{ fontFamily: fonts.semibold }}>
+                {label}
+              </Txt>
+            </Animated.View>
+          ) : null}
+        </View>
+      </Pressable>
+    </Animated.View>
   );
 }
-
-const shadow = {
-  shadowColor: '#0B2559',
-  shadowOpacity: 0.25,
-  shadowRadius: 20,
-  shadowOffset: { width: 0, height: 10 },
-  elevation: 12,
-};

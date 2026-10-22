@@ -72,7 +72,7 @@ export default function EmergencyProfileScreen() {
   };
 
   return (
-    <Screen bottomInset={120}>
+    <Screen>
       <ScreenHeader title="Emergency Profile" onBack={() => router.back()} />
       <ScrollView className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 48 }}>
         <View className="overflow-hidden rounded-[32px]">

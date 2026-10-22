@@ -7,8 +7,10 @@ export default function TabsLayout() {
     <Tabs tabBar={(props) => <TabBar state={props.state as any} navigation={props.navigation as any} />} screenOptions={{ headerShown: false }}>
       <Tabs.Screen name="index" />
       <Tabs.Screen name="records" />
+      <Tabs.Screen name="assistant" />
       <Tabs.Screen name="calendar" />
-      <Tabs.Screen name="diary" />
+      {/* Diary keeps its routes but is reached from the Calendar tab's switch. */}
+      <Tabs.Screen name="diary" options={{ href: null }} />
       <Tabs.Screen name="more" />
     </Tabs>
   );

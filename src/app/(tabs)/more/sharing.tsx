@@ -90,7 +90,7 @@ export default function SharingScreen() {
 
   if (view === 'history') {
     return (
-      <Screen bottomInset={120}>
+      <Screen>
         <ScreenHeader title="Sharing" onBack={() => router.back()} />
         <ShareSummary
           activeCount={activeLinks}
@@ -155,7 +155,7 @@ export default function SharingScreen() {
   }
 
   return (
-    <Screen bottomInset={120}>
+    <Screen>
       <ScreenHeader title="Share Records" onBack={() => router.back()} />
       <ShareSummary activeCount={activeLinks} recordCount={records.length} view="new" onChange={setView} />
       <View className="mt-4 px-5">

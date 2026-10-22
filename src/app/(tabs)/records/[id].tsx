@@ -78,7 +78,7 @@ export default function RecordDetailScreen() {
   };
 
   return (
-    <Screen bottomInset={120}>
+    <Screen>
       <ScreenHeader
         title={record.category}
         onBack={() => router.back()}

@@ -53,7 +53,7 @@ export default function DiaryDetailScreen() {
   };
 
   return (
-    <Screen bottomInset={120}>
+    <Screen>
       <ScreenHeader
         title="Diary note"
         onBack={() => router.back()}

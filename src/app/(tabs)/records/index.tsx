@@ -10,6 +10,7 @@ import Animated, {
   useSharedValue,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAboveTabBar } from '@/hooks/useTabBarInset';
 
 import { CategoryChip } from '@/components/records/CategoryChip';
 import { categoryStyle } from '@/components/records/categoryStyle';
@@ -39,6 +40,7 @@ const QUICK_COUNT = 4;
 
 export default function RecordsScreen() {
   const insets = useSafeAreaInsets();
+  const aboveTabBar = useAboveTabBar();
   const records = useAppStore((s) => s.records);
   const deleteRecord = useAppStore((s) => s.deleteRecord);
 
@@ -302,7 +304,7 @@ export default function RecordsScreen() {
       </Animated.ScrollView>
 
       {/* Floating add button, above the tab bar */}
-      <View pointerEvents="box-none" className="absolute inset-x-0 items-center" style={{ bottom: insets.bottom + 92 }}>
+      <View pointerEvents="box-none" className="absolute inset-x-0 items-center" style={{ bottom: aboveTabBar }}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Add record"

@@ -40,7 +40,7 @@ export default function TimelineScreen() {
   }));
 
   return (
-    <Screen bottomInset={120}>
+    <Screen>
       <ScreenHeader title="Health Timeline" onBack={() => router.back()} />
       <ScrollView className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 48 }}>
         {/* Summary */}

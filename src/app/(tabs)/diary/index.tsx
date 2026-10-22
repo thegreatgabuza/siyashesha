@@ -11,13 +11,14 @@ import {
 import { useMemo, useRef, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAboveTabBar } from '@/hooks/useTabBarInset';
 
-import { BrandLockup } from '@/components/ui/BrandLockup';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { HeroAction, heroShadow } from '@/components/ui/HeroAction';
 import { Pill } from '@/components/ui/Pill';
+import { JournalSwitch } from '@/components/JournalSwitch';
 import { Screen } from '@/components/ui/Screen';
+import { Txt } from '@/components/ui/Txt';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { useToast } from '@/components/ui/Toast';
 import { diaryCategories, type DiaryCategory, type DiaryNote } from '@/data/diarySeed';
@@ -26,7 +27,7 @@ import { useAccent } from '@/hooks/useAccent';
 
 export default function DiaryScreen() {
   const { accent, accentSoft } = useAccent();
-  const insets = useSafeAreaInsets();
+  const aboveTabBar = useAboveTabBar();
   const toast = useToast();
   const notes = useAppStore((s) => s.diaryNotes);
   const draft = useAppStore((s) => s.diaryDraft);
@@ -80,14 +81,16 @@ export default function DiaryScreen() {
   };
 
   return (
-    <Screen contentClassName="px-5" bottomInset={160}>
-      <View className="pb-1 pt-4">
-        <BrandLockup />
+    <Screen contentClassName="px-5" bottomInset={72}>
+      <View className="pb-4 pt-4">
+        <JournalSwitch active="diary" />
       </View>
 
-      <View className="pb-4 pt-5">
-        <Text className="font-sans text-[14px] text-ink-muted dark:text-slate-400">Write down your thoughts, questions or anything you want to remember about your health.</Text>
-        <Text className="font-sans-bold text-[32px] leading-[36px] text-ink dark:text-slate-50">My Diary</Text>
+      <View className="pb-4 pt-2">
+        <Txt variant="title">My Diary</Txt>
+        <Txt variant="callout" tone="muted" style={{ marginTop: 2 }}>
+          Thoughts, questions and anything you want to remember.
+        </Txt>
       </View>
 
       {/* Summary card */}
@@ -222,7 +225,7 @@ export default function DiaryScreen() {
           accessibilityLabel="Undo delete"
           onPress={handleUndo}
           className="absolute left-5 right-5 flex-row items-center justify-between rounded-2xl bg-ink px-4 py-3 dark:bg-canvasdark-card"
-          style={{ bottom: insets.bottom + 96 }}
+          style={{ bottom: aboveTabBar }}
         >
           <Text className="font-sans text-[13px] text-white">Note deleted</Text>
           <Text className="font-sans-semibold text-[13px] text-brand-400">Undo</Text>

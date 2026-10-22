@@ -24,7 +24,7 @@ export default function MedicationsScreen() {
   const remindersOn = activeMedications.filter((m) => reminderEnabled[m.id] ?? true).length;
 
   return (
-    <Screen bottomInset={120}>
+    <Screen>
       <ScreenHeader title="Medications" onBack={() => router.back()} />
       <ScrollView className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 24 }}>
         <View className="mb-5 rounded-[32px] bg-ink p-5 dark:bg-canvasdark-card" style={heroShadow}>

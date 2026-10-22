@@ -108,7 +108,7 @@ export default function NotificationsScreen() {
   };
 
   return (
-    <Screen bottomInset={120}>
+    <Screen>
       <ScreenHeader title="Notifications" onBack={() => router.back()} />
       <ScrollView className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 48 }}>
         {/* Summary */}

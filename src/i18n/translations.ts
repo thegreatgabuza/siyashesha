@@ -15,6 +15,7 @@ type Dict = Record<string, string>;
 const en: Dict = {
   'tabs.home': 'Home',
   'tabs.records': 'Records',
+  'tabs.assistant': 'Assistant',
   'tabs.calendar': 'Calendar',
   'tabs.diary': 'Diary',
   'tabs.more': 'More',
@@ -49,6 +50,7 @@ const en: Dict = {
 const zu: Dict = {
   'tabs.home': 'Ikhaya',
   'tabs.records': 'Amarekhodi',
+  'tabs.assistant': 'Umsizi',
   'tabs.calendar': 'Ikhalenda',
   'tabs.diary': 'Idayari',
   'tabs.more': 'Okunye',
@@ -83,6 +85,7 @@ const zu: Dict = {
 const af: Dict = {
   'tabs.home': 'Tuis',
   'tabs.records': 'Rekords',
+  'tabs.assistant': 'Assistent',
   'tabs.calendar': 'Kalender',
   'tabs.diary': 'Dagboek',
   'tabs.more': 'Meer',
@@ -119,6 +122,7 @@ const af: Dict = {
 const tn: Dict = {
   'tabs.home': 'Legae',
   'tabs.records': 'Direkoto',
+  'tabs.assistant': 'Mothusi',
   'tabs.calendar': 'Khalendara',
   'tabs.diary': 'Buka ya letsatsi',
   'tabs.more': 'Tse dingwe',
@@ -128,6 +132,7 @@ const tn: Dict = {
 const sw: Dict = {
   'tabs.home': 'Nyumbani',
   'tabs.records': 'Rekodi',
+  'tabs.assistant': 'Msaidizi',
   'tabs.calendar': 'Kalenda',
   'tabs.diary': 'Shajara',
   'tabs.more': 'Zaidi',
@@ -137,6 +142,7 @@ const sw: Dict = {
 const fr: Dict = {
   'tabs.home': 'Accueil',
   'tabs.records': 'Dossiers',
+  'tabs.assistant': 'Assistant',
   'tabs.calendar': 'Calendrier',
   'tabs.diary': 'Journal',
   'tabs.more': 'Plus',
@@ -146,6 +152,7 @@ const fr: Dict = {
 const de: Dict = {
   'tabs.home': 'Start',
   'tabs.records': 'Akten',
+  'tabs.assistant': 'Assistent',
   'tabs.calendar': 'Kalender',
   'tabs.diary': 'Tagebuch',
   'tabs.more': 'Mehr',

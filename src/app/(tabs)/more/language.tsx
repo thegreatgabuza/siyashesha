@@ -18,7 +18,7 @@ export default function LanguageScreen() {
   const setLanguage = useAppStore((s) => s.setLanguage);
 
   return (
-    <Screen bottomInset={120}>
+    <Screen>
       <ScreenHeader title="Language" onBack={() => router.back()} />
       <ScrollView className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 48 }}>
         <View className="mt-2 rounded-[32px] bg-ink p-5 dark:bg-canvasdark-card" style={heroShadow}>

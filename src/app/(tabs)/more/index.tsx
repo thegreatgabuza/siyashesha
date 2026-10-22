@@ -58,7 +58,7 @@ export default function MoreScreen() {
   const recordCount = useAppStore((s) => s.records.length);
 
   return (
-    <Screen contentClassName="px-5" bottomInset={140}>
+    <Screen contentClassName="px-5">
       <View className="pb-1 pt-4">
         <BrandLockup />
       </View>
