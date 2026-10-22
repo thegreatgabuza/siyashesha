@@ -1,30 +1,39 @@
 import { router } from 'expo-router';
-import { Bell, FileText, LayoutGrid, MoreHorizontal, Plus, Search, SlidersHorizontal, X } from 'lucide-react-native';
+import { Bell, FileText, LayoutGrid, Plus, Rows3, Search, SlidersHorizontal, X } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   Extrapolation,
+  FadeIn,
+  FadeOut,
   interpolate,
   useAnimatedScrollHandler,
   useAnimatedStyle,
+  useReducedMotion,
   useSharedValue,
+  withSpring,
+  ZoomIn,
 } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAboveTabBar } from '@/hooks/useTabBarInset';
 
 import { CategoryChip } from '@/components/records/CategoryChip';
 import { categoryStyle } from '@/components/records/categoryStyle';
 import { RecordCard } from '@/components/records/RecordCard';
+import { RecordCatalog } from '@/components/records/RecordCatalog';
 import { RecordSkeleton } from '@/components/records/RecordSkeleton';
 import { type SheetOption, SheetList } from '@/components/records/SheetList';
 import { SummaryRing } from '@/components/records/SummaryRing';
+import { PressableScale } from '@/components/ui/PressableScale';
 import { RecordsTokens } from '@/constants/recordsTokens';
+import { springs } from '@/design/tokens';
 import { recordCategories, type RecordCategory } from '@/data/records';
+import { useAboveTabBar, useTabBarInset } from '@/hooks/useTabBarInset';
 import { removeOriginal } from '@/lib/documents';
 import { tapFeedback } from '@/lib/feedback';
 import {
   countByCategory,
-  distinctCategories,
   groupByMonth,
   matchesSearch,
   recordSortOptions,
@@ -35,12 +44,10 @@ import { useAppStore } from '@/store/useAppStore';
 
 const HERO_HEIGHT = 164;
 const COLLAPSE_AT = 140;
-const QUICK_COUNT = 4;
 
 
 export default function RecordsScreen() {
   const insets = useSafeAreaInsets();
-  const aboveTabBar = useAboveTabBar();
   const records = useAppStore((s) => s.records);
   const deleteRecord = useAppStore((s) => s.deleteRecord);
 
@@ -51,7 +58,31 @@ export default function RecordsScreen() {
   const [category, setCategory] = useState<RecordCategory | 'All'>('All');
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<RecordSort>('newest');
-  const [sheet, setSheet] = useState<'sort' | 'more' | null>(null);
+  const [sheet, setSheet] = useState<'sort' | null>(null);
+  const [view, setView] = useState<'list' | 'catalog'>('list');
+  const reduced = useReducedMotion();
+  const aboveTabBar = useAboveTabBar();
+  const listBottom = useTabBarInset(72);
+
+  // Pinch in on the list to zoom out to the catalog; pinch out on the catalog to return.
+  // The content follows the fingers a little so the gesture feels connected.
+  const pinchScale = useSharedValue(1);
+  const switchView = (next: 'list' | 'catalog') => {
+    tapFeedback();
+    setView(next);
+  };
+  const pinch = Gesture.Pinch()
+    .onUpdate((e) => {
+      pinchScale.value = Math.max(0.88, Math.min(1.08, e.scale));
+    })
+    .onEnd((e) => {
+      if (e.scale < 0.85 && view === 'list') scheduleOnRN(switchView, 'catalog');
+      if (e.scale > 1.15 && view === 'catalog') scheduleOnRN(switchView, 'list');
+    })
+    .onFinalize(() => {
+      pinchScale.value = withSpring(1, springs.bouncy);
+    });
+  const pinchStyle = useAnimatedStyle(() => ({ transform: [{ scale: pinchScale.value }] }));
 
   const scrollY = useSharedValue(0);
   const onScroll = useAnimatedScrollHandler((event) => {
@@ -75,16 +106,8 @@ export default function RecordsScreen() {
   const searchMatches = useMemo(() => records.filter((r) => matchesSearch(r, search)), [records, search]);
   const chipCounts = useMemo(() => countByCategory(searchMatches), [searchMatches]);
 
-  // Quick chips: the four categories with the most records. The rest sit behind "More".
-  const vaultCategories = useMemo(() => {
-    const present = new Set(distinctCategories(records));
-    return recordCategories.filter((c) => present.has(c));
-  }, [records]);
-  const quick = useMemo(
-    () => [...vaultCategories].sort((a, b) => (totalCounts.get(b) ?? 0) - (totalCounts.get(a) ?? 0)).slice(0, QUICK_COUNT),
-    [vaultCategories, totalCounts]
-  );
-  const more = vaultCategories.filter((c) => !quick.includes(c));
+  // The full taxonomy is always shown, so the chips stay in the same place as the vault grows.
+  const categories = recordCategories;
 
   const visible = useMemo(() => {
     const inCategory = category === 'All' ? searchMatches : searchMatches.filter((r) => r.category === category);
@@ -113,16 +136,16 @@ export default function RecordsScreen() {
   };
 
   const sortOptions: SheetOption[] = recordSortOptions.map((o) => ({ key: o.key, label: o.label }));
-  const moreOptions: SheetOption[] = more.map((c) => ({ key: c, label: `${categoryStyle[c].short} (${chipCounts.get(c) ?? 0})` }));
 
   return (
     <View className="flex-1" style={{ backgroundColor: RecordsTokens.background }}>
+      <GestureDetector gesture={pinch}>
       <Animated.ScrollView
         onScroll={onScroll}
         scrollEventThrottle={16}
         stickyHeaderIndices={[2]}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 170, gap: 0 }}
+        contentContainerStyle={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: listBottom, gap: 0 }}
       >
         {/* 0: header */}
         <View className="flex-row items-center justify-between pb-4">
@@ -132,6 +155,16 @@ export default function RecordsScreen() {
               {records.length} {records.length === 1 ? 'record' : 'records'}
             </Text>
           </View>
+          <View className="flex-row gap-2">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={view === 'list' ? 'Show catalog view' : 'Show list view'}
+            accessibilityHint="You can also pinch the list to switch"
+            onPress={() => switchView(view === 'list' ? 'catalog' : 'list')}
+            style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: view === 'catalog' ? RecordsTokens.accent : RecordsTokens.surface, ...RecordsTokens.shadow }}
+          >
+            {view === 'list' ? <LayoutGrid size={20} color={RecordsTokens.text} /> : <Rows3 size={20} color="#FFFFFF" />}
+          </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Notifications and reminders"
@@ -139,11 +172,11 @@ export default function RecordsScreen() {
               tapFeedback();
               router.push('/more/notifications' as any);
             }}
-            className="h-11 w-11 items-center justify-center rounded-full"
-            style={({ pressed }) => ({ backgroundColor: RecordsTokens.surface, ...RecordsTokens.shadow, opacity: pressed ? 0.85 : 1 })}
+            style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: RecordsTokens.surface, ...RecordsTokens.shadow }}
           >
             <Bell size={20} color={RecordsTokens.text} />
           </Pressable>
+          </View>
         </View>
 
         {/* 1: summary, collapses on scroll */}
@@ -197,7 +230,7 @@ export default function RecordsScreen() {
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 14, paddingVertical: 6, paddingRight: 8 }}>
             <CategoryChip label="All" count={searchMatches.length} icon={LayoutGrid} active={category === 'All'} onPress={() => setCategory('All')} />
-            {quick.map((c) => (
+            {categories.map((c) => (
               <CategoryChip
                 key={c}
                 label={categoryStyle[c].short}
@@ -207,22 +240,13 @@ export default function RecordsScreen() {
                 onPress={() => setCategory(c)}
               />
             ))}
-            {more.length > 0 ? (
-              <CategoryChip
-                label="More"
-                count={more.reduce((sum, c) => sum + (chipCounts.get(c) ?? 0), 0)}
-                icon={MoreHorizontal}
-                active={!!more.includes(category as RecordCategory)}
-                onPress={() => setSheet('more')}
-              />
-            ) : null}
           </ScrollView>
         </View>
 
         {/* 3: sort line */}
         <View className="flex-row items-center justify-between pb-3 pt-2">
           <Text style={{ color: RecordsTokens.text, fontSize: 16, fontWeight: '700' }}>
-            {filtersActive ? `Showing ${visible.length} of ${records.length}` : 'Recent records'}
+            {filtersActive ? `Showing ${visible.length} of ${records.length}` : view === 'catalog' ? 'Catalog' : 'Recent records'}
           </Text>
           <Pressable
             accessibilityRole="button"
@@ -281,42 +305,46 @@ export default function RecordsScreen() {
               </Text>
             </Pressable>
           </View>
+        ) : view === 'catalog' ? (
+          <Animated.View key="catalog" entering={reduced ? undefined : ZoomIn.springify().damping(springs.gentle.damping)} exiting={FadeOut.duration(120)} style={pinchStyle}>
+            <RecordCatalog groups={dateSorted ? groups : groupByMonth(visible)} onOpen={(r) => router.push(`/records/${r.id}`)} />
+          </Animated.View>
         ) : (
-          groups.map((group) => (
-            <View key={group.label || 'all'} className="gap-3 pb-4">
-              {group.label ? (
-                <Text style={{ color: RecordsTokens.textMuted, fontSize: RecordsTokens.type.meta, fontWeight: '600' }}>
-                  {group.label} · {group.records.length}
-                </Text>
-              ) : null}
-              {group.records.map((record) => (
-                <RecordCard
-                  key={record.id}
-                  record={record}
-                  onOpen={() => router.push(`/records/${record.id}`)}
-                  onShare={() => router.push({ pathname: '/more/sharing', params: { recordId: record.id } })}
-                  onDelete={() => confirmDelete(record.id, record.title)}
-                />
-              ))}
-            </View>
-          ))
+          <Animated.View key="list" entering={reduced ? undefined : FadeIn.duration(220)} exiting={FadeOut.duration(120)} style={pinchStyle}>
+            {groups.map((group) => (
+              <View key={group.label || 'all'} className="gap-3 pb-4">
+                {group.label ? (
+                  <Text style={{ color: RecordsTokens.textMuted, fontSize: RecordsTokens.type.meta, fontWeight: '600' }}>
+                    {group.label} · {group.records.length}
+                  </Text>
+                ) : null}
+                {group.records.map((record) => (
+                  <RecordCard
+                    key={record.id}
+                    record={record}
+                    onOpen={() => router.push(`/records/${record.id}`)}
+                    onShare={() => router.push({ pathname: '/more/sharing', params: { recordId: record.id } })}
+                    onDelete={() => confirmDelete(record.id, record.title)}
+                  />
+                ))}
+              </View>
+            ))}
+          </Animated.View>
         )}
       </Animated.ScrollView>
+      </GestureDetector>
 
       {/* Floating add button, above the tab bar */}
       <View pointerEvents="box-none" className="absolute inset-x-0 items-center" style={{ bottom: aboveTabBar }}>
-        <Pressable
-          accessibilityRole="button"
+        <PressableScale
           accessibilityLabel="Add record"
-          onPress={() => {
-            tapFeedback();
-            router.push('/records/upload');
-          }}
-          className="h-16 w-16 items-center justify-center rounded-full"
-          style={({ pressed }) => ({ backgroundColor: RecordsTokens.accent, transform: [{ scale: pressed ? 0.94 : 1 }], shadowColor: RecordsTokens.accent, shadowOpacity: 0.35, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 6 })}
+          haptic="impact"
+          scaleTo={0.92}
+          onPress={() => router.push('/records/upload')}
+          style={{ width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', backgroundColor: RecordsTokens.accent, shadowColor: RecordsTokens.accent, shadowOpacity: 0.35, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 6 }}
         >
           <Plus size={28} color="#FFFFFF" />
-        </Pressable>
+        </PressableScale>
       </View>
 
       <SheetList
@@ -326,17 +354,6 @@ export default function RecordsScreen() {
         selected={sort}
         onSelect={(key) => {
           setSort(key as RecordSort);
-          setSheet(null);
-        }}
-        onClose={() => setSheet(null)}
-      />
-      <SheetList
-        visible={sheet === 'more'}
-        title="More categories"
-        options={moreOptions}
-        selected={more.includes(category as RecordCategory) ? category : null}
-        onSelect={(key) => {
-          setCategory(key as RecordCategory);
           setSheet(null);
         }}
         onClose={() => setSheet(null)}

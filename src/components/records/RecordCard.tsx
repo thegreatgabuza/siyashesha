@@ -2,10 +2,11 @@ import { ChevronRight, Share2, Trash2 } from 'lucide-react-native';
 import { Pressable, Text, View } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 
+import { PressableScale } from '@/components/ui/PressableScale';
 import { RecordsTokens } from '@/constants/recordsTokens';
 import type { MedicalRecord } from '@/data/records';
 import { formatEventDate, reviewLabel } from '@/lib/recordSearch';
-import { categoryStyle } from './categoryStyle';
+import { RecordThumb } from './RecordThumb';
 
 /**
  * One medical record. Hierarchy: title first, then category and date, then provider and facility,
@@ -22,8 +23,6 @@ export function RecordCard({
   onShare: () => void;
   onDelete: () => void;
 }) {
-  const style = categoryStyle[record.category];
-  const Icon = style.icon;
   const review = reviewLabel(record);
   const provider = [record.doctor, record.facility].filter(Boolean).join(' · ');
 
@@ -52,22 +51,21 @@ export function RecordCard({
         </View>
       )}
     >
-      <Pressable
-        accessibilityRole="button"
+      <PressableScale
         accessibilityLabel={`Open ${record.title}, ${record.category}, ${formatEventDate(record)}, ${review}`}
         onPress={onOpen}
-        className="flex-row items-center gap-3 p-4"
-        style={({ pressed }) => ({
+        scaleTo={0.98}
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 14,
+          padding: 14,
           backgroundColor: RecordsTokens.surface,
           borderRadius: RecordsTokens.radius.card,
-          opacity: pressed ? 0.92 : 1,
-          transform: [{ scale: pressed ? 0.985 : 1 }],
           ...RecordsTokens.shadow,
-        })}
+        }}
       >
-        <View className="h-12 w-12 items-center justify-center" style={{ backgroundColor: style.tint, borderRadius: RecordsTokens.radius.tile }}>
-          <Icon size={22} color={style.colour} />
-        </View>
+        <RecordThumb category={record.category} width={52} />
 
         <View className="flex-1 gap-1">
           <View className="flex-row items-start justify-between gap-2">
@@ -92,7 +90,7 @@ export function RecordCard({
             </Text>
           ) : null}
           {record.diagnosis ? (
-            <View className="mt-1 self-start rounded-full px-2.5 py-1" style={{ backgroundColor: RecordsTokens.accentSoft }}>
+            <View className="mt-1 self-start rounded-full px-2.5 py-1" style={{ backgroundColor: RecordsTokens.accentSoft, maxWidth: '100%' }}>
               <Text numberOfLines={1} style={{ color: RecordsTokens.accent, fontSize: RecordsTokens.type.tiny, fontWeight: '600' }}>
                 {record.diagnosis}
               </Text>
@@ -101,7 +99,7 @@ export function RecordCard({
         </View>
 
         <ChevronRight size={18} color={RecordsTokens.textMuted} />
-      </Pressable>
+      </PressableScale>
     </Swipeable>
   );
 }

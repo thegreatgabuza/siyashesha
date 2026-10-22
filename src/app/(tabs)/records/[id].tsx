@@ -3,13 +3,17 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { CheckCircle2, Download, FileText, Languages, Pencil, Share2, Trash2 } from 'lucide-react-native';
 import * as Sharing from 'expo-sharing';
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Pressable, Text, View } from 'react-native';
 
 import { HeroAction, heroShadow } from '@/components/ui/HeroAction';
 import { IconButton } from '@/components/ui/IconButton';
 import { Screen } from '@/components/ui/Screen';
+import { ScreenScroll } from '@/components/ui/ScreenScroll';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { useToast } from '@/components/ui/Toast';
+import { RecordThumb } from '@/components/records/RecordThumb';
+import { springs } from '@/design/tokens';
+import Animated, { ZoomIn } from 'react-native-reanimated';
 import { TranslationSheet } from '@/components/TranslationSheet';
 import { removeOriginal } from '@/lib/documents';
 import { formatEventDate, reviewLabel } from '@/lib/recordSearch';
@@ -31,7 +35,7 @@ export default function RecordDetailScreen() {
 
   if (!record) {
     return (
-      <Screen>
+      <Screen headerOwnsTopInset scroll={false}>
         <ScreenHeader title="Record" onBack={() => router.back()} />
         <Text className="px-5 font-sans text-ink-muted dark:text-slate-400">This record could not be found.</Text>
       </Screen>
@@ -78,7 +82,7 @@ export default function RecordDetailScreen() {
   };
 
   return (
-    <Screen>
+    <Screen headerOwnsTopInset scroll={false}>
       <ScreenHeader
         title={record.category}
         onBack={() => router.back()}
@@ -96,7 +100,17 @@ export default function RecordDetailScreen() {
           </View>
         }
       />
-      <ScrollView className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 48, gap: 12 }}>
+      <ScreenScroll className="flex-1 px-5" contentContainerStyle={{ gap: 12 }}>
+        {/* The document itself, lifted in on a spring, as if picked up from the vault. */}
+        <Animated.View
+          entering={ZoomIn.springify().damping(springs.bouncy.damping).stiffness(springs.bouncy.stiffness)}
+          style={{ alignItems: 'center', paddingTop: 4, paddingBottom: 8 }}
+        >
+          <View style={{ transform: [{ rotate: '-2deg' }] }}>
+            <RecordThumb category={record.category} title={record.title} width={128} showTitle />
+          </View>
+        </Animated.View>
+
         {/* Summary */}
         <View className="rounded-[32px] bg-ink p-5 dark:bg-canvasdark-card" style={heroShadow}>
           <View className="flex-row items-center justify-between">
@@ -210,7 +224,7 @@ export default function RecordDetailScreen() {
             </Text>
           )}
         </DetailCard>
-      </ScrollView>
+      </ScreenScroll>
 
       <TranslationSheet
         visible={translateOpen}
