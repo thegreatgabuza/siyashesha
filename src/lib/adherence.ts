@@ -7,10 +7,13 @@ export function computeAdherence(takenLog: Record<string, boolean>, windowDays =
   const days = pastDateKeys(windowDays);
   let total = 0;
   let taken = 0;
+  let logged = 0;
   for (const day of days) {
     for (const reminder of reminders) {
       total += 1;
-      if (takenLog[`${reminder.id}__${day}`]) taken += 1;
+      const key = `${reminder.id}__${day}`;
+      if (key in takenLog) logged += 1;
+      if (takenLog[key]) taken += 1;
     }
   }
   const percent = total === 0 ? 0 : Math.round((taken / total) * 100);
@@ -22,5 +25,9 @@ export function computeAdherence(takenLog: Record<string, boolean>, windowDays =
     else break;
   }
 
-  return { percent, streak, windowDays };
+  // Without any logged doses in the window a percentage would only read as failure, so callers
+  // show a neutral state instead.
+  const hasData = reminders.length > 0 && logged > 0;
+
+  return { percent, streak, windowDays, hasData, scheduled: reminders.length };
 }

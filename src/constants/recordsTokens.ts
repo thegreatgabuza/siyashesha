@@ -8,7 +8,7 @@ import { Colors } from './theme';
 const light = Colors.light;
 
 export const RecordsTokens = {
-  background: '#F4F6FB', // brand page background
+  background: '#F8FAFC', // cool-slate page background
   surface: '#FFFFFF',
   border: light.border, // #E3E8F0
   text: light.ink, // #0B2559 navy headings and primary text

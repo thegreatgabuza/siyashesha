@@ -3,7 +3,7 @@ export const Colors = {
     ink: '#0B2559',
     inkSoft: '#2A3B5C',
     inkMuted: '#5B6478',
-    background: '#F4F6FB',
+    background: '#F8FAFC',
     surface: '#FFFFFF',
     surfaceMuted: '#F1F4F9',
     border: '#E3E8F0',

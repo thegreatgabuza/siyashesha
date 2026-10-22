@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
-import { useColorScheme as useRNColorScheme } from 'react-native';
-import { colorScheme as nativewindColorScheme } from 'nativewind';
+import { Platform } from 'react-native';
+import { colorScheme as nativewindColorScheme, useColorScheme as useNativewindColorScheme } from 'nativewind';
 
 import { useAppStore } from '@/store/useAppStore';
 
@@ -13,7 +13,10 @@ export function useSyncColorScheme() {
   }, [preference]);
 }
 
+/** The scheme NativeWind is actually rendering, so token colours always match the `dark:` classes. */
 export function useEffectiveColorScheme(): 'light' | 'dark' {
-  const scheme = useRNColorScheme();
-  return scheme === 'dark' ? 'dark' : 'light';
+  const { colorScheme } = useNativewindColorScheme();
+  // On web the `dark:` classes only apply when the root element carries the `dark` class.
+  if (Platform.OS === 'web' && typeof document !== 'undefined' && !document.documentElement.classList.contains('dark')) return 'light';
+  return colorScheme === 'dark' ? 'dark' : 'light';
 }
