@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Text, TextInput, View } from 'react-native';
+import { bloodGroupLabel } from '@/lib/bloodGroup';
 
 import { Avatar } from '@/components/ui/Avatar';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
@@ -55,7 +56,7 @@ export default function ProfileScreen() {
           <View className="mt-4 flex-row rounded-2xl bg-white/10 px-4 py-3">
             <View className="flex-1">
               <Text className="font-sans text-[11px] text-white/60">Blood group</Text>
-              <Text className="font-sans-bold text-[16px] text-white">{profile.bloodGroup}</Text>
+              <Text className="font-sans-bold text-[16px] text-white">{bloodGroupLabel(profile.bloodGroup)}</Text>
             </View>
             <View className="flex-1">
               <Text className="font-sans text-[11px] text-white/60">Province</Text>
@@ -80,7 +81,7 @@ export default function ProfileScreen() {
         <Field label="Address" value={address} onChangeText={setAddress} multiline />
 
         <SectionLabel text="Clinical summary" />
-        <ReadOnlyRow label="Blood group" value={profile.bloodGroup} />
+        <ReadOnlyRow label="Blood group" value={bloodGroupLabel(profile.bloodGroup)} />
         <ReadOnlyRow
           label="Allergies"
           value={profile.allergies.map((a) => a.substance).join(', ') || 'None recorded'}

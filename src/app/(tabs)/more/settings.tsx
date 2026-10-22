@@ -76,7 +76,7 @@ export default function SettingsScreen() {
             </View>
             <View className="flex-1 rounded-2xl bg-white/10 px-4 py-3">
               <Text className="font-sans text-[11px] text-white/60">Sharing PIN</Text>
-              <Text className="font-sans-bold text-[16px] text-white">{sharingRequiresPin ? 'Required' : 'Off'}</Text>
+              <Text className="font-sans-bold text-[16px] text-white">{sharingRequiresPin ? 'On' : 'Off'}</Text>
             </View>
             <View className="flex-1 rounded-2xl bg-white/10 px-4 py-3">
               <Text className="font-sans text-[11px] text-white/60">Reminders</Text>
@@ -286,7 +286,8 @@ function ToggleRow({
           ) : null}
         </View>
       </View>
-      <Switch value={value} onValueChange={onValueChange} trackColor={{ true: accent, false: '#E3E8F0' }} />
+      <Switch
+                thumbColor="#FFFFFF" value={value} onValueChange={onValueChange} trackColor={{ true: accent, false: '#E3E8F0' }} />
     </View>
   );
 }

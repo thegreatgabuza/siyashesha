@@ -102,6 +102,7 @@ export default function PrivacyScreen() {
               </View>
             </View>
             <Switch
+                thumbColor="#FFFFFF"
               value={biometricLock}
               onValueChange={toggleBiometric}
               trackColor={{ true: '#16A34A', false: '#E3E8F0' }}

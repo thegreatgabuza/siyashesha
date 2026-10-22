@@ -40,7 +40,8 @@ export default function TwoFactorScreen() {
                 <Text className="font-sans text-[12px] text-ink-muted dark:text-slate-400">Recommended for medical data</Text>
               </View>
             </View>
-            <Switch value={mfaEnabled} onValueChange={setMfaEnabled} trackColor={{ true: accent, false: '#E3E8F0' }} />
+            <Switch
+                thumbColor="#FFFFFF" value={mfaEnabled} onValueChange={setMfaEnabled} trackColor={{ true: accent, false: '#E3E8F0' }} />
           </View>
 
           <View className="mt-3 flex-row items-center gap-3 rounded-3xl border border-slate-200 bg-white px-4 py-4 dark:border-canvasdark-card dark:bg-canvasdark-card">

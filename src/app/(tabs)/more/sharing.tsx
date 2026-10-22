@@ -4,7 +4,7 @@ import {
   BookHeart,
   Check,
   ChevronRight,
-  FileText,
+  History,
   ShieldCheck,
 } from 'lucide-react-native';
 import { useState } from 'react';
@@ -12,7 +12,11 @@ import { Alert, Pressable, Text, TextInput, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
 import { Card } from '@/components/ui/Card';
-import { HeroAction, heroShadow } from '@/components/ui/HeroAction';
+import { RecordThumb } from '@/components/records/RecordThumb';
+import { CountUp } from '@/components/ui/CountUp';
+import { PressableScale } from '@/components/ui/PressableScale';
+import { Txt } from '@/components/ui/Txt';
+import { elevation, fonts, navy } from '@/design/tokens';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Pill } from '@/components/ui/Pill';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
@@ -260,7 +264,7 @@ function DocumentStep({
   diaryNotes: { id: string; title: string }[];
   records: MedicalRecord[];
 }) {
-  const { accent, accentSoft } = useAccent();
+  const { accentSoft } = useAccent();
   return (
     <View className="gap-2.5">
       <Text className="mb-1 font-sans-semibold text-[13px] text-ink-muted dark:text-slate-400">
@@ -271,7 +275,7 @@ function DocumentStep({
           key={r.id}
           selected={selectedRecordIds.includes(r.id)}
           onPress={() => toggleRecord(r.id)}
-          icon={<FileText size={16} color={accent} />}
+          icon={<RecordThumb category={r.category} width={34} />}
           title={r.title}
           subtitle={`${r.category} · ${dayjs(r.eventDate).format('D MMM YYYY')}`}
         />
@@ -487,22 +491,36 @@ function ShareSummary({
   onChange: (v: 'new' | 'history') => void;
 }) {
   return (
-    <View className="mx-5 rounded-[32px] bg-ink p-5 dark:bg-canvasdark-card" style={heroShadow}>
-      <View className="flex-row items-center justify-between">
-        <Text className="font-sans-semibold text-[13px] text-white/70">Active shares</Text>
-        <View className="rounded-full bg-white/15 px-3 py-1">
-          <Text className="font-sans-semibold text-[11px] text-white">{view === 'new' ? 'New share' : 'History'}</Text>
+    <View className="mx-5 rounded-[28px] p-5" style={[{ backgroundColor: navy[700] }, elevation[3]]}>
+      <View className="flex-row items-end justify-between gap-3">
+        <View className="flex-1">
+          <Txt variant="label" tone="onNavyMuted">
+            Active shares
+          </Txt>
+          <CountUp value={activeCount} variant="display" tone="onNavy" />
         </View>
+        <Txt variant="footnote" tone="onNavyMuted" style={{ flex: 1, textAlign: 'right' }}>
+          {recordCount} {recordCount === 1 ? 'record' : 'records'} ready to share, each for a set time with a PIN
+        </Txt>
       </View>
-      <View className="items-center py-5">
-        <Text className="font-sans-bold text-[44px] leading-[48px] text-white">{activeCount}</Text>
-        <Text className="mt-1 font-sans text-[13px] text-white/60">
-          {recordCount} {recordCount === 1 ? 'record' : 'records'} in your vault available to share
-        </Text>
-      </View>
-      <View className="flex-row items-center gap-2">
-        <HeroAction label="New share" icon={<ShieldCheck size={16} color="#FFFFFF" />} onPress={() => onChange('new')} />
-        <HeroAction label="History" icon={<FileText size={16} color="#FFFFFF" />} onPress={() => onChange('history')} />
+      {/* Segmented switch between creating a share and the history */}
+      <View accessibilityRole="tablist" className="mt-5 flex-row rounded-full p-1" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
+        {(['new', 'history'] as const).map((key) => (
+          <PressableScale
+            key={key}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: view === key }}
+            accessibilityLabel={key === 'new' ? 'New share' : 'Share history'}
+            onPress={() => onChange(key)}
+            haptic="selection"
+            style={{ flex: 1, minHeight: 44, borderRadius: 999, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6, backgroundColor: view === key ? '#FFFFFF' : 'transparent' }}
+          >
+            {key === 'new' ? <ShieldCheck size={16} color={view === key ? navy[700] : '#FFFFFF'} /> : <History size={16} color={view === key ? navy[700] : '#FFFFFF'} />}
+            <Txt variant="callout" color={view === key ? navy[700] : '#FFFFFF'} style={{ fontFamily: fonts.semibold }}>
+              {key === 'new' ? 'New share' : 'History'}
+            </Txt>
+          </PressableScale>
+        ))}
       </View>
     </View>
   );

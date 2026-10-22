@@ -15,8 +15,12 @@ import { Pressable, Text, View } from 'react-native';
 
 import { Avatar } from '@/components/ui/Avatar';
 import { BrandLockup } from '@/components/ui/BrandLockup';
-import { HeroAction, heroShadow } from '@/components/ui/HeroAction';
+import { PressableScale } from '@/components/ui/PressableScale';
 import { Screen } from '@/components/ui/Screen';
+import { Txt } from '@/components/ui/Txt';
+import { elevation, fonts, radii } from '@/design/tokens';
+import { useTokens } from '@/design/useTokens';
+import { bloodGroupLabel } from '@/lib/bloodGroup';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { activeMedications } from '@/data/medications';
 import { useAppStore } from '@/store/useAppStore';
@@ -39,7 +43,7 @@ const sections: {
     title: 'Connect',
     items: [
       { label: 'Sharing', icon: Share2, route: '/more/sharing', tint: 'accent' },
-      { label: 'Siyashesha Assistant', icon: MessageCircle, route: '/more/assistant', tint: 'accent' },
+      { label: 'Siyashesha Assistant', icon: MessageCircle, route: '/assistant', tint: 'accent' },
     ],
   },
   {
@@ -54,6 +58,7 @@ const sections: {
 
 export default function MoreScreen() {
   const { accent, accentSoft } = useAccent();
+  const t = useTokens();
   const patient = useAppStore((s) => s.patientProfile);
   const recordCount = useAppStore((s) => s.records.length);
 
@@ -68,35 +73,34 @@ export default function MoreScreen() {
         <Text className="font-sans-bold text-[32px] leading-[36px] text-ink dark:text-slate-50">More</Text>
       </View>
 
-      {/* Profile summary */}
-      <View className="rounded-[32px] bg-ink p-5 dark:bg-canvasdark-card" style={heroShadow}>
-        <View className="flex-row items-center gap-3">
-          <Avatar name={patient.preferredName} size={52} />
-          <View className="flex-1">
-            <Text className="font-sans-bold text-[18px] text-white" numberOfLines={1}>
-              {patient.firstName} {patient.lastName}
-            </Text>
-            <Text className="font-sans text-[12px] text-white/60">
-              {patient.bloodGroup} · {patient.phone}
-            </Text>
-          </View>
+      {/* Identity: compact, so the lists below are the point of this screen */}
+      <PressableScale
+        accessibilityLabel={`${patient.firstName} ${patient.lastName}. Blood group ${bloodGroupLabel(patient.bloodGroup)}. Open profile`}
+        onPress={() => router.push('/more/profile')}
+        style={[{ flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: radii.lg, backgroundColor: t.surface }, elevation[1]]}
+      >
+        <Avatar name={patient.preferredName || patient.firstName || '?'} size={52} />
+        <View style={{ flex: 1 }}>
+          <Txt variant="headline">
+            {patient.firstName} {patient.lastName}
+          </Txt>
+          <Txt variant="footnote" tone="muted">
+            Blood group {bloodGroupLabel(patient.bloodGroup)} · ID ···{patient.idNumber.slice(-4)}
+          </Txt>
         </View>
-
-        <View className="mt-4 flex-row items-center justify-between rounded-2xl bg-white/10 px-4 py-3">
-          <Text className="font-sans-medium text-[12px] tracking-wide text-white/80">ID ···{patient.idNumber.slice(-4)}</Text>
-          <Text className="font-sans-bold text-[11px] uppercase tracking-[1.5px] text-white/70">Health Passport</Text>
-        </View>
-
-        <View className="mt-4 flex-row items-center gap-2">
-          <HeroAction
-            label="Emergency card"
-            icon={<ShieldAlert size={16} color="#FFFFFF" />}
-            onPress={() => router.push('/more/emergency')}
-            filled
-          />
-          <HeroAction label="Edit profile" icon={<UserRound size={16} color="#FFFFFF" />} onPress={() => router.push('/more/profile')} />
-        </View>
-      </View>
+        <ChevronRight size={18} color={t.textMuted} />
+      </PressableScale>
+      <PressableScale
+        accessibilityLabel="Open emergency ICE card"
+        haptic="impact"
+        onPress={() => router.push('/more/emergency')}
+        style={{ marginTop: 12, minHeight: 52, borderRadius: radii.pill, backgroundColor: t.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+      >
+        <ShieldAlert size={18} color="#FFFFFF" />
+        <Txt variant="callout" tone="onNavy" style={{ fontFamily: fonts.semibold }}>
+          Emergency card & QR
+        </Txt>
+      </PressableScale>
 
       {/* Quick totals */}
       <View className="mt-4 flex-row gap-3">

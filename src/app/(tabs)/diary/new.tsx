@@ -271,6 +271,7 @@ export default function DiaryEditorScreen() {
             ) : null}
           </View>
           <Switch
+                thumbColor="#FFFFFF"
             value={reminderEnabled}
             onValueChange={(v) => {
               setReminderEnabled(v);

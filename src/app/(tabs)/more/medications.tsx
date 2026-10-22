@@ -86,6 +86,7 @@ export default function MedicationsScreen() {
                     </Text>
                   </View>
                   <Switch
+                thumbColor="#FFFFFF"
                     value={reminderEnabled[med.id] ?? true}
                     onValueChange={(v) => {
                       setReminderEnabled(med.id, v);
