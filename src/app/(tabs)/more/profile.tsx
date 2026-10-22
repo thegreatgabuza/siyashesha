@@ -1,11 +1,12 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Text, TextInput, View } from 'react-native';
 
 import { Avatar } from '@/components/ui/Avatar';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { heroShadow } from '@/components/ui/HeroAction';
+import { ScreenScroll } from '@/components/ui/ScreenScroll';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { useToast } from '@/components/ui/Toast';
 import { useAppStore } from '@/store/useAppStore';
@@ -38,7 +39,7 @@ export default function ProfileScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScreenHeader title="Profile" onBack={() => router.back()} />
-      <ScrollView className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 48 }}>
+      <ScreenScroll className="flex-1 px-5">
         <View className="mt-2 rounded-[32px] bg-ink p-5 dark:bg-canvasdark-card" style={heroShadow}>
           <View className="flex-row items-center gap-4">
             <Avatar name={profile.preferredName} size={64} />
@@ -98,7 +99,7 @@ export default function ProfileScreen() {
           Demographic and clinical details are drawn from your confirmed medical records. To update
           them, add or confirm a new record in your vault.
         </Text>
-      </ScrollView>
+      </ScreenScroll>
     </KeyboardAvoidingView>
   );
 }

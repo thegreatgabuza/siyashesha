@@ -1,12 +1,13 @@
 import { router } from 'expo-router';
 import { Download, Phone, ShieldAlert } from 'lucide-react-native';
 import { useMemo } from 'react';
-import { Linking, Pressable, ScrollView, Switch, Text, View } from 'react-native';
+import { Linking, Pressable, Switch, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
 import { GradientBackground } from '@/components/ui/GradientBackground';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Screen } from '@/components/ui/Screen';
+import { ScreenScroll } from '@/components/ui/ScreenScroll';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { useToast } from '@/components/ui/Toast';
 import { emergencyFieldDefs } from '@/data/emergencyProfile';
@@ -72,9 +73,9 @@ export default function EmergencyProfileScreen() {
   };
 
   return (
-    <Screen>
+    <Screen headerOwnsTopInset scroll={false}>
       <ScreenHeader title="Emergency Profile" onBack={() => router.back()} />
-      <ScrollView className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 48 }}>
+      <ScreenScroll className="flex-1 px-5">
         <View className="overflow-hidden rounded-[32px]">
           <GradientBackground variant="emergency">
             <View className="p-5">
@@ -153,7 +154,7 @@ export default function EmergencyProfileScreen() {
             </View>
           ))}
         </View>
-      </ScrollView>
+      </ScreenScroll>
     </Screen>
   );
 }

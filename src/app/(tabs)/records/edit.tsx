@@ -3,10 +3,11 @@ import dayjs from 'dayjs';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Calendar as CalendarIcon } from 'lucide-react-native';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from 'react-native';
 
 import { Pill } from '@/components/ui/Pill';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { ScreenScroll } from '@/components/ui/ScreenScroll';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { useToast } from '@/components/ui/Toast';
 import { recordCategories, type RecordCategory } from '@/data/records';
@@ -68,7 +69,7 @@ export default function EditRecordScreen() {
   return (
     <KeyboardAvoidingView className="flex-1 bg-slate-50 dark:bg-canvasdark" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScreenHeader title="Edit record" onBack={() => router.back()} />
-      <ScrollView className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 48 }}>
+      <ScreenScroll className="flex-1 px-5">
         <Label text="Title" />
         <Input value={title} onChangeText={setTitle} placeholder="e.g. HbA1c laboratory report" />
 
@@ -113,7 +114,7 @@ export default function EditRecordScreen() {
         <View className="mt-4">
           <PrimaryButton label="Save details" onPress={handleSave} />
         </View>
-      </ScrollView>
+      </ScreenScroll>
     </KeyboardAvoidingView>
   );
 }

@@ -1,9 +1,10 @@
 import { router } from 'expo-router';
 import { Check } from 'lucide-react-native';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
 import { heroShadow } from '@/components/ui/HeroAction';
 import { Screen } from '@/components/ui/Screen';
+import { ScreenScroll } from '@/components/ui/ScreenScroll';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { useToast } from '@/components/ui/Toast';
@@ -18,9 +19,9 @@ export default function LanguageScreen() {
   const setLanguage = useAppStore((s) => s.setLanguage);
 
   return (
-    <Screen>
+    <Screen headerOwnsTopInset scroll={false}>
       <ScreenHeader title="Language" onBack={() => router.back()} />
-      <ScrollView className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 48 }}>
+      <ScreenScroll className="flex-1 px-5">
         <View className="mt-2 rounded-[32px] bg-ink p-5 dark:bg-canvasdark-card" style={heroShadow}>
           <View className="flex-row items-center justify-between">
             <Text className="font-sans-semibold text-[13px] text-white/70">Current language</Text>
@@ -70,7 +71,7 @@ export default function LanguageScreen() {
             );
           })}
         </View>
-      </ScrollView>
+      </ScreenScroll>
     </Screen>
   );
 }

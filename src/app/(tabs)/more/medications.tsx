@@ -2,10 +2,11 @@ import dayjs from 'dayjs';
 import { router } from 'expo-router';
 import { Flame } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
-import { ScrollView, Switch, Text, View } from 'react-native';
+import { Switch, Text, View } from 'react-native';
 
 import { Pill } from '@/components/ui/Pill';
 import { Screen } from '@/components/ui/Screen';
+import { ScreenScroll } from '@/components/ui/ScreenScroll';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { heroShadow } from '@/components/ui/HeroAction';
 import { activeMedications, pastMedications } from '@/data/medications';
@@ -24,9 +25,9 @@ export default function MedicationsScreen() {
   const remindersOn = activeMedications.filter((m) => reminderEnabled[m.id] ?? true).length;
 
   return (
-    <Screen>
+    <Screen headerOwnsTopInset scroll={false}>
       <ScreenHeader title="Medications" onBack={() => router.back()} />
-      <ScrollView className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 24 }}>
+      <ScreenScroll className="flex-1 px-5">
         <View className="mb-5 rounded-[32px] bg-ink p-5 dark:bg-canvasdark-card" style={heroShadow}>
           <View className="flex-row items-center justify-between">
             <Text className="font-sans-semibold text-[13px] text-white/70">Adherence · last 7 days</Text>
@@ -134,7 +135,7 @@ export default function MedicationsScreen() {
             ))}
           </View>
         )}
-      </ScrollView>
+      </ScreenScroll>
     </Screen>
   );
 }

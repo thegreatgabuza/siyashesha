@@ -5,10 +5,11 @@ import * as DocumentPicker from 'expo-document-picker';
 import { router } from 'expo-router';
 import { Camera, Calendar as CalendarIcon, FileUp, PenLine } from 'lucide-react-native';
 import { cloneElement, isValidElement, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from 'react-native';
 
 import { Pill } from '@/components/ui/Pill';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { ScreenScroll } from '@/components/ui/ScreenScroll';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { useToast } from '@/components/ui/Toast';
 import { recordCategories, type MedicalRecord, type RecordCategory } from '@/data/records';
@@ -103,7 +104,7 @@ export default function UploadRecordScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScreenHeader title="Add a medical record" onBack={() => router.back()} />
-      <ScrollView className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 48 }}>
+      <ScreenScroll className="flex-1 px-5">
         <View className="mb-5 flex-row gap-2">
           <MethodChip label="Upload File" icon={<FileUp size={16} />} active={method === 'upload'} onPress={() => setMethod('upload')} />
           <MethodChip label="Camera Scan" icon={<Camera size={16} />} active={method === 'scan'} onPress={() => setMethod('scan')} />
@@ -184,7 +185,7 @@ export default function UploadRecordScreen() {
         />
 
         <PrimaryButton label="Save record" onPress={handleSave} />
-      </ScrollView>
+      </ScreenScroll>
     </KeyboardAvoidingView>
   );
 }

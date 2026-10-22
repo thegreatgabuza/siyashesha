@@ -15,7 +15,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView,
   Switch,
   Text,
   TextInput,
@@ -24,6 +23,7 @@ import {
 
 import { Pill } from '@/components/ui/Pill';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { ScreenScroll } from '@/components/ui/ScreenScroll';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { useToast } from '@/components/ui/Toast';
 import { appointments } from '@/data/appointments';
@@ -154,7 +154,7 @@ export default function DiaryEditorScreen() {
           <PrimaryButtonSmall label="Save" onPress={handleSave} />
         }
       />
-      <ScrollView className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 48 }}>
+      <ScreenScroll className="flex-1 px-5">
         <TextInput
           value={title}
           onChangeText={setTitle}
@@ -346,7 +346,7 @@ export default function DiaryEditorScreen() {
         ) : null}
 
         <PrimaryButton label={isEditing ? 'Save changes' : 'Save note'} onPress={handleSave} />
-      </ScrollView>
+      </ScreenScroll>
     </KeyboardAvoidingView>
   );
 }

@@ -3,10 +3,11 @@ import dayjs from 'dayjs';
 import { router } from 'expo-router';
 import { BellRing, Check, Clock, SkipForward, Trash2 } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, Text, TextInput, View } from 'react-native';
 
 import { heroShadow } from '@/components/ui/HeroAction';
 import { Screen } from '@/components/ui/Screen';
+import { ScreenScroll } from '@/components/ui/ScreenScroll';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { useToast } from '@/components/ui/Toast';
@@ -108,9 +109,9 @@ export default function NotificationsScreen() {
   };
 
   return (
-    <Screen>
+    <Screen headerOwnsTopInset scroll={false}>
       <ScreenHeader title="Notifications" onBack={() => router.back()} />
-      <ScrollView className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 48 }}>
+      <ScreenScroll className="flex-1 px-5">
         {/* Summary */}
         <View className="mt-2 rounded-[32px] bg-ink p-5 dark:bg-canvasdark-card" style={heroShadow}>
           <View className="flex-row items-center justify-between">
@@ -246,7 +247,7 @@ export default function NotificationsScreen() {
             ))}
           </View>
         ) : null}
-      </ScrollView>
+      </ScreenScroll>
     </Screen>
   );
 }

@@ -8,7 +8,7 @@ import {
   ShieldCheck,
 } from 'lucide-react-native';
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, Text, TextInput, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
 import { Card } from '@/components/ui/Card';
@@ -17,6 +17,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Pill } from '@/components/ui/Pill';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Screen } from '@/components/ui/Screen';
+import { ScreenScroll } from '@/components/ui/ScreenScroll';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { useToast } from '@/components/ui/Toast';
 import type { MedicalRecord } from '@/data/records';
@@ -90,7 +91,7 @@ export default function SharingScreen() {
 
   if (view === 'history') {
     return (
-      <Screen>
+      <Screen headerOwnsTopInset scroll={false}>
         <ScreenHeader title="Sharing" onBack={() => router.back()} />
         <ShareSummary
           activeCount={activeLinks}
@@ -98,7 +99,7 @@ export default function SharingScreen() {
           view="history"
           onChange={setView}
         />
-        <ScrollView className="mt-4 flex-1 px-5" contentContainerStyle={{ paddingBottom: 48 }}>
+        <ScreenScroll className="mt-4 flex-1 px-5">
           {sharedLinks.length === 0 ? (
             <EmptyState icon={<ShieldCheck size={32} color={accentSoft} />} title="No sharing history yet" />
           ) : (
@@ -149,13 +150,13 @@ export default function SharingScreen() {
               ))}
             </View>
           )}
-        </ScrollView>
+        </ScreenScroll>
       </Screen>
     );
   }
 
   return (
-    <Screen>
+    <Screen headerOwnsTopInset scroll={false}>
       <ScreenHeader title="Share Records" onBack={() => router.back()} />
       <ShareSummary activeCount={activeLinks} recordCount={records.length} view="new" onChange={setView} />
       <View className="mt-4 px-5">
@@ -185,7 +186,7 @@ export default function SharingScreen() {
         ) : null}
       </View>
 
-      <ScrollView className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 48 }}>
+      <ScreenScroll className="flex-1 px-5">
         {completedLink ? (
           <ConfirmationView link={completedLink} onDone={() => { resetWizard(); setView('history'); }} />
         ) : step === 0 ? (
@@ -239,7 +240,7 @@ export default function SharingScreen() {
             </View>
           </View>
         ) : null}
-      </ScrollView>
+      </ScreenScroll>
     </Screen>
   );
 }

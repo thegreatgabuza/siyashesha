@@ -7,8 +7,9 @@ import {
   ShieldCheck,
 } from 'lucide-react-native';
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, Switch, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, Switch, Text, TextInput, View } from 'react-native';
 
+import { ScreenScroll } from '@/components/ui/ScreenScroll';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { heroShadow } from '@/components/ui/HeroAction';
 import { SectionHeader } from '@/components/ui/SectionHeader';
@@ -65,7 +66,7 @@ export default function SettingsScreen() {
   return (
     <View className="flex-1 bg-slate-50 dark:bg-canvasdark">
       <ScreenHeader title="Settings" onBack={() => router.back()} />
-      <ScrollView className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 48 }}>
+      <ScreenScroll className="flex-1 px-5">
         <View className="mt-2 rounded-[32px] bg-ink p-5 dark:bg-canvasdark-card" style={heroShadow}>
           <Text className="font-sans-semibold text-[13px] text-white/70">Account protection</Text>
           <View className="mt-4 flex-row gap-2">
@@ -247,7 +248,7 @@ export default function SettingsScreen() {
           <LogOut size={16} color="#DC1F26" />
           <Text className="font-sans-semibold text-[14px] text-emergency-500">Sign out</Text>
         </Pressable>
-      </ScrollView>
+      </ScreenScroll>
     </View>
   );
 }

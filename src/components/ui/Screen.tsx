@@ -28,6 +28,7 @@ export function Screen({
   onRefresh,
   contentClassName,
   bottomInset = 0,
+  headerOwnsTopInset,
   ...rest
 }: {
   children: React.ReactNode;
@@ -35,8 +36,11 @@ export function Screen({
   onRefresh?: () => Promise<void> | void;
   contentClassName?: string;
   bottomInset?: number;
+  /** Set when a ScreenHeader (which pads for the status bar itself) sits at the top. */
+  headerOwnsTopInset?: boolean;
 } & ScrollViewProps) {
-  const insets = useSafeAreaInsets();
+  const safe = useSafeAreaInsets();
+  const insets = headerOwnsTopInset ? { ...safe, top: 0 } : safe;
   const tabInset = useTabBarInset(bottomInset);
   const [refreshing, setRefreshing] = useState(false);
 

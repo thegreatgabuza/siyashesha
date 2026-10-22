@@ -3,11 +3,12 @@ import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Bell, FileText, Link2, Lock, Pencil, Pin, Trash2 } from 'lucide-react-native';
 import { useState } from 'react';
-import { Alert, ScrollView, Text, View } from 'react-native';
+import { Alert, Text, View } from 'react-native';
 
 import { IconButton } from '@/components/ui/IconButton';
 import { heroShadow } from '@/components/ui/HeroAction';
 import { Screen } from '@/components/ui/Screen';
+import { ScreenScroll } from '@/components/ui/ScreenScroll';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { useToast } from '@/components/ui/Toast';
@@ -27,7 +28,7 @@ export default function DiaryDetailScreen() {
 
   if (!note || deleted) {
     return (
-      <Screen>
+      <Screen headerOwnsTopInset scroll={false}>
         <ScreenHeader title="Diary note" onBack={() => router.back()} />
         <Text className="px-5 font-sans text-ink-muted dark:text-slate-400">This note is no longer available.</Text>
       </Screen>
@@ -53,7 +54,7 @@ export default function DiaryDetailScreen() {
   };
 
   return (
-    <Screen>
+    <Screen headerOwnsTopInset scroll={false}>
       <ScreenHeader
         title="Diary note"
         onBack={() => router.back()}
@@ -71,7 +72,7 @@ export default function DiaryDetailScreen() {
           </View>
         }
       />
-      <ScrollView className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 48, gap: 12 }}>
+      <ScreenScroll className="flex-1 px-5" contentContainerStyle={{ gap: 12 }}>
         {/* Header card */}
         <View className="rounded-[32px] bg-ink p-5 dark:bg-canvasdark-card" style={heroShadow}>
           <View className="flex-row items-center justify-between">
@@ -163,7 +164,7 @@ export default function DiaryDetailScreen() {
             Private by default. This note is only included in a record share if you pick it in the Sharing wizard.
           </Text>
         </View>
-      </ScrollView>
+      </ScreenScroll>
     </Screen>
   );
 }

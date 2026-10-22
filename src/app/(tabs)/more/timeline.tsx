@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { heroShadow } from '@/components/ui/HeroAction';
 import { Pill } from '@/components/ui/Pill';
 import { Screen } from '@/components/ui/Screen';
+import { ScreenScroll } from '@/components/ui/ScreenScroll';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { hba1cSeries, sortedTimeline, timelineEventTypes, timelineProviders, type TimelineEvent } from '@/data/timeline';
@@ -40,9 +41,9 @@ export default function TimelineScreen() {
   }));
 
   return (
-    <Screen>
+    <Screen headerOwnsTopInset scroll={false}>
       <ScreenHeader title="Health Timeline" onBack={() => router.back()} />
-      <ScrollView className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 48 }}>
+      <ScreenScroll className="flex-1 px-5">
         {/* Summary */}
         <View className="rounded-[32px] bg-ink p-5 dark:bg-canvasdark-card" style={heroShadow}>
           <View className="flex-row items-center justify-between">
@@ -143,7 +144,7 @@ export default function TimelineScreen() {
             ))}
           </View>
         )}
-      </ScrollView>
+      </ScreenScroll>
     </Screen>
   );
 }
