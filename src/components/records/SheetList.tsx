@@ -2,7 +2,7 @@ import { Check } from 'lucide-react-native';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Warm } from '@/constants/warm';
+import { RecordsTokens } from '@/constants/recordsTokens';
 
 export interface SheetOption {
   key: string;
@@ -33,10 +33,10 @@ export function SheetList({
           onPress={() => {}}
           accessibilityViewIsModal
           className="max-h-[70%] px-5 pt-5"
-          style={{ backgroundColor: Warm.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingBottom: insets.bottom + 16 }}
+          style={{ backgroundColor: RecordsTokens.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingBottom: insets.bottom + 16 }}
         >
-          <View className="mb-3 h-1.5 w-12 self-center rounded-full" style={{ backgroundColor: Warm.border }} />
-          <Text className="mb-3 font-sans-bold" style={{ color: Warm.text, fontSize: 18 }}>{title}</Text>
+          <View className="mb-3 h-1.5 w-12 self-center rounded-full" style={{ backgroundColor: RecordsTokens.border }} />
+          <Text className="mb-3 font-sans-bold" style={{ color: RecordsTokens.text, fontSize: 18 }}>{title}</Text>
           <ScrollView>
             {options.map((option) => {
               const active = option.key === selected;
@@ -49,10 +49,10 @@ export function SheetList({
                   onPress={() => onSelect(option.key)}
                   className="min-h-[52px] flex-row items-center justify-between px-2"
                 >
-                  <Text className="font-sans-medium" style={{ color: active ? Warm.accent : Warm.text, fontSize: 15 }}>
+                  <Text className="font-sans-medium" style={{ color: active ? RecordsTokens.accent : RecordsTokens.text, fontSize: 15 }}>
                     {option.label}
                   </Text>
-                  {active ? <Check size={18} color={Warm.accent} /> : null}
+                  {active ? <Check size={18} color={RecordsTokens.accent} /> : null}
                 </Pressable>
               );
             })}

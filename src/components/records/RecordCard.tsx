@@ -2,7 +2,7 @@ import { ChevronRight, Share2, Trash2 } from 'lucide-react-native';
 import { Pressable, Text, View } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 
-import { Warm } from '@/constants/warm';
+import { RecordsTokens } from '@/constants/recordsTokens';
 import type { MedicalRecord } from '@/data/records';
 import { formatEventDate, reviewLabel } from '@/lib/recordSearch';
 import { categoryStyle } from './categoryStyle';
@@ -38,13 +38,14 @@ export function RecordCard({
             onPress={onShare}
             className="w-16 items-center justify-center rounded-3xl bg-brand-100"
           >
-            <Share2 size={20} color={Warm.text} />
+            <Share2 size={20} color={RecordsTokens.text} />
           </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Delete ${record.title}`}
             onPress={onDelete}
-            className="w-16 items-center justify-center rounded-3xl bg-red-600"
+            className="w-16 items-center justify-center rounded-3xl"
+            style={{ backgroundColor: RecordsTokens.emergency }}
           >
             <Trash2 size={20} color="#FFFFFF" />
           </Pressable>
@@ -57,49 +58,49 @@ export function RecordCard({
         onPress={onOpen}
         className="flex-row items-center gap-3 p-4"
         style={({ pressed }) => ({
-          backgroundColor: Warm.surface,
-          borderRadius: Warm.radius.card,
+          backgroundColor: RecordsTokens.surface,
+          borderRadius: RecordsTokens.radius.card,
           opacity: pressed ? 0.92 : 1,
           transform: [{ scale: pressed ? 0.985 : 1 }],
-          ...Warm.shadow,
+          ...RecordsTokens.shadow,
         })}
       >
-        <View className="h-12 w-12 items-center justify-center" style={{ backgroundColor: style.tint, borderRadius: Warm.radius.tile }}>
+        <View className="h-12 w-12 items-center justify-center" style={{ backgroundColor: style.tint, borderRadius: RecordsTokens.radius.tile }}>
           <Icon size={22} color={style.colour} />
         </View>
 
         <View className="flex-1 gap-1">
           <View className="flex-row items-start justify-between gap-2">
-            <Text numberOfLines={1} className="flex-1 font-sans-bold" style={{ color: Warm.text, fontSize: Warm.type.cardTitle }}>
+            <Text numberOfLines={1} className="flex-1 font-sans-bold" style={{ color: RecordsTokens.text, fontSize: RecordsTokens.type.cardTitle }}>
               {record.title}
             </Text>
             <View
               className="rounded-full px-2 py-0.5"
-              style={{ backgroundColor: review === 'Reviewed' ? '#E4F4EA' : Warm.track }}
+              style={{ backgroundColor: review === 'Reviewed' ? RecordsTokens.successSoft : RecordsTokens.track }}
             >
-              <Text style={{ color: review === 'Reviewed' ? '#15803D' : Warm.textMuted, fontSize: Warm.type.tiny, fontWeight: '600' }}>
+              <Text style={{ color: review === 'Reviewed' ? RecordsTokens.successText : RecordsTokens.textMuted, fontSize: RecordsTokens.type.tiny, fontWeight: '600' }}>
                 {review}
               </Text>
             </View>
           </View>
-          <Text numberOfLines={1} style={{ color: Warm.textMuted, fontSize: Warm.type.meta }}>
+          <Text numberOfLines={1} style={{ color: RecordsTokens.textMuted, fontSize: RecordsTokens.type.meta }}>
             {record.category} · {formatEventDate(record)}
           </Text>
           {provider ? (
-            <Text numberOfLines={1} style={{ color: Warm.textMuted, fontSize: Warm.type.tiny }}>
+            <Text numberOfLines={1} style={{ color: RecordsTokens.textMuted, fontSize: RecordsTokens.type.tiny }}>
               {provider}
             </Text>
           ) : null}
           {record.diagnosis ? (
-            <View className="mt-1 self-start rounded-full px-2.5 py-1" style={{ backgroundColor: Warm.accentSoft }}>
-              <Text numberOfLines={1} style={{ color: Warm.accent, fontSize: Warm.type.tiny, fontWeight: '600' }}>
+            <View className="mt-1 self-start rounded-full px-2.5 py-1" style={{ backgroundColor: RecordsTokens.accentSoft }}>
+              <Text numberOfLines={1} style={{ color: RecordsTokens.accent, fontSize: RecordsTokens.type.tiny, fontWeight: '600' }}>
                 {record.diagnosis}
               </Text>
             </View>
           ) : null}
         </View>
 
-        <ChevronRight size={18} color={Warm.textMuted} />
+        <ChevronRight size={18} color={RecordsTokens.textMuted} />
       </Pressable>
     </Swipeable>
   );

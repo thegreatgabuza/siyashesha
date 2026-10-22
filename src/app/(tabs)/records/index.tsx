@@ -17,7 +17,7 @@ import { RecordCard } from '@/components/records/RecordCard';
 import { RecordSkeleton } from '@/components/records/RecordSkeleton';
 import { type SheetOption, SheetList } from '@/components/records/SheetList';
 import { SummaryRing } from '@/components/records/SummaryRing';
-import { Warm } from '@/constants/warm';
+import { RecordsTokens } from '@/constants/recordsTokens';
 import { recordCategories, type RecordCategory } from '@/data/records';
 import { removeOriginal } from '@/lib/documents';
 import { tapFeedback } from '@/lib/feedback';
@@ -114,7 +114,7 @@ export default function RecordsScreen() {
   const moreOptions: SheetOption[] = more.map((c) => ({ key: c, label: `${categoryStyle[c].short} (${chipCounts.get(c) ?? 0})` }));
 
   return (
-    <View className="flex-1" style={{ backgroundColor: Warm.background }}>
+    <View className="flex-1" style={{ backgroundColor: RecordsTokens.background }}>
       <Animated.ScrollView
         onScroll={onScroll}
         scrollEventThrottle={16}
@@ -125,8 +125,8 @@ export default function RecordsScreen() {
         {/* 0: header */}
         <View className="flex-row items-center justify-between pb-4">
           <View>
-            <Text style={{ color: Warm.text, fontSize: Warm.type.title, fontWeight: '700' }}>Medical Records</Text>
-            <Text style={{ color: Warm.textMuted, fontSize: Warm.type.meta }}>
+            <Text style={{ color: RecordsTokens.text, fontSize: RecordsTokens.type.title, fontWeight: '700' }}>Medical Records</Text>
+            <Text style={{ color: RecordsTokens.textMuted, fontSize: RecordsTokens.type.meta }}>
               {records.length} {records.length === 1 ? 'record' : 'records'}
             </Text>
           </View>
@@ -138,9 +138,9 @@ export default function RecordsScreen() {
               router.push('/more/notifications' as any);
             }}
             className="h-11 w-11 items-center justify-center rounded-full"
-            style={({ pressed }) => ({ backgroundColor: Warm.surface, ...Warm.shadow, opacity: pressed ? 0.85 : 1 })}
+            style={({ pressed }) => ({ backgroundColor: RecordsTokens.surface, ...RecordsTokens.shadow, opacity: pressed ? 0.85 : 1 })}
           >
-            <Bell size={20} color={Warm.text} />
+            <Bell size={20} color={RecordsTokens.text} />
           </Pressable>
         </View>
 
@@ -148,28 +148,28 @@ export default function RecordsScreen() {
         <Animated.View style={[heroStyle, { overflow: 'hidden' }]}>
           <View
             className="p-5"
-            style={{ height: HERO_HEIGHT, backgroundColor: Warm.surface, borderRadius: Warm.radius.card, ...Warm.shadow }}
+            style={{ height: HERO_HEIGHT, backgroundColor: RecordsTokens.surface, borderRadius: RecordsTokens.radius.card, ...RecordsTokens.shadow }}
           >
             <SummaryRing counts={totalCounts} total={records.length} lastUpdated={lastUpdated} />
           </View>
         </Animated.View>
 
         {/* 2: sticky search and categories */}
-        <View className="gap-2 pb-2" style={{ backgroundColor: Warm.background, paddingTop: 8 }}>
+        <View className="gap-2 pb-2" style={{ backgroundColor: RecordsTokens.background, paddingTop: 8 }}>
           <View
             className="h-14 flex-row items-center gap-2 pl-4 pr-1"
-            style={{ backgroundColor: Warm.surface, borderRadius: Warm.radius.pill, ...Warm.shadow }}
+            style={{ backgroundColor: RecordsTokens.surface, borderRadius: RecordsTokens.radius.pill, ...RecordsTokens.shadow }}
           >
-            <Search size={18} color={Warm.textMuted} />
+            <Search size={18} color={RecordsTokens.textMuted} />
             <TextInput
               value={search}
               onChangeText={setSearch}
               placeholder="Search title, diagnosis, doctor, facility"
-              placeholderTextColor={Warm.textMuted}
+              placeholderTextColor={RecordsTokens.textMuted}
               autoCorrect={false}
               returnKeyType="search"
               className="flex-1 font-sans"
-              style={{ color: Warm.text, fontSize: 15 }}
+              style={{ color: RecordsTokens.text, fontSize: 15 }}
               accessibilityLabel="Search medical records"
             />
             {search.length > 0 ? (
@@ -179,7 +179,7 @@ export default function RecordsScreen() {
                 onPress={() => setSearch('')}
                 className="h-11 w-11 items-center justify-center"
               >
-                <X size={18} color={Warm.textMuted} />
+                <X size={18} color={RecordsTokens.textMuted} />
               </Pressable>
             ) : null}
             <Pressable
@@ -187,9 +187,9 @@ export default function RecordsScreen() {
               accessibilityLabel="Sort and filter"
               onPress={() => setSheet('sort')}
               className="h-11 w-11 items-center justify-center rounded-full"
-              style={{ backgroundColor: Warm.accentSoft }}
+              style={{ backgroundColor: RecordsTokens.accentSoft }}
             >
-              <SlidersHorizontal size={18} color={Warm.accent} />
+              <SlidersHorizontal size={18} color={RecordsTokens.accent} />
             </Pressable>
           </View>
 
@@ -219,7 +219,7 @@ export default function RecordsScreen() {
 
         {/* 3: sort line */}
         <View className="flex-row items-center justify-between pb-3 pt-2">
-          <Text style={{ color: Warm.text, fontSize: 16, fontWeight: '700' }}>
+          <Text style={{ color: RecordsTokens.text, fontSize: 16, fontWeight: '700' }}>
             {filtersActive ? `Showing ${visible.length} of ${records.length}` : 'Recent records'}
           </Text>
           <Pressable
@@ -227,10 +227,10 @@ export default function RecordsScreen() {
             accessibilityLabel={`Sort: ${sortLabel}. Change`}
             onPress={() => setSheet('sort')}
             className="min-h-[44px] flex-row items-center gap-1 rounded-full px-3"
-            style={{ backgroundColor: Warm.surface, ...Warm.shadow }}
+            style={{ backgroundColor: RecordsTokens.surface, ...RecordsTokens.shadow }}
           >
-            <Text style={{ color: Warm.text, fontSize: Warm.type.meta, fontWeight: '600' }}>{sortLabel}</Text>
-            <Text style={{ color: Warm.textMuted, fontSize: 10 }}>▼</Text>
+            <Text style={{ color: RecordsTokens.text, fontSize: RecordsTokens.type.meta, fontWeight: '600' }}>{sortLabel}</Text>
+            <Text style={{ color: RecordsTokens.textMuted, fontSize: 10 }}>▼</Text>
           </Pressable>
         </View>
 
@@ -238,12 +238,12 @@ export default function RecordsScreen() {
         {!hydrated ? (
           <RecordSkeleton />
         ) : records.length === 0 ? (
-          <View className="items-center gap-3 p-8" style={{ backgroundColor: Warm.surface, borderRadius: Warm.radius.card, ...Warm.shadow }}>
-            <View className="h-14 w-14 items-center justify-center rounded-full" style={{ backgroundColor: Warm.accentSoft }}>
-              <FileText size={26} color={Warm.accent} />
+          <View className="items-center gap-3 p-8" style={{ backgroundColor: RecordsTokens.surface, borderRadius: RecordsTokens.radius.card, ...RecordsTokens.shadow }}>
+            <View className="h-14 w-14 items-center justify-center rounded-full" style={{ backgroundColor: RecordsTokens.accentSoft }}>
+              <FileText size={26} color={RecordsTokens.accent} />
             </View>
-            <Text style={{ color: Warm.text, fontSize: 17, fontWeight: '700' }}>No medical records yet</Text>
-            <Text className="text-center" style={{ color: Warm.textMuted, fontSize: Warm.type.meta }}>
+            <Text style={{ color: RecordsTokens.text, fontSize: 17, fontWeight: '700' }}>No medical records yet</Text>
+            <Text className="text-center" style={{ color: RecordsTokens.textMuted, fontSize: RecordsTokens.type.meta }}>
               Upload a document, scan one, or add a record by hand.
             </Text>
             <Pressable
@@ -251,17 +251,17 @@ export default function RecordsScreen() {
               accessibilityLabel="Add a record"
               onPress={() => router.push('/records/upload')}
               className="min-h-[44px] justify-center rounded-full px-6"
-              style={{ backgroundColor: Warm.accent }}
+              style={{ backgroundColor: RecordsTokens.accent }}
             >
               <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 15 }}>Add a record</Text>
             </Pressable>
           </View>
         ) : visible.length === 0 ? (
-          <View className="items-center gap-3 p-8" style={{ backgroundColor: Warm.surface, borderRadius: Warm.radius.card, ...Warm.shadow }}>
-            <Text style={{ color: Warm.text, fontSize: 17, fontWeight: '700' }}>
+          <View className="items-center gap-3 p-8" style={{ backgroundColor: RecordsTokens.surface, borderRadius: RecordsTokens.radius.card, ...RecordsTokens.shadow }}>
+            <Text style={{ color: RecordsTokens.text, fontSize: 17, fontWeight: '700' }}>
               {search.trim() ? `No records match "${search.trim()}"` : `No ${category} records`}
             </Text>
-            <Text className="text-center" style={{ color: Warm.textMuted, fontSize: Warm.type.meta }}>
+            <Text className="text-center" style={{ color: RecordsTokens.textMuted, fontSize: RecordsTokens.type.meta }}>
               {search.trim() ? 'Try fewer words, or search by a different detail.' : 'Choose another category to see your other records.'}
             </Text>
             <Pressable
@@ -272,7 +272,7 @@ export default function RecordsScreen() {
                 setCategory('All');
               }}
               className="min-h-[44px] justify-center rounded-full px-6"
-              style={{ backgroundColor: Warm.accent }}
+              style={{ backgroundColor: RecordsTokens.accent }}
             >
               <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 15 }}>
                 {search.trim() ? 'Clear search' : 'Show all records'}
@@ -283,7 +283,7 @@ export default function RecordsScreen() {
           groups.map((group) => (
             <View key={group.label || 'all'} className="gap-3 pb-4">
               {group.label ? (
-                <Text style={{ color: Warm.textMuted, fontSize: Warm.type.meta, fontWeight: '600' }}>
+                <Text style={{ color: RecordsTokens.textMuted, fontSize: RecordsTokens.type.meta, fontWeight: '600' }}>
                   {group.label} · {group.records.length}
                 </Text>
               ) : null}
@@ -311,7 +311,7 @@ export default function RecordsScreen() {
             router.push('/records/upload');
           }}
           className="h-16 w-16 items-center justify-center rounded-full"
-          style={({ pressed }) => ({ backgroundColor: Warm.accent, transform: [{ scale: pressed ? 0.94 : 1 }], shadowColor: Warm.accent, shadowOpacity: 0.35, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 6 })}
+          style={({ pressed }) => ({ backgroundColor: RecordsTokens.accent, transform: [{ scale: pressed ? 0.94 : 1 }], shadowColor: RecordsTokens.accent, shadowOpacity: 0.35, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 6 })}
         >
           <Plus size={28} color="#FFFFFF" />
         </Pressable>

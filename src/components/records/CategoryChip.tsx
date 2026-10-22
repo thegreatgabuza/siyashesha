@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 
-import { Warm } from '@/constants/warm';
+import { RecordsTokens } from '@/constants/recordsTokens';
 import { tapFeedback } from '@/lib/feedback';
 
 /** Icon in a circle with a label and count underneath. The active chip fills with the accent colour. */
@@ -27,7 +27,7 @@ export function CategoryChip({
   }, [active, fill, reduced]);
 
   const circleStyle = useAnimatedStyle(() => ({
-    backgroundColor: fill.value > 0.5 ? Warm.accent : Warm.surface,
+    backgroundColor: fill.value > 0.5 ? RecordsTokens.accent : RecordsTokens.surface,
   }));
 
   return (
@@ -43,19 +43,19 @@ export function CategoryChip({
       style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}
     >
       <Animated.View
-        style={[circleStyle, Warm.shadow]}
+        style={[circleStyle, RecordsTokens.shadow]}
         className="h-14 w-14 items-center justify-center rounded-full"
       >
-        <Icon size={22} color={active ? '#FFFFFF' : Warm.text} />
+        <Icon size={22} color={active ? '#FFFFFF' : RecordsTokens.text} />
       </Animated.View>
       <Text
         numberOfLines={1}
-        style={{ color: active ? Warm.accent : Warm.text, fontSize: Warm.type.tiny, fontWeight: active ? '700' : '500' }}
+        style={{ color: active ? RecordsTokens.accent : RecordsTokens.text, fontSize: RecordsTokens.type.tiny, fontWeight: active ? '700' : '500' }}
       >
         {label}
       </Text>
       <View className="rounded-full px-1.5">
-        <Text style={{ color: Warm.textMuted, fontSize: Warm.type.tiny }}>{count}</Text>
+        <Text style={{ color: RecordsTokens.textMuted, fontSize: RecordsTokens.type.tiny }}>{count}</Text>
       </View>
     </Pressable>
   );

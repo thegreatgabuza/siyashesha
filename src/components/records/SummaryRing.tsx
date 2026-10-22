@@ -2,7 +2,7 @@ import dayjs from 'dayjs';
 import { Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 
-import { Warm } from '@/constants/warm';
+import { RecordsTokens } from '@/constants/recordsTokens';
 import { categoryStyle } from './categoryStyle';
 import type { RecordCategory } from '@/data/records';
 
@@ -31,7 +31,7 @@ export function SummaryRing({
     <View className="flex-row items-center gap-5" accessibilityRole="summary" accessibilityLabel={`${total} records`}>
       <View style={{ width: size, height: size }}>
         <Svg width={size} height={size} style={{ transform: [{ rotate: '-90deg' }] }}>
-          <Circle cx={size / 2} cy={size / 2} r={radius} stroke={Warm.track} strokeWidth={stroke} fill="none" />
+          <Circle cx={size / 2} cy={size / 2} r={radius} stroke={RecordsTokens.track} strokeWidth={stroke} fill="none" />
           {total > 0
             ? ranked.map(([category, count]) => {
                 const length = (count / total) * circumference;
@@ -55,8 +55,8 @@ export function SummaryRing({
             : null}
         </Svg>
         <View className="absolute inset-0 items-center justify-center">
-          <Text style={{ color: Warm.text, fontSize: 28, fontWeight: '700' }}>{total}</Text>
-          <Text style={{ color: Warm.textMuted, fontSize: Warm.type.tiny }}>records</Text>
+          <Text style={{ color: RecordsTokens.text, fontSize: 28, fontWeight: '700' }}>{total}</Text>
+          <Text style={{ color: RecordsTokens.textMuted, fontSize: RecordsTokens.type.tiny }}>records</Text>
         </View>
       </View>
 
@@ -64,14 +64,14 @@ export function SummaryRing({
         {ranked.slice(0, 3).map(([category, count]) => (
           <View key={category} className="flex-row items-center gap-2">
             <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: categoryStyle[category].colour }} />
-            <Text className="flex-1 font-sans-medium" numberOfLines={1} style={{ color: Warm.text, fontSize: Warm.type.meta }}>
+            <Text className="flex-1 font-sans-medium" numberOfLines={1} style={{ color: RecordsTokens.text, fontSize: RecordsTokens.type.meta }}>
               {categoryStyle[category].short}
             </Text>
-            <Text className="font-sans-semibold" style={{ color: Warm.text, fontSize: Warm.type.meta }}>{count}</Text>
+            <Text className="font-sans-semibold" style={{ color: RecordsTokens.text, fontSize: RecordsTokens.type.meta }}>{count}</Text>
           </View>
         ))}
         {lastUpdated ? (
-          <Text className="mt-1 font-sans" style={{ color: Warm.textMuted, fontSize: Warm.type.tiny }}>
+          <Text className="mt-1 font-sans" style={{ color: RecordsTokens.textMuted, fontSize: RecordsTokens.type.tiny }}>
             Last updated {dayjs(lastUpdated).format('D MMM YYYY')}
           </Text>
         ) : null}
