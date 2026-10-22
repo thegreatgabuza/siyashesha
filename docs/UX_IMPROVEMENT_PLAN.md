@@ -1,6 +1,6 @@
 # Siyashesha Health Passport: UX improvement plan
 
-Status: in progress on `app-foundation`. This is an audit of the current build and the plan to raise it to a calm, premium, trustworthy health product **without** rebuilding it. Stack, routes, features and brand stay as they are.
+Status: implemented on `app-foundation` (see §8 for what was verified and what is still open). This is an audit of the current build and the plan to raise it to a calm, premium, trustworthy health product **without** rebuilding it. Stack, routes, features and brand stay as they are.
 
 ## Guiding idea
 
@@ -158,7 +158,33 @@ There is no Android SDK or iOS simulator on the development machine (Windows). I
 
 ## 7. Open items
 
-- [ ] On-device check of liquid glass (iOS 26+) and gyro tilt
-- [ ] Translate the new Home/Assistant strings into all 7 languages (keys added in English with fallbacks; layouts already tested with long isiZulu strings)
-- [ ] Optional: enable Reanimated shared-element transitions in a development build
-- [ ] Optional: Skia shader for the passport sheen
+- [ ] **On-device pass.** Native paths still need checking on a device in Expo Go or a development build: liquid glass (iOS 26+), gyro tilt on the passport card, haptics, the Android RefreshControl colours and keyboard behaviour in the Assistant composer.
+- [ ] **Dark mode on device.** Tokens and screens have dark values. Web never applies NativeWind's `dark` class, so dark mode wasn't visible in the web pass.
+- [ ] **Translations.** The new copy (readiness, Today, Assistant cards, catalog) is English, with English fallback in the other six languages. Only `tabs.assistant` was added in all seven. Layouts were checked in isiZulu at 320px. Medication names, doses and units are never passed through `t()`.
+- [ ] **Remaining screens.** Diary, Calendar day, Timeline, Notifications, Medications and Upload got the inset and scroll fixes but not a full token pass. They still use NativeWind classes with older colours.
+- [ ] **Pre-existing nested-button warning.** `DiaryRow` puts a pressable inside a pressable inside `Swipeable`. React warns about it on web.
+- [ ] **Optional.** Enable Reanimated shared-element transitions in a development build. Skia shader for the passport sheen.
+
+## 8. Verification log
+
+Run on Expo web in headless Chrome, driven through the DevTools protocol (mobile emulation, 390×844 and 320×640, touch on):
+
+| Check | Result |
+|---|---|
+| Typecheck (`tsc --noEmit`) and lint (`expo lint`) after every commit | Clean |
+| Web export (`expo export -p web`), all routes | Builds |
+| Home order, live progress (12 records → Record step done) | ✓ |
+| Passport card flip (tap) to ICE side with QR; finger tilt + sheen | ✓ |
+| "Not sure" blood group → Unknown (dashed) on Home, ICE, chips; readiness lists what's missing | ✓ |
+| Avatar menu (Profile, Settings, Language, Sign out) | ✓ |
+| Glass tab bar, active pill morph, Calendar ↔ Diary switch keeps the Calendar tab lit | ✓ |
+| Records list thumbnails, catalog toggle, detail "lift" | ✓ (pinch needs a touch device) |
+| Assistant: shortcut → streaming reply → HbA1c and dose cards; dose tap updates Home | ✓ |
+| Sub-screens no longer double the top inset or hide content under the bar | ✓ |
+| isiZulu at 320px with reduce motion: no truncation, no animation | ✓ (after the narrow-width fix) |
+
+Bugs found and fixed during verification:
+- NativeWind drops function `style` props on `Pressable` with `className`, so card and FAB backgrounds vanished.
+- The absolute blur layer in `Glass` painted over its own content on web.
+- Token colours followed the OS scheme while NativeWind rendered light.
+- Header and card overflowed at 320px.
