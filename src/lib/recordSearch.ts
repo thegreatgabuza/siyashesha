@@ -107,3 +107,22 @@ export function formatEventDate(record: MedicalRecord): string {
   const parsed = eventTime(record);
   return parsed === null ? 'Date not recorded' : dayjs(parsed).format('D MMM YYYY');
 }
+
+/**
+ * Splits an already-sorted list into runs of the same month, for "September 2026" style headers.
+ * Records without a valid date are grouped together at the end.
+ */
+export function groupByMonth(records: MedicalRecord[]): { label: string; records: MedicalRecord[] }[] {
+  const groups: { label: string; records: MedicalRecord[] }[] = [];
+  for (const record of records) {
+    const time = eventTime(record);
+    const label = time === null ? 'Date not recorded' : dayjs(time).format('MMMM YYYY');
+    const last = groups[groups.length - 1];
+    if (last && last.label === label) {
+      last.records.push(record);
+    } else {
+      groups.push({ label, records: [record] });
+    }
+  }
+  return groups;
+}

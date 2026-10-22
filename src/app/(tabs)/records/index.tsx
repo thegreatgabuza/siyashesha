@@ -1,287 +1,344 @@
 import { router } from 'expo-router';
-import {
-  FileText,
-  FlaskConical,
-  HeartPulse,
-  Pill as PillIcon,
-  Plus,
-  Scan,
-  Search,
-  Stethoscope,
-  Syringe,
-  X,
-} from 'lucide-react-native';
-import { useMemo, useState } from 'react';
-import { FlatList, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Bell, FileText, LayoutGrid, MoreHorizontal, Plus, Search, SlidersHorizontal, X } from 'lucide-react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import Animated, {
+  Extrapolation,
+  interpolate,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+} from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { EmptyState } from '@/components/ui/EmptyState';
-import { Pill } from '@/components/ui/Pill';
-import { Screen } from '@/components/ui/Screen';
-import { recordCategories, type MedicalRecord, type RecordCategory } from '@/data/records';
-import { useAccent } from '@/hooks/useAccent';
+import { CategoryChip } from '@/components/records/CategoryChip';
+import { categoryStyle } from '@/components/records/categoryStyle';
+import { RecordCard } from '@/components/records/RecordCard';
+import { RecordSkeleton } from '@/components/records/RecordSkeleton';
+import { type SheetOption, SheetList } from '@/components/records/SheetList';
+import { SummaryRing } from '@/components/records/SummaryRing';
+import { Warm } from '@/constants/warm';
+import { recordCategories, type RecordCategory } from '@/data/records';
+import { removeOriginal } from '@/lib/documents';
+import { tapFeedback } from '@/lib/feedback';
 import {
   countByCategory,
   distinctCategories,
-  formatEventDate,
+  groupByMonth,
   matchesSearch,
   recordSortOptions,
-  reviewLabel,
   sortRecords,
   type RecordSort,
 } from '@/lib/recordSearch';
 import { useAppStore } from '@/store/useAppStore';
 
-const categoryIcons: Record<RecordCategory, any> = {
-  'Blood Tests': FlaskConical,
-  Radiology: Scan,
-  Prescriptions: PillIcon,
-  'Discharge Summaries': FileText,
-  'Hospital Visits': HeartPulse,
-  'Clinic Visits': Stethoscope,
-  Operations: Syringe,
-  'Specialist Letters': FileText,
-  Vaccinations: Syringe,
-  'Chronic Care': HeartPulse,
-  Other: FileText,
-};
+const HERO_HEIGHT = 164;
+const COLLAPSE_AT = 140;
+const QUICK_COUNT = 4;
+
 
 export default function RecordsScreen() {
-  const { accent, accentSoft } = useAccent();
+  const insets = useSafeAreaInsets();
   const records = useAppStore((s) => s.records);
+  const deleteRecord = useAppStore((s) => s.deleteRecord);
+
+  // Stored records load asynchronously on first launch, so show placeholders until they are ready.
+  const [hydrated, setHydrated] = useState(() => useAppStore.persist.hasHydrated());
+  useEffect(() => useAppStore.persist.onFinishHydration(() => setHydrated(true)), []);
+
   const [category, setCategory] = useState<RecordCategory | 'All'>('All');
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<RecordSort>('newest');
+  const [sheet, setSheet] = useState<'sort' | 'more' | null>(null);
 
-  // Categories that exist in the vault, in the app's standard order, with no duplicates.
+  const scrollY = useSharedValue(0);
+  const onScroll = useAnimatedScrollHandler((event) => {
+    scrollY.value = event.contentOffset.y;
+  });
+
+  // The summary card shrinks away as the list scrolls, so the search and categories get more room.
+  const heroStyle = useAnimatedStyle(() => ({
+    height: interpolate(scrollY.value, [0, COLLAPSE_AT], [HERO_HEIGHT, 0], Extrapolation.CLAMP),
+    opacity: interpolate(scrollY.value, [0, COLLAPSE_AT * 0.6], [1, 0], Extrapolation.CLAMP),
+  }));
+
+  // Whole-vault figures for the summary card.
+  const totalCounts = useMemo(() => countByCategory(records), [records]);
+  const lastUpdated = useMemo(
+    () => records.reduce<string | null>((latest, r) => (latest === null || r.uploadedAt > latest ? r.uploadedAt : latest), null),
+    [records]
+  );
+
+  // Search is applied first, so the chip counts always match what the user can see.
+  const searchMatches = useMemo(() => records.filter((r) => matchesSearch(r, search)), [records, search]);
+  const chipCounts = useMemo(() => countByCategory(searchMatches), [searchMatches]);
+
+  // Quick chips: the four categories with the most records. The rest sit behind "More".
   const vaultCategories = useMemo(() => {
     const present = new Set(distinctCategories(records));
     return recordCategories.filter((c) => present.has(c));
   }, [records]);
-
-  // Search is applied first, so category counts always match what the user can see.
-  const searchMatches = useMemo(() => records.filter((r) => matchesSearch(r, search)), [records, search]);
-
-  const counts = useMemo(() => countByCategory(searchMatches), [searchMatches]);
+  const quick = useMemo(
+    () => [...vaultCategories].sort((a, b) => (totalCounts.get(b) ?? 0) - (totalCounts.get(a) ?? 0)).slice(0, QUICK_COUNT),
+    [vaultCategories, totalCounts]
+  );
+  const more = vaultCategories.filter((c) => !quick.includes(c));
 
   const visible = useMemo(() => {
     const inCategory = category === 'All' ? searchMatches : searchMatches.filter((r) => r.category === category);
     return sortRecords(inCategory, sort);
   }, [searchMatches, category, sort]);
 
-  // Quick-access categories are the four with the most records; the rest sit behind "More categories".
-  const quickCategories = useMemo(() => {
-    const totals = countByCategory(records);
-    return [...vaultCategories].sort((a, b) => (totals.get(b) ?? 0) - (totals.get(a) ?? 0)).slice(0, 4);
-  }, [records, vaultCategories]);
-  const moreCategories = vaultCategories.filter((c) => !quickCategories.includes(c));
-  const [showMoreCategories, setShowMoreCategories] = useState(false);
-  // Keep a selected category visible even when it sits behind "More categories".
-  const expandCategories = showMoreCategories || (category !== 'All' && moreCategories.includes(category));
+  const dateSorted = sort === 'newest' || sort === 'oldest';
+  const groups = useMemo(() => (dateSorted ? groupByMonth(visible) : [{ label: '', records: visible }]), [dateSorted, visible]);
 
-  const filtersActive = search.trim() !== '' || category !== 'All' || sort !== 'newest';
+  const filtersActive = search.trim() !== '' || category !== 'All';
+  const sortLabel = recordSortOptions.find((o) => o.key === sort)?.label ?? 'Newest first';
 
-  const clearFilters = () => {
-    setSearch('');
-    setCategory('All');
-    setSort('newest');
+  const confirmDelete = (id: string, title: string) => {
+    const record = records.find((r) => r.id === id);
+    Alert.alert('Delete record?', `${title} will be permanently removed from your vault.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          removeOriginal(record?.originalFile);
+          deleteRecord(id);
+        },
+      },
+    ]);
   };
 
+  const sortOptions: SheetOption[] = recordSortOptions.map((o) => ({ key: o.key, label: o.label }));
+  const moreOptions: SheetOption[] = more.map((c) => ({ key: c, label: `${categoryStyle[c].short} (${chipCounts.get(c) ?? 0})` }));
+
   return (
-    <Screen scroll={false}>
-      <View className="px-5 pb-2 pt-4">
-        <View className="flex-row items-start justify-between gap-3">
-          <View className="flex-1">
-            <Text className="font-sans-bold text-[26px] text-ink dark:text-slate-50">Medical Records</Text>
-            <Text className="font-sans text-[13px] text-ink-muted dark:text-slate-400">
-              {records.length} {records.length === 1 ? 'record' : 'records'} · {vaultCategories.length}{' '}
-              {vaultCategories.length === 1 ? 'category' : 'categories'}
+    <View className="flex-1" style={{ backgroundColor: Warm.background }}>
+      <Animated.ScrollView
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        stickyHeaderIndices={[2]}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 170, gap: 0 }}
+      >
+        {/* 0: header */}
+        <View className="flex-row items-center justify-between pb-4">
+          <View>
+            <Text style={{ color: Warm.text, fontSize: Warm.type.title, fontWeight: '700' }}>Medical Records</Text>
+            <Text style={{ color: Warm.textMuted, fontSize: Warm.type.meta }}>
+              {records.length} {records.length === 1 ? 'record' : 'records'}
             </Text>
           </View>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Add record"
-            onPress={() => router.push('/records/upload')}
-            className="min-h-[44px] flex-row items-center gap-1.5 rounded-full bg-ink px-4 dark:bg-brand-400"
+            accessibilityLabel="Notifications and reminders"
+            onPress={() => {
+              tapFeedback();
+              router.push('/more/notifications' as any);
+            }}
+            className="h-11 w-11 items-center justify-center rounded-full"
+            style={({ pressed }) => ({ backgroundColor: Warm.surface, ...Warm.shadow, opacity: pressed ? 0.85 : 1 })}
           >
-            <Plus size={18} color="#FFFFFF" />
-            <Text className="font-sans-semibold text-[13px] text-white">Add Record</Text>
+            <Bell size={20} color={Warm.text} />
           </Pressable>
         </View>
 
-        <View className="mt-4 flex-row items-center gap-2 rounded-full border border-slate-200 bg-white px-4 dark:border-canvasdark-card dark:bg-canvasdark-card">
-          <Search size={16} color="#5B6478" />
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search records, diagnoses, doctors…"
-            placeholderTextColor="#8C98B8"
-            autoCorrect={false}
-            returnKeyType="search"
-            className="min-h-[44px] flex-1 font-sans text-[14px] text-ink dark:text-slate-50"
-            accessibilityLabel="Search medical records"
-          />
-          {search.length > 0 ? (
+        {/* 1: summary, collapses on scroll */}
+        <Animated.View style={[heroStyle, { overflow: 'hidden' }]}>
+          <View
+            className="p-5"
+            style={{ height: HERO_HEIGHT, backgroundColor: Warm.surface, borderRadius: Warm.radius.card, ...Warm.shadow }}
+          >
+            <SummaryRing counts={totalCounts} total={records.length} lastUpdated={lastUpdated} />
+          </View>
+        </Animated.View>
+
+        {/* 2: sticky search and categories */}
+        <View className="gap-2 pb-2" style={{ backgroundColor: Warm.background, paddingTop: 8 }}>
+          <View
+            className="h-14 flex-row items-center gap-2 pl-4 pr-1"
+            style={{ backgroundColor: Warm.surface, borderRadius: Warm.radius.pill, ...Warm.shadow }}
+          >
+            <Search size={18} color={Warm.textMuted} />
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search title, diagnosis, doctor, facility"
+              placeholderTextColor={Warm.textMuted}
+              autoCorrect={false}
+              returnKeyType="search"
+              className="flex-1 font-sans"
+              style={{ color: Warm.text, fontSize: 15 }}
+              accessibilityLabel="Search medical records"
+            />
+            {search.length > 0 ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Clear search"
+                onPress={() => setSearch('')}
+                className="h-11 w-11 items-center justify-center"
+              >
+                <X size={18} color={Warm.textMuted} />
+              </Pressable>
+            ) : null}
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Clear search"
-              onPress={() => setSearch('')}
-              hitSlop={8}
-              className="h-8 w-8 items-center justify-center"
+              accessibilityLabel="Sort and filter"
+              onPress={() => setSheet('sort')}
+              className="h-11 w-11 items-center justify-center rounded-full"
+              style={{ backgroundColor: Warm.accentSoft }}
             >
-              <X size={16} color="#5B6478" />
+              <SlidersHorizontal size={18} color={Warm.accent} />
             </Pressable>
-          ) : null}
-        </View>
-      </View>
+          </View>
 
-      {records.length === 0 ? (
-        <EmptyState
-          icon={<FileText size={32} color={accentSoft} />}
-          title="No medical records yet"
-          subtitle="Upload a document, scan one with your camera, or add a record by hand."
-          action={<AddRecordButton />}
-        />
-      ) : (
-        <>
-          <View className="flex-row flex-wrap gap-2 px-5 pb-2 pt-2.5">
-            <Pill label={`All (${searchMatches.length})`} selected={category === 'All'} onPress={() => setCategory('All')} />
-            {quickCategories.map((c) => (
-              <Pill
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 14, paddingVertical: 6, paddingRight: 8 }}>
+            <CategoryChip label="All" count={searchMatches.length} icon={LayoutGrid} active={category === 'All'} onPress={() => setCategory('All')} />
+            {quick.map((c) => (
+              <CategoryChip
                 key={c}
-                label={`${c} (${counts.get(c) ?? 0})`}
-                selected={category === c}
+                label={categoryStyle[c].short}
+                count={chipCounts.get(c) ?? 0}
+                icon={categoryStyle[c].icon}
+                active={category === c}
                 onPress={() => setCategory(c)}
               />
             ))}
-            {moreCategories.length > 0 && !expandCategories ? (
-              <Pill
-                label={`More categories (${moreCategories.length})`}
-                selected={false}
-                onPress={() => setShowMoreCategories(true)}
+            {more.length > 0 ? (
+              <CategoryChip
+                label="More"
+                count={more.reduce((sum, c) => sum + (chipCounts.get(c) ?? 0), 0)}
+                icon={MoreHorizontal}
+                active={!!more.includes(category as RecordCategory)}
+                onPress={() => setSheet('more')}
               />
             ) : null}
-            {expandCategories
-              ? moreCategories.map((c) => (
-                  <Pill
-                    key={c}
-                    label={`${c} (${counts.get(c) ?? 0})`}
-                    selected={category === c}
-                    onPress={() => setCategory(c)}
-                  />
-                ))
-              : null}
-          </View>
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 8, paddingBottom: 8 }}>
-            {recordSortOptions.map((o) => (
-              <Pill key={o.key} label={o.label} selected={sort === o.key} onPress={() => setSort(o.key)} />
-            ))}
           </ScrollView>
-
-          <View className="flex-row items-center justify-between px-5 pb-2">
-            <Text className="font-sans text-[12px] text-ink-muted dark:text-slate-400">
-              Showing {visible.length} of {records.length}
-            </Text>
-            {filtersActive ? (
-              <Pressable accessibilityRole="button" accessibilityLabel="Clear all filters" onPress={clearFilters} hitSlop={8}>
-                <Text className="font-sans-semibold text-[12px] text-brand-600 dark:text-brand-300">Clear filters</Text>
-              </Pressable>
-            ) : null}
-          </View>
-
-          <FlatList
-            data={visible}
-            keyExtractor={(r) => r.id}
-            contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 160, gap: 10 }}
-            ListEmptyComponent={
-              search.trim() !== '' ? (
-                <EmptyState
-                  icon={<Search size={32} color={accentSoft} />}
-                  title={`No records match "${search.trim()}"`}
-                  subtitle="Check the spelling, try fewer words, or search by a different detail."
-                  action={<ActionButton label="Clear search" onPress={() => setSearch('')} />}
-                />
-              ) : category !== 'All' ? (
-                <EmptyState
-                  icon={<FileText size={32} color={accentSoft} />}
-                  title={`No ${category} records`}
-                  subtitle="Choose another category to see your other records."
-                  action={<ActionButton label="Show all records" onPress={() => setCategory('All')} />}
-                />
-              ) : null
-            }
-            renderItem={({ item }) => <RecordRow record={item} accent={accent} />}
-          />
-        </>
-      )}
-    </Screen>
-  );
-}
-
-function RecordRow({ record, accent }: { record: MedicalRecord; accent: string }) {
-  const Icon = categoryIcons[record.category] ?? FileText;
-  const review = reviewLabel(record);
-  const provider = [record.doctor, record.facility].filter(Boolean).join(' · ');
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Open ${record.title}, ${formatEventDate(record)}`}
-      onPress={() => router.push(`/records/${record.id}`)}
-      className="flex-row gap-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-canvasdark-card dark:bg-canvasdark-card"
-    >
-      <View className="h-11 w-11 items-center justify-center rounded-2xl bg-brand-100 dark:bg-brand-500/20">
-        <Icon size={20} color={accent} />
-      </View>
-      <View className="flex-1 gap-1">
-        <Text className="font-sans-semibold text-[15px] leading-[20px] text-ink dark:text-slate-50">{record.title}</Text>
-        <Text className="font-sans text-[12px] text-ink-muted dark:text-slate-400">
-          {record.documentType} · {formatEventDate(record)}
-        </Text>
-        {provider ? (
-          <Text className="font-sans text-[12px] text-ink-soft dark:text-slate-300">{provider}</Text>
-        ) : null}
-        {record.diagnosis ? (
-          <Text className="font-sans text-[12px] text-ink-muted dark:text-slate-400" numberOfLines={2}>
-            {record.diagnosis}
-          </Text>
-        ) : null}
-        <View className="mt-1 flex-row flex-wrap gap-1.5">
-          <View className="rounded-full bg-slate-100 px-2.5 py-1 dark:bg-canvasdark-card">
-            <Text className="font-sans-medium text-[10px] text-ink-muted dark:text-slate-400">{record.category}</Text>
-          </View>
-          <View
-            className={`rounded-full px-2.5 py-1 ${
-              review === 'Reviewed' ? 'bg-success-50 dark:bg-success-500/15' : 'bg-slate-100 dark:bg-canvasdark-card'
-            }`}
-          >
-            <Text
-              className={`font-sans-medium text-[10px] ${
-                review === 'Reviewed' ? 'text-success-600 dark:text-success-500' : 'text-ink-muted dark:text-slate-400'
-              }`}
-            >
-              {review}
-            </Text>
-          </View>
         </View>
+
+        {/* 3: sort line */}
+        <View className="flex-row items-center justify-between pb-3 pt-2">
+          <Text style={{ color: Warm.text, fontSize: 16, fontWeight: '700' }}>
+            {filtersActive ? `Showing ${visible.length} of ${records.length}` : 'Recent records'}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Sort: ${sortLabel}. Change`}
+            onPress={() => setSheet('sort')}
+            className="min-h-[44px] flex-row items-center gap-1 rounded-full px-3"
+            style={{ backgroundColor: Warm.surface, ...Warm.shadow }}
+          >
+            <Text style={{ color: Warm.text, fontSize: Warm.type.meta, fontWeight: '600' }}>{sortLabel}</Text>
+            <Text style={{ color: Warm.textMuted, fontSize: 10 }}>▼</Text>
+          </Pressable>
+        </View>
+
+        {/* 4+: list */}
+        {!hydrated ? (
+          <RecordSkeleton />
+        ) : records.length === 0 ? (
+          <View className="items-center gap-3 p-8" style={{ backgroundColor: Warm.surface, borderRadius: Warm.radius.card, ...Warm.shadow }}>
+            <View className="h-14 w-14 items-center justify-center rounded-full" style={{ backgroundColor: Warm.accentSoft }}>
+              <FileText size={26} color={Warm.accent} />
+            </View>
+            <Text style={{ color: Warm.text, fontSize: 17, fontWeight: '700' }}>No medical records yet</Text>
+            <Text className="text-center" style={{ color: Warm.textMuted, fontSize: Warm.type.meta }}>
+              Upload a document, scan one, or add a record by hand.
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Add a record"
+              onPress={() => router.push('/records/upload')}
+              className="min-h-[44px] justify-center rounded-full px-6"
+              style={{ backgroundColor: Warm.accent }}
+            >
+              <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 15 }}>Add a record</Text>
+            </Pressable>
+          </View>
+        ) : visible.length === 0 ? (
+          <View className="items-center gap-3 p-8" style={{ backgroundColor: Warm.surface, borderRadius: Warm.radius.card, ...Warm.shadow }}>
+            <Text style={{ color: Warm.text, fontSize: 17, fontWeight: '700' }}>
+              {search.trim() ? `No records match "${search.trim()}"` : `No ${category} records`}
+            </Text>
+            <Text className="text-center" style={{ color: Warm.textMuted, fontSize: Warm.type.meta }}>
+              {search.trim() ? 'Try fewer words, or search by a different detail.' : 'Choose another category to see your other records.'}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={search.trim() ? 'Clear search' : 'Show all records'}
+              onPress={() => {
+                setSearch('');
+                setCategory('All');
+              }}
+              className="min-h-[44px] justify-center rounded-full px-6"
+              style={{ backgroundColor: Warm.accent }}
+            >
+              <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 15 }}>
+                {search.trim() ? 'Clear search' : 'Show all records'}
+              </Text>
+            </Pressable>
+          </View>
+        ) : (
+          groups.map((group) => (
+            <View key={group.label || 'all'} className="gap-3 pb-4">
+              {group.label ? (
+                <Text style={{ color: Warm.textMuted, fontSize: Warm.type.meta, fontWeight: '600' }}>
+                  {group.label} · {group.records.length}
+                </Text>
+              ) : null}
+              {group.records.map((record) => (
+                <RecordCard
+                  key={record.id}
+                  record={record}
+                  onOpen={() => router.push(`/records/${record.id}`)}
+                  onShare={() => router.push({ pathname: '/more/sharing', params: { recordId: record.id } })}
+                  onDelete={() => confirmDelete(record.id, record.title)}
+                />
+              ))}
+            </View>
+          ))
+        )}
+      </Animated.ScrollView>
+
+      {/* Floating add button, above the tab bar */}
+      <View pointerEvents="box-none" className="absolute inset-x-0 items-center" style={{ bottom: insets.bottom + 92 }}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Add record"
+          onPress={() => {
+            tapFeedback();
+            router.push('/records/upload');
+          }}
+          className="h-16 w-16 items-center justify-center rounded-full"
+          style={({ pressed }) => ({ backgroundColor: Warm.accent, transform: [{ scale: pressed ? 0.94 : 1 }], shadowColor: Warm.accent, shadowOpacity: 0.35, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 6 })}
+        >
+          <Plus size={28} color="#FFFFFF" />
+        </Pressable>
       </View>
-    </Pressable>
-  );
-}
 
-function AddRecordButton() {
-  return <ActionButton label="Add Record" onPress={() => router.push('/records/upload')} />;
-}
-
-function ActionButton({ label, onPress }: { label: string; onPress: () => void }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      className="min-h-[44px] items-center justify-center rounded-full bg-ink px-5 dark:bg-brand-400"
-    >
-      <Text className="font-sans-semibold text-[13px] text-white">{label}</Text>
-    </Pressable>
+      <SheetList
+        visible={sheet === 'sort'}
+        title="Sort records"
+        options={sortOptions}
+        selected={sort}
+        onSelect={(key) => {
+          setSort(key as RecordSort);
+          setSheet(null);
+        }}
+        onClose={() => setSheet(null)}
+      />
+      <SheetList
+        visible={sheet === 'more'}
+        title="More categories"
+        options={moreOptions}
+        selected={more.includes(category as RecordCategory) ? category : null}
+        onSelect={(key) => {
+          setCategory(key as RecordCategory);
+          setSheet(null);
+        }}
+        onClose={() => setSheet(null)}
+      />
+    </View>
   );
 }
