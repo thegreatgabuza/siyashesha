@@ -109,13 +109,26 @@ export function TabBar({ state, navigation }: TabBarProps) {
 
 function TabItem({ label, Icon, isFocused, onPress }: { label: string; Icon: any; isFocused: boolean; onPress: () => void }) {
   const reduced = useReducedMotion();
-  const spring = (v: number) => (reduced ? v : withSpring(v, springs.bouncy));
 
-  const container = useAnimatedStyle(() => ({ flexGrow: spring(isFocused ? 2.1 : 1) }));
-  const pill = useAnimatedStyle(() => ({
-    opacity: spring(isFocused ? 1 : 0),
-    transform: [{ scaleX: spring(isFocused ? 1 : 0.4) }, { scaleY: spring(isFocused ? 1 : 0.7) }],
-  }));
+  const container = useAnimatedStyle(() => {
+    const targetGrow = isFocused ? 2.1 : 1;
+    return {
+      flexGrow: reduced ? targetGrow : withSpring(targetGrow, springs.bouncy),
+    };
+  });
+
+  const pill = useAnimatedStyle(() => {
+    const targetOpacity = isFocused ? 1 : 0;
+    const targetScaleX = isFocused ? 1 : 0.4;
+    const targetScaleY = isFocused ? 1 : 0.7;
+    return {
+      opacity: reduced ? targetOpacity : withSpring(targetOpacity, springs.bouncy),
+      transform: [
+        { scaleX: reduced ? targetScaleX : withSpring(targetScaleX, springs.bouncy) },
+        { scaleY: reduced ? targetScaleY : withSpring(targetScaleY, springs.bouncy) },
+      ],
+    };
+  });
 
   return (
     <Animated.View style={[{ flexBasis: 0, height: TAB_BAR_HEIGHT - 12 }, container]}>

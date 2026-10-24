@@ -1,159 +1,381 @@
 import { router } from 'expo-router';
 import {
+  BellRing,
   ChevronRight,
   Clock,
-  BellRing,
+  CreditCard,
   Globe,
-  MessageCircle,
+  LogOut,
   Pill as PillIcon,
   Settings as SettingsIcon,
   Share2,
   ShieldAlert,
   UserRound,
+  FileText,
+  PhoneCall,
 } from 'lucide-react-native';
-import { Pressable, Text, View } from 'react-native';
+import { Alert, Linking, View } from 'react-native';
 
 import { Avatar } from '@/components/ui/Avatar';
 import { BrandLockup } from '@/components/ui/BrandLockup';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Screen } from '@/components/ui/Screen';
+import { SectionHeader } from '@/components/ui/SectionHeader';
 import { Txt } from '@/components/ui/Txt';
+import { activeMedications } from '@/data/medications';
 import { elevation, fonts, radii } from '@/design/tokens';
 import { useTokens } from '@/design/useTokens';
-import { bloodGroupLabel } from '@/lib/bloodGroup';
-import { SectionHeader } from '@/components/ui/SectionHeader';
-import { activeMedications } from '@/data/medications';
-import { useAppStore } from '@/store/useAppStore';
 import { useAccent } from '@/hooks/useAccent';
+import { languageNames } from '@/i18n/translations';
+import { bloodGroupLabel } from '@/lib/bloodGroup';
+import { useAppStore } from '@/store/useAppStore';
 
-const sections: {
+interface MenuItem {
+  id: string;
+  label: string;
+  subtitle?: string;
+  icon: any;
+  route?: string;
+  onPress?: () => void;
+  tint: string;
+  badge?: string;
+  badgeTone?: 'success' | 'muted' | 'brand';
+  destructive?: boolean;
+}
+
+interface MenuSection {
   title: string;
-  items: { label: string; icon: any; route: string; tint: string }[];
-}[] = [
-  {
-    title: 'Health',
-    items: [
-      { label: 'Medications', icon: PillIcon, route: '/more/medications', tint: '#16A34A' },
-      { label: 'Emergency Profile', icon: ShieldAlert, route: '/more/emergency', tint: '#DC1F26' },
-      { label: 'Health Timeline', icon: Clock, route: '/more/timeline', tint: 'accent' },
-      { label: 'Notifications', icon: BellRing, route: '/more/notifications', tint: 'accent' },
-    ],
-  },
-  {
-    title: 'Connect',
-    items: [
-      { label: 'Sharing', icon: Share2, route: '/more/sharing', tint: 'accent' },
-      { label: 'Siyashesha Assistant', icon: MessageCircle, route: '/assistant', tint: 'accent' },
-    ],
-  },
-  {
-    title: 'Account',
-    items: [
-      { label: 'Language', icon: Globe, route: '/more/language', tint: 'accent' },
-      { label: 'Profile', icon: UserRound, route: '/more/profile', tint: '#5B6478' },
-      { label: 'Settings', icon: SettingsIcon, route: '/more/settings', tint: '#5B6478' },
-    ],
-  },
-];
+  items: MenuItem[];
+}
 
 export default function MoreScreen() {
-  const { accent, accentSoft } = useAccent();
+  const { accent } = useAccent();
   const t = useTokens();
   const patient = useAppStore((s) => s.patientProfile);
   const recordCount = useAppStore((s) => s.records.length);
+  const language = useAppStore((s) => s.language);
+  const signOut = useAppStore((s) => s.signOut);
+
+  const confirmSignOut = () => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out of your health passport? You will need your PIN or password to sign back in.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: () => {
+            signOut();
+            router.replace('/(auth)/sign-in');
+          },
+        },
+      ]
+    );
+  };
+
+  const callEmergency = () => {
+    Alert.alert(
+      'Emergency Dispatch (112)',
+      'Would you like to dial 112 national emergency dispatch now?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Call 112', onPress: () => Linking.openURL('tel:112') },
+      ]
+    );
+  };
+
+  const sections: MenuSection[] = [
+    {
+      title: 'Account & Coverage',
+      items: [
+        {
+          id: 'profile',
+          label: 'Personal Profile',
+          subtitle: `${patient.firstName} ${patient.lastName} · ID ···${patient.idNumber.slice(-4)}`,
+          icon: UserRound,
+          route: '/more/profile',
+          tint: '#0284C7',
+        },
+        {
+          id: 'billing',
+          label: 'Subscription & Billing',
+          subtitle: 'Monthly Premium (R20/mo) · Renews 15 Nov',
+          icon: CreditCard,
+          route: '/more/billing',
+          tint: '#0E7490',
+          badge: 'R20/mo',
+          badgeTone: 'success',
+        },
+        {
+          id: 'emergency',
+          label: 'Emergency Profile (ICE)',
+          subtitle: `Blood group ${bloodGroupLabel(patient.bloodGroup)} · Allergies`,
+          icon: ShieldAlert,
+          route: '/more/emergency',
+          tint: '#DC1F26',
+        },
+      ],
+    },
+    {
+      title: 'Health & Records',
+      items: [
+        {
+          id: 'medications',
+          label: 'Active Medications',
+          subtitle: `${activeMedications.length} active prescriptions & schedules`,
+          icon: PillIcon,
+          route: '/more/medications',
+          tint: '#16A34A',
+          badge: `${activeMedications.length}`,
+          badgeTone: 'muted',
+        },
+        {
+          id: 'timeline',
+          label: 'Health Timeline',
+          subtitle: 'Visits, consultations & clinical milestones',
+          icon: Clock,
+          route: '/more/timeline',
+          tint: '#D97706',
+        },
+        {
+          id: 'vault',
+          label: 'Records Vault',
+          subtitle: `${recordCount} lab reports, imaging & discharge summaries`,
+          icon: FileText,
+          route: '/records',
+          tint: '#0D9488',
+        },
+      ],
+    },
+    {
+      title: 'Security & Preferences',
+      items: [
+        {
+          id: 'settings',
+          label: 'Settings & Security',
+          subtitle: 'Biometrics, PIN, dark mode & password',
+          icon: SettingsIcon,
+          route: '/more/settings',
+          tint: '#475569',
+        },
+        {
+          id: 'sharing',
+          label: 'Doctor & Clinician Sharing',
+          subtitle: 'Active access links & doctor scan QR',
+          icon: Share2,
+          route: '/more/sharing',
+          tint: accent,
+        },
+        {
+          id: 'notifications',
+          label: 'Notifications',
+          subtitle: 'Medication alerts & appointment reminders',
+          icon: BellRing,
+          route: '/more/notifications',
+          tint: '#7C3AED',
+        },
+        {
+          id: 'language',
+          label: 'Language',
+          subtitle: languageNames[language] || 'English',
+          icon: Globe,
+          route: '/more/language',
+          tint: '#2563EB',
+          badge: languageNames[language] || 'English',
+          badgeTone: 'muted',
+        },
+      ],
+    },
+    {
+      title: 'Support & Session',
+      items: [
+        {
+          id: 'emergency_dial',
+          label: 'Emergency Dispatch (112)',
+          subtitle: 'National emergency services & Netcare 911',
+          icon: PhoneCall,
+          onPress: callEmergency,
+          tint: '#DC1F26',
+        },
+        {
+          id: 'sign_out',
+          label: 'Sign Out',
+          subtitle: 'Log out of your health passport on this device',
+          icon: LogOut,
+          onPress: confirmSignOut,
+          tint: '#EF4444',
+          destructive: true,
+        },
+      ],
+    },
+  ];
 
   return (
     <Screen contentClassName="px-5">
-      <View className="pb-1 pt-4">
+      {/* Brand header */}
+      <View style={{ paddingTop: 16, paddingBottom: 4 }}>
         <BrandLockup />
       </View>
 
-      <View className="pb-4 pt-5">
-        <Text className="font-sans text-[14px] text-ink-muted dark:text-slate-400">Your account</Text>
-        <Text className="font-sans-bold text-[32px] leading-[36px] text-ink dark:text-slate-50">More</Text>
+      {/* Screen Title */}
+      <View style={{ paddingTop: 12, paddingBottom: 16 }}>
+        <Txt variant="footnote" tone="muted">
+          Health Passport & Account
+        </Txt>
+        <Txt variant="title">More</Txt>
       </View>
 
-      {/* Identity: compact, so the lists below are the point of this screen */}
+      {/* Profile Summary Card - First Class Entry into Profile */}
       <PressableScale
-        accessibilityLabel={`${patient.firstName} ${patient.lastName}. Blood group ${bloodGroupLabel(patient.bloodGroup)}. Open profile`}
+        accessibilityLabel={`${patient.firstName} ${patient.lastName}. View profile`}
         onPress={() => router.push('/more/profile')}
-        style={[{ flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: radii.lg, backgroundColor: t.surface }, elevation[1]]}
+        style={[
+          {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 14,
+            padding: 16,
+            borderRadius: radii.xl,
+            backgroundColor: t.surface,
+          },
+          elevation[1],
+        ]}
       >
-        <Avatar name={patient.preferredName || patient.firstName || '?'} size={52} />
+        <Avatar name={patient.preferredName || patient.firstName || '?'} size={50} />
         <View style={{ flex: 1 }}>
-          <Txt variant="headline">
+          <Txt variant="bodyStrong">
             {patient.firstName} {patient.lastName}
           </Txt>
-          <Txt variant="footnote" tone="muted">
-            Blood group {bloodGroupLabel(patient.bloodGroup)} · ID ···{patient.idNumber.slice(-4)}
+          <Txt variant="footnote" tone="muted" style={{ marginTop: 2 }}>
+            National Health ID ···{patient.idNumber.slice(-4)}
           </Txt>
         </View>
-        <ChevronRight size={18} color={t.textMuted} />
-      </PressableScale>
-      <PressableScale
-        accessibilityLabel="Open emergency ICE card"
-        haptic="impact"
-        onPress={() => router.push('/more/emergency')}
-        style={{ marginTop: 12, minHeight: 52, borderRadius: radii.pill, backgroundColor: t.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-      >
-        <ShieldAlert size={18} color="#FFFFFF" />
-        <Txt variant="callout" tone="onNavy" style={{ fontFamily: fonts.semibold }}>
-          Emergency card & QR
-        </Txt>
+        <View
+          style={{
+            paddingHorizontal: 10,
+            paddingVertical: 5,
+            borderRadius: radii.pill,
+            backgroundColor: t.surfaceMuted,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 4,
+          }}
+        >
+          <Txt variant="footnote" style={{ fontFamily: fonts.medium }}>
+            View profile
+          </Txt>
+          <ChevronRight size={14} color={t.textMuted} />
+        </View>
       </PressableScale>
 
-      {/* Quick totals */}
-      <View className="mt-4 flex-row gap-3">
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${recordCount} records`}
-          onPress={() => router.push('/records')}
-          className="flex-1 rounded-3xl border border-slate-200 bg-white p-4 dark:border-canvasdark-card dark:bg-canvasdark-card"
-        >
-          <Text className="font-sans-medium text-[12px] text-ink-muted dark:text-slate-400">Records</Text>
-          <Text className="mt-2 font-sans-bold text-[30px] text-ink dark:text-slate-50">{recordCount}</Text>
-          <Text className="mt-0.5 font-sans text-[11px] text-ink-muted dark:text-slate-500">in your vault</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${activeMedications.length} active medications`}
-          onPress={() => router.push('/more/medications')}
-          className="flex-1 rounded-3xl border border-slate-200 bg-white p-4 dark:border-canvasdark-card dark:bg-canvasdark-card"
-        >
-          <Text className="font-sans-medium text-[12px] text-ink-muted dark:text-slate-400">Medications</Text>
-          <Text className="mt-2 font-sans-bold text-[30px] text-ink dark:text-slate-50">{activeMedications.length}</Text>
-          <Text className="mt-0.5 font-sans text-[11px] text-ink-muted dark:text-slate-500">active</Text>
-        </Pressable>
-      </View>
-
+      {/* Menu Sections List */}
       {sections.map((section) => (
-        <View key={section.title} className="pt-6">
+        <View key={section.title} style={{ marginTop: 26 }}>
           <SectionHeader title={section.title} />
-          <View className="rounded-3xl border border-slate-200 bg-white dark:border-canvasdark-card dark:bg-canvasdark-card">
-            {section.items.map((item, i) => {
-              const color = item.tint === 'accent' ? accent : item.tint;
+          <View
+            style={[
+              {
+                borderRadius: radii.xl,
+                backgroundColor: t.surface,
+                overflow: 'hidden',
+              },
+              elevation[1],
+            ]}
+          >
+            {section.items.map((item, index) => {
               const Icon = item.icon;
               return (
-                <Pressable
-                  key={item.label}
+                <PressableScale
+                  key={item.id}
                   accessibilityRole="button"
                   accessibilityLabel={item.label}
-                  onPress={() => router.push(item.route as any)}
-                  className={`min-h-[56px] flex-row items-center gap-3 px-4 py-3.5 ${
-                    i > 0 ? 'border-t border-slate-100 dark:border-canvasdark' : ''
-                  }`}
+                  onPress={() => {
+                    if (item.onPress) {
+                      item.onPress();
+                    } else if (item.route) {
+                      router.push(item.route as any);
+                    }
+                  }}
+                  style={[
+                    {
+                      minHeight: 64,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 14,
+                      paddingHorizontal: 16,
+                      paddingVertical: 12,
+                    },
+                    index > 0 ? { borderTopWidth: 1, borderTopColor: t.border } : {},
+                  ]}
                 >
-                  <View className="h-10 w-10 items-center justify-center rounded-2xl" style={{ backgroundColor: `${color}1A` }}>
-                    <Icon size={18} color={color} />
+                  <View
+                    style={{
+                      height: 40,
+                      width: 40,
+                      borderRadius: radii.md,
+                      backgroundColor: `${item.tint}18`,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Icon size={20} color={item.tint} />
                   </View>
-                  <Text className="flex-1 font-sans-medium text-[15px] text-ink dark:text-slate-50">{item.label}</Text>
-                  <ChevronRight size={18} color={accentSoft} />
-                </Pressable>
+
+                  <View style={{ flex: 1 }}>
+                    <Txt
+                      variant="bodyStrong"
+                      color={item.destructive ? '#DC2626' : undefined}
+                      numberOfLines={1}
+                    >
+                      {item.label}
+                    </Txt>
+                    {item.subtitle ? (
+                      <Txt variant="footnote" tone="muted" numberOfLines={1} style={{ marginTop: 2 }}>
+                        {item.subtitle}
+                      </Txt>
+                    ) : null}
+                  </View>
+
+                  {item.badge ? (
+                    <View
+                      style={{
+                        paddingHorizontal: 8,
+                        paddingVertical: 3,
+                        borderRadius: radii.pill,
+                        backgroundColor:
+                          item.badgeTone === 'success'
+                            ? 'rgba(22, 163, 74, 0.12)'
+                            : t.surfaceMuted,
+                      }}
+                    >
+                      <Txt
+                        variant="footnote"
+                        color={item.badgeTone === 'success' ? '#16A34A' : t.textMuted}
+                        style={{ fontFamily: fonts.medium }}
+                      >
+                        {item.badge}
+                      </Txt>
+                    </View>
+                  ) : null}
+
+                  <ChevronRight size={18} color={t.textMuted} />
+                </PressableScale>
               );
             })}
           </View>
         </View>
       ))}
+
+      {/* App Version Info */}
+      <View style={{ alignItems: 'center', paddingVertical: 32 }}>
+        <Txt variant="footnote" tone="muted">
+          Siyashesha Health Passport · Version 1.0.0
+        </Txt>
+        <Txt variant="footnote" tone="muted" style={{ marginTop: 4 }}>
+          Protected by End-to-End Encryption & POPIA Compliance
+        </Txt>
+      </View>
     </Screen>
   );
 }
