@@ -53,6 +53,8 @@ export default function MoreScreen() {
   const t = useTokens();
   const patient = useAppStore((s) => s.patientProfile);
   const recordCount = useAppStore((s) => s.records.length);
+  const medications = useAppStore((s) => s.medications);
+  const activeMedCount = (medications ?? activeMedications).filter((m) => m.status === 'active').length;
   const language = useAppStore((s) => s.language);
   const signOut = useAppStore((s) => s.signOut);
 
@@ -123,11 +125,11 @@ export default function MoreScreen() {
         {
           id: 'medications',
           label: 'Active Medications',
-          subtitle: `${activeMedications.length} active prescriptions & schedules`,
+          subtitle: `${activeMedCount} active prescriptions & schedules`,
           icon: PillIcon,
           route: '/more/medications',
           tint: '#16A34A',
-          badge: `${activeMedications.length}`,
+          badge: `${activeMedCount}`,
           badgeTone: 'muted',
         },
         {

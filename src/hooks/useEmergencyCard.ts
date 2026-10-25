@@ -15,10 +15,11 @@ export function useEmergencyCard() {
   const patient = useAppStore((s) => s.patientProfile);
   const visibility = useAppStore((s) => s.emergencyVisibility);
   const userMedications = useAppStore((s) => s.userMedications);
+  const medications = useAppStore((s) => s.medications);
 
   return useMemo(() => {
     const meds = [
-      ...activeMedications.map((m) => `${m.name} ${m.strength}`),
+      ...(medications ?? activeMedications).filter((m) => m.status === 'active').map((m) => `${m.name} ${m.strength}`),
       ...userMedications.map((m) => [m.name, m.dose].filter(Boolean).join(' ')),
     ];
     const bloodGroup = bloodGroupLabel(patient.bloodGroup);
@@ -59,5 +60,5 @@ export function useEmergencyCard() {
       hasContact,
       readiness: emergencyReadiness(patient),
     };
-  }, [patient, visibility, userMedications]);
+  }, [patient, visibility, userMedications, medications]);
 }

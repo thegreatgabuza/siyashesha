@@ -96,6 +96,8 @@ export const medications: Medication[] = [
   },
 ];
 
+export const medicationsSeed: Medication[] = medications;
+
 export const activeMedications = medications.filter((m) => m.status === 'active');
 export const pastMedications = medications.filter((m) => m.status === 'past');
 
@@ -106,9 +108,10 @@ export interface ReminderInstance {
   label: string;
 }
 
-export function todaysReminders(): ReminderInstance[] {
+export function todaysReminders(list?: Medication[]): ReminderInstance[] {
   const items: ReminderInstance[] = [];
-  for (const med of activeMedications) {
+  const source = list ?? activeMedications;
+  for (const med of source) {
     for (const time of med.times) {
       items.push({
         id: `${med.id}-${time}`,

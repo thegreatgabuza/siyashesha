@@ -10,7 +10,7 @@ import {
   defaultEmergencyVisibility,
   type EmergencyFieldKey,
 } from '@/data/emergencyProfile';
-import { activeMedications, todaysReminders } from '@/data/medications';
+import { activeMedications, medicationsSeed, todaysReminders, type Medication } from '@/data/medications';
 import { patient, type PatientProfile } from '@/data/patient';
 import { medicalRecords, type MedicalRecord } from '@/data/records';
 import { sharingHistorySeed, type SharedLink, type ShareDuration } from '@/data/sharing';
@@ -114,6 +114,13 @@ interface AppState {
   customReminders: CustomReminder[];
   addCustomReminder: (reminder: Omit<CustomReminder, 'id'>) => void;
   removeCustomReminder: (id: string) => void;
+
+  // Medications (Spec §4.6)
+  medications: Medication[];
+  addMedication: (med: Omit<Medication, 'id'>) => string;
+  updateMedication: (id: string, patch: Partial<Medication>) => void;
+  deleteMedication: (id: string) => void;
+  toggleMedicationStatus: (id: string) => void;
 
   // Appointments
   appointments: Appointment[];
@@ -271,6 +278,70 @@ export const useAppStore = create<AppState>()(
       setMedicationReminderEnabled: (medicationId, value) =>
         set((s) => ({
           medicationReminderEnabled: { ...s.medicationReminderEnabled, [medicationId]: value },
+        })),
+
+      medications: medicationsSeed,
+      addMedication: (med) => {
+        const id = makeId('med');
+        const newMed: Medication = { ...med, id };
+        set((s) => ({
+          medications: [...s.medications, newMed],
+          medicationReminderEnabled: { ...s.medicationReminderEnabled, [id]: true },
+          auditEvents: [
+            {
+              id: makeId('audit'),
+              type: 'upload',
+              description: `Added prescription: ${newMed.name} ${newMed.strength}`,
+              timestamp: new Date().toISOString(),
+            },
+            ...s.auditEvents,
+          ],
+        }));
+        return id;
+      },
+      updateMedication: (id, patch) =>
+        set((s) => ({
+          medications: s.medications.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+          auditEvents: [
+            {
+              id: makeId('audit'),
+              type: 'upload',
+              description: `Updated prescription: ${patch.name ?? id}`,
+              timestamp: new Date().toISOString(),
+            },
+            ...s.auditEvents,
+          ],
+        })),
+      deleteMedication: (id) =>
+        set((s) => {
+          const med = s.medications.find((m) => m.id === id);
+          const nextReminders = { ...s.medicationReminderEnabled };
+          delete nextReminders[id];
+          return {
+            medications: s.medications.filter((m) => m.id !== id),
+            medicationReminderEnabled: nextReminders,
+            auditEvents: [
+              {
+                id: makeId('audit'),
+                type: 'edit',
+                description: `Removed prescription: ${med?.name ?? id}`,
+                timestamp: new Date().toISOString(),
+              },
+              ...s.auditEvents,
+            ],
+          };
+        }),
+      toggleMedicationStatus: (id) =>
+        set((s) => ({
+          medications: s.medications.map((m) => {
+            if (m.id !== id) return m;
+            const nextStatus = m.status === 'active' ? 'past' : 'active';
+            return {
+              ...m,
+              status: nextStatus,
+              endDate: nextStatus === 'past' ? new Date().toISOString().slice(0, 10) : undefined,
+            };
+          }),
         })),
 
       appointments: appointmentsSeed,

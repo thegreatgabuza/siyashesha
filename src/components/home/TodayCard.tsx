@@ -25,8 +25,9 @@ export function TodayCard() {
   const toast = useToast();
   const takenLog = useAppStore((s) => s.takenLog);
   const toggleTaken = useAppStore((s) => s.toggleTaken);
-  const reminders = useMemo(() => todaysReminders(), []);
-  const adherence = useMemo(() => computeAdherence(takenLog, 7), [takenLog]);
+  const medications = useAppStore((s) => s.medications);
+  const reminders = useMemo(() => todaysReminders(medications), [medications]);
+  const adherence = useMemo(() => computeAdherence(takenLog, 7, medications), [takenLog, medications]);
   const dateKey = todayKey();
 
   const takenCount = reminders.filter((r) => takenLog[`${r.id}__${dateKey}`]).length;

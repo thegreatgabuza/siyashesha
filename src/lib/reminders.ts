@@ -62,13 +62,14 @@ export async function syncReminders(): Promise<void> {
   if (!N) return;
   await N.cancelAllScheduledNotificationsAsync();
 
-  const { notifications, medicationReminderEnabled, customReminders, appointments } = useAppStore.getState();
+  const { notifications, medicationReminderEnabled, customReminders, appointments, medications } = useAppStore.getState();
   if (!(await notificationsGranted())) return;
   await ensureChannels(N);
 
   // 1. Medication doses
   if (notifications.medicationReminders) {
-    for (const med of activeMedications) {
+    const activeList = (medications ?? activeMedications).filter((m) => m.status === 'active');
+    for (const med of activeList) {
       if (!(medicationReminderEnabled[med.id] ?? true)) continue;
       for (const time of med.times) {
         await scheduleDaily(N, `Time for ${med.name} ${med.strength}`, med.directions, time);

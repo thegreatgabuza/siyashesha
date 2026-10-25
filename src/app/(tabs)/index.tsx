@@ -42,17 +42,18 @@ export default function HomeScreen() {
   const records = useAppStore((s) => s.records);
   const patient = useAppStore((s) => s.patientProfile);
   const userMedications = useAppStore((s) => s.userMedications);
+  const medications = useAppStore((s) => s.medications);
   const biometricLock = useAppStore((s) => s.biometricLock);
 
   const progress = useMemo(
     () =>
       derivePassportProgress({
         patient,
-        medicationCount: activeMedications.length + userMedications.length,
+        medicationCount: (medications ?? activeMedications).filter((m) => m.status === 'active').length + userMedications.length,
         recordCount: records.length,
         biometricLock,
       }),
-    [patient, userMedications.length, records.length, biometricLock]
+    [patient, userMedications.length, medications, records.length, biometricLock]
   );
 
   // Split the translated greeting around the name so the name alone can be red.

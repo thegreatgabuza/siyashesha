@@ -1,142 +1,538 @@
 import dayjs from 'dayjs';
 import { router } from 'expo-router';
-import { Flame } from 'lucide-react-native';
+import {
+  Archive,
+  Clock,
+  Edit2,
+  Flame,
+  Pill as PillIcon,
+  Plus,
+  RefreshCw,
+} from 'lucide-react-native';
 import { useMemo, useState } from 'react';
-import { Switch, Text, View } from 'react-native';
+import { Switch, View } from 'react-native';
 
+import { MedicationModal } from '@/components/medications/MedicationModal';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { Pill } from '@/components/ui/Pill';
+import { PressableScale } from '@/components/ui/PressableScale';
 import { Screen } from '@/components/ui/Screen';
-import { ScreenScroll } from '@/components/ui/ScreenScroll';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
-import { heroShadow } from '@/components/ui/HeroAction';
-import { activeMedications, pastMedications } from '@/data/medications';
-import { syncReminders } from '@/lib/reminders';
+import { ScreenScroll } from '@/components/ui/ScreenScroll';
+import { useToast } from '@/components/ui/Toast';
+import { Txt } from '@/components/ui/Txt';
+import { type Medication } from '@/data/medications';
+import { elevation, fonts, radii } from '@/design/tokens';
+import { useTokens } from '@/design/useTokens';
 import { computeAdherence } from '@/lib/adherence';
+import { tapFeedback } from '@/lib/feedback';
+import { syncReminders } from '@/lib/reminders';
 import { useAppStore } from '@/store/useAppStore';
 
 export default function MedicationsScreen() {
-  const [tab, setTab] = useState<'active' | 'past'>('active');
+  const t = useTokens();
+  const toast = useToast();
+
+  const medications = useAppStore((s) => s.medications);
+  const addMedication = useAppStore((s) => s.addMedication);
+  const updateMedication = useAppStore((s) => s.updateMedication);
+  const deleteMedication = useAppStore((s) => s.deleteMedication);
+  const toggleMedicationStatus = useAppStore((s) => s.toggleMedicationStatus);
+
   const takenLog = useAppStore((s) => s.takenLog);
   const reminderEnabled = useAppStore((s) => s.medicationReminderEnabled);
   const setReminderEnabled = useAppStore((s) => s.setMedicationReminderEnabled);
-
-  const adherence = useMemo(() => computeAdherence(takenLog, 7), [takenLog]);
   const userMedications = useAppStore((s) => s.userMedications);
-  const remindersOn = activeMedications.filter((m) => reminderEnabled[m.id] ?? true).length;
+
+  const [tab, setTab] = useState<'active' | 'past'>('active');
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedMedication, setSelectedMedication] = useState<Medication | undefined>();
+
+  const activeList = useMemo(() => medications.filter((m) => m.status === 'active'), [medications]);
+  const pastList = useMemo(() => medications.filter((m) => m.status === 'past'), [medications]);
+
+  const adherence = useMemo(() => computeAdherence(takenLog, 7, medications), [takenLog, medications]);
+  const remindersOn = activeList.filter((m) => reminderEnabled[m.id] ?? true).length;
+
+  const openNewMedModal = () => {
+    setSelectedMedication(undefined);
+    setModalVisible(true);
+  };
+
+  const openEditMedModal = (med: Medication) => {
+    setSelectedMedication(med);
+    setModalVisible(true);
+  };
+
+  const handleSaveMedication = (data: Omit<Medication, 'id'>) => {
+    if (selectedMedication) {
+      updateMedication(selectedMedication.id, data);
+      toast.show('Prescription updated', 'success');
+    } else {
+      addMedication(data);
+      toast.show('Medication added to your regimen', 'success');
+    }
+    syncReminders().catch(() => {});
+  };
+
+  const handleDeleteMedication = (id: string) => {
+    deleteMedication(id);
+    syncReminders().catch(() => {});
+    toast.show('Medication removed', 'info');
+  };
+
+  const handleToggleStatus = (id: string) => {
+    toggleMedicationStatus(id);
+    syncReminders().catch(() => {});
+    const target = medications.find((m) => m.id === id);
+    const willBePast = target?.status === 'active';
+    toast.show(
+      willBePast ? 'Medication moved to past treatments' : 'Medication restored to active regimen',
+      'info'
+    );
+  };
 
   return (
     <Screen headerOwnsTopInset scroll={false}>
-      <ScreenHeader title="Medications" onBack={() => router.back()} />
-      <ScreenScroll className="flex-1 px-5">
-        <View className="mb-5 rounded-[32px] bg-ink p-5 dark:bg-canvasdark-card" style={heroShadow}>
-          <View className="flex-row items-center justify-between">
-            <Text className="font-sans-semibold text-[13px] text-white/70">Adherence · last 7 days</Text>
-            <View className="flex-row items-center gap-1.5 rounded-full bg-white/15 px-3 py-1">
-              <Flame size={12} color="#FFFFFF" />
-              <Text className="font-sans-semibold text-[11px] text-white">{adherence.streak}-day streak</Text>
+      <ScreenHeader
+        title="Medications"
+        onBack={() => router.back()}
+        right={
+          <PressableScale
+            accessibilityLabel="Add medication"
+            onPress={openNewMedModal}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 4,
+              backgroundColor: '#16A34A',
+              paddingHorizontal: 12,
+              paddingVertical: 6,
+              borderRadius: radii.pill,
+            }}
+          >
+            <Plus size={15} color="#FFFFFF" />
+            <Txt variant="footnote" style={{ fontFamily: fonts.semibold, color: '#FFFFFF' }}>
+              Add
+            </Txt>
+          </PressableScale>
+        }
+      />
+
+      <ScreenScroll className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 32 }}>
+        {/* Adherence Hero Card */}
+        <View style={[{ marginBottom: 20, borderRadius: radii.xl, backgroundColor: t.surface, padding: 20, borderWidth: 1, borderColor: t.border }, elevation[2]]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Txt variant="footnote" tone="muted">
+              Adherence · last 7 days
+            </Txt>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 5,
+                borderRadius: radii.pill,
+                backgroundColor: 'rgba(234, 88, 12, 0.12)',
+                paddingHorizontal: 10,
+                paddingVertical: 3,
+              }}
+            >
+              <Flame size={13} color="#EA580C" />
+              <Txt variant="footnote" style={{ fontFamily: fonts.semibold, color: '#EA580C', fontSize: 11 }}>
+                {adherence.streak}-day streak
+              </Txt>
             </View>
           </View>
-          <View className="items-center py-5">
-            <Text className="font-sans-bold text-[44px] leading-[48px] text-white">{adherence.percent}%</Text>
-            <Text className="mt-1 font-sans text-[13px] text-white/60">of scheduled doses taken</Text>
+
+          <View style={{ alignItems: 'center', paddingVertical: 18 }}>
+            <Txt variant="display" style={{ fontSize: 44, lineHeight: 48, fontFamily: fonts.bold }}>
+              {adherence.percent}%
+            </Txt>
+            <Txt variant="footnote" tone="muted" style={{ marginTop: 4 }}>
+              of scheduled doses taken
+            </Txt>
           </View>
-          <View className="flex-row rounded-2xl bg-white/10 px-4 py-3">
-            <View className="flex-1">
-              <Text className="font-sans text-[11px] text-white/60">Active</Text>
-              <Text className="font-sans-bold text-[16px] text-white">{activeMedications.length}</Text>
+
+          <View
+            style={{
+              flexDirection: 'row',
+              borderRadius: radii.lg,
+              backgroundColor: t.surfaceMuted,
+              paddingHorizontal: 16,
+              paddingVertical: 12,
+            }}
+          >
+            <View style={{ flex: 1 }}>
+              <Txt variant="footnote" tone="muted" style={{ fontSize: 11 }}>
+                Active
+              </Txt>
+              <Txt variant="bodyStrong" style={{ marginTop: 2 }}>
+                {activeList.length}
+              </Txt>
             </View>
-            <View className="flex-1">
-              <Text className="font-sans text-[11px] text-white/60">Past</Text>
-              <Text className="font-sans-bold text-[16px] text-white">{pastMedications.length}</Text>
+            <View style={{ flex: 1 }}>
+              <Txt variant="footnote" tone="muted" style={{ fontSize: 11 }}>
+                Past
+              </Txt>
+              <Txt variant="bodyStrong" style={{ marginTop: 2 }}>
+                {pastList.length}
+              </Txt>
             </View>
-            <View className="flex-1">
-              <Text className="font-sans text-[11px] text-white/60">Reminders on</Text>
-              <Text className="font-sans-bold text-[16px] text-white">{remindersOn}</Text>
+            <View style={{ flex: 1 }}>
+              <Txt variant="footnote" tone="muted" style={{ fontSize: 11 }}>
+                Reminders on
+              </Txt>
+              <Txt variant="bodyStrong" color="#16A34A" style={{ marginTop: 2 }}>
+                {remindersOn}
+              </Txt>
             </View>
           </View>
         </View>
 
-        <View className="mb-4 flex-row gap-2">
-          <Pill label={`Active (${activeMedications.length})`} selected={tab === 'active'} onPress={() => setTab('active')} />
-          <Pill label={`Past (${pastMedications.length})`} selected={tab === 'past'} onPress={() => setTab('past')} />
+        {/* Tab Switcher & Quick Add Button */}
+        <View style={{ marginBottom: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Pill
+              label={`Active (${activeList.length})`}
+              selected={tab === 'active'}
+              onPress={() => setTab('active')}
+            />
+            <Pill
+              label={`Past (${pastList.length})`}
+              selected={tab === 'past'}
+              onPress={() => setTab('past')}
+            />
+          </View>
+
+          <PressableScale
+            onPress={openNewMedModal}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 4,
+              paddingHorizontal: 10,
+              paddingVertical: 6,
+              borderRadius: radii.md,
+              backgroundColor: 'rgba(22, 163, 74, 0.1)',
+            }}
+          >
+            <Plus size={14} color="#16A34A" />
+            <Txt variant="footnote" style={{ fontFamily: fonts.semibold, color: '#16A34A' }}>
+              Add Prescription
+            </Txt>
+          </PressableScale>
         </View>
 
+        {/* Active Regimen Tab */}
         {tab === 'active' ? (
-          <View className="gap-3">
+          <View style={{ gap: 12 }}>
+            {/* User-added quick meds from onboarding if any */}
             {userMedications.map((med) => (
-              <View key={med.id} className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-canvasdark-card dark:bg-canvasdark-card">
-                <Text className="font-sans-bold text-[16px] text-ink dark:text-slate-50">
-                  {med.name} {med.dose}
-                </Text>
-                <Text className="mt-0.5 font-sans text-[12px] text-ink-muted dark:text-slate-400">{med.time} · added by you</Text>
-              </View>
-            ))}
-            {activeMedications.map((med) => (
               <View
                 key={med.id}
-                className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-canvasdark-card dark:bg-canvasdark-card"
+                style={[
+                  {
+                    borderRadius: radii.lg,
+                    borderWidth: 1,
+                    borderColor: t.border,
+                    backgroundColor: t.surface,
+                    padding: 16,
+                  },
+                  elevation[1],
+                ]}
               >
-                <View className="flex-row items-start justify-between gap-3">
-                  <View className="flex-1">
-                    <Text className="font-sans-bold text-[16px] text-ink dark:text-slate-50">
-                      {med.name} {med.strength}
-                    </Text>
-                    <Text className="mt-0.5 font-sans text-[12px] text-ink-muted dark:text-slate-400">
-                      {med.indication} · {med.route}, {med.frequency}
-                    </Text>
-                  </View>
-                  <Switch
-                thumbColor="#FFFFFF"
-                    value={reminderEnabled[med.id] ?? true}
-                    onValueChange={(v) => {
-                      setReminderEnabled(med.id, v);
-                      syncReminders();
-                    }}
-                    trackColor={{ true: '#16A34A', false: '#E3E8F0' }}
-                    accessibilityLabel={`Reminders for ${med.name}`}
-                  />
-                </View>
-                <View className="mt-3 rounded-2xl bg-slate-50 px-3 py-2.5 dark:bg-canvasdark">
-                  <Text className="font-sans-medium text-[13px] text-ink-soft dark:text-slate-200">
-                    {med.directions}
-                  </Text>
-                  <Text className="mt-0.5 font-sans text-[11px] text-ink-muted dark:text-slate-500">
-                    {med.times.map((t) => dayjs(`2000-01-01T${t}`).format('h:mm A')).join(' · ')}
-                  </Text>
-                </View>
-                <Text className="mt-2 font-sans text-[11px] text-ink-muted dark:text-slate-500">
-                  {med.prescriber} · {med.facility} ({med.provenance})
-                </Text>
+                <Txt variant="bodyStrong">
+                  {med.name} {med.dose}
+                </Txt>
+                <Txt variant="footnote" tone="muted" style={{ marginTop: 2 }}>
+                  {med.time} · Added during setup
+                </Txt>
               </View>
             ))}
+
+            {activeList.length === 0 && userMedications.length === 0 ? (
+              <EmptyState
+                icon={<PillIcon size={44} color={t.textMuted} />}
+                title="No active medications"
+                subtitle="Keep all your prescriptions, chronic treatments, and dosages organized in one place."
+                action={
+                  <PressableScale
+                    onPress={openNewMedModal}
+                    style={{
+                      marginTop: 8,
+                      backgroundColor: '#16A34A',
+                      paddingHorizontal: 20,
+                      paddingVertical: 10,
+                      borderRadius: radii.pill,
+                    }}
+                  >
+                    <Txt variant="callout" style={{ fontFamily: fonts.semibold, color: '#FFFFFF' }}>
+                      Add Medication
+                    </Txt>
+                  </PressableScale>
+                }
+              />
+            ) : (
+              activeList.map((med) => {
+                const isReminderOn = reminderEnabled[med.id] ?? true;
+                return (
+                  <View
+                    key={med.id}
+                    style={[
+                      {
+                        borderRadius: radii.xl,
+                        borderWidth: 1,
+                        borderColor: t.border,
+                        backgroundColor: t.surface,
+                        padding: 16,
+                        gap: 12,
+                      },
+                      elevation[1],
+                    ]}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                      <View style={{ flexDirection: 'row', gap: 12, flex: 1 }}>
+                        <View
+                          style={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: radii.md,
+                            backgroundColor: 'rgba(22, 163, 74, 0.12)',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <PillIcon size={20} color="#16A34A" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Txt variant="headline" numberOfLines={1}>
+                            {med.name}
+                          </Txt>
+                          <Txt variant="bodyStrong" color="#16A34A" style={{ marginTop: 1 }}>
+                            {med.strength}
+                          </Txt>
+                          <Txt variant="footnote" tone="muted" style={{ marginTop: 3 }}>
+                            {med.indication} · {med.route}, {med.frequency}
+                          </Txt>
+                        </View>
+                      </View>
+
+                      <Switch
+                        thumbColor="#FFFFFF"
+                        value={isReminderOn}
+                        onValueChange={(v) => {
+                          tapFeedback();
+                          setReminderEnabled(med.id, v);
+                          syncReminders().catch(() => {});
+                          toast.show(
+                            v ? `Reminders on for ${med.name}` : `Reminders off for ${med.name}`,
+                            'info'
+                          );
+                        }}
+                        trackColor={{ true: '#16A34A', false: t.border }}
+                        accessibilityLabel={`Reminders for ${med.name}`}
+                      />
+                    </View>
+
+                    {/* Directions & Times */}
+                    <View
+                      style={{
+                        borderRadius: radii.md,
+                        backgroundColor: t.surfaceMuted,
+                        paddingHorizontal: 12,
+                        paddingVertical: 10,
+                        gap: 4,
+                      }}
+                    >
+                      <Txt variant="footnote" style={{ fontFamily: fonts.medium }}>
+                        {med.directions}
+                      </Txt>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Clock size={12} color={t.textMuted} />
+                        <Txt variant="footnote" tone="muted" style={{ fontSize: 11 }}>
+                          {med.times.map((time) => dayjs(`2000-01-01T${time}`).format('h:mm A')).join(' · ')}
+                        </Txt>
+                      </View>
+                    </View>
+
+                    {/* Footer / Prescriber & Actions */}
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        paddingTop: 4,
+                        borderTopWidth: 1,
+                        borderTopColor: t.border,
+                      }}
+                    >
+                      <Txt variant="footnote" tone="muted" numberOfLines={1} style={{ fontSize: 11, flex: 1, paddingRight: 8 }}>
+                        {med.prescriber} · {med.facility}
+                      </Txt>
+
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <PressableScale
+                          accessibilityLabel={`Move ${med.name} to past`}
+                          onPress={() => handleToggleStatus(med.id)}
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 4,
+                            paddingHorizontal: 8,
+                            paddingVertical: 5,
+                            borderRadius: radii.sm,
+                            backgroundColor: t.surfaceMuted,
+                          }}
+                        >
+                          <Archive size={12} color={t.textMuted} />
+                          <Txt variant="footnote" tone="muted" style={{ fontSize: 11 }}>
+                            Discontinue
+                          </Txt>
+                        </PressableScale>
+
+                        <PressableScale
+                          accessibilityLabel={`Edit ${med.name}`}
+                          onPress={() => openEditMedModal(med)}
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 4,
+                            paddingHorizontal: 10,
+                            paddingVertical: 5,
+                            borderRadius: radii.sm,
+                            backgroundColor: 'rgba(14, 116, 144, 0.08)',
+                          }}
+                        >
+                          <Edit2 size={12} color={t.accent} />
+                          <Txt variant="footnote" color={t.accent} style={{ fontFamily: fonts.medium, fontSize: 11 }}>
+                            Edit
+                          </Txt>
+                        </PressableScale>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })
+            )}
           </View>
         ) : (
-          <View className="gap-3">
-            {pastMedications.map((med) => (
-              <View
-                key={med.id}
-                className="rounded-3xl border border-slate-200 bg-slate-50 p-4 opacity-80 dark:border-canvasdark-card dark:bg-canvasdark-card"
-              >
-                <Text className="font-sans-bold text-[16px] text-ink dark:text-slate-50">
-                  {med.name} {med.strength}
-                </Text>
-                <Text className="mt-0.5 font-sans text-[12px] text-ink-muted dark:text-slate-400">
-                  {med.indication} · {dayjs(med.startDate).format('MMM YYYY')} –{' '}
-                  {med.endDate ? dayjs(med.endDate).format('MMM YYYY') : 'Discontinued'}
-                </Text>
-                {med.note ? (
-                  <Text className="mt-2 font-sans text-[12px] text-ink-soft dark:text-slate-300">
-                    {med.note}
-                  </Text>
-                ) : null}
-                <Text className="mt-2 font-sans text-[11px] text-ink-muted dark:text-slate-500">
-                  {med.prescriber} · {med.facility} ({med.provenance})
-                </Text>
-              </View>
-            ))}
+          /* Past / Discontinued Tab */
+          <View style={{ gap: 12 }}>
+            {pastList.length === 0 ? (
+              <EmptyState
+                icon={<Archive size={44} color={t.textMuted} />}
+                title="No past medications"
+                subtitle="When you complete a treatment course or discontinue a medicine, it will appear here for historical reference."
+              />
+            ) : (
+              pastList.map((med) => (
+                <View
+                  key={med.id}
+                  style={[
+                    {
+                      borderRadius: radii.xl,
+                      borderWidth: 1,
+                      borderColor: t.border,
+                      backgroundColor: t.surface,
+                      padding: 16,
+                      opacity: 0.88,
+                      gap: 10,
+                    },
+                    elevation[1],
+                  ]}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                    <View style={{ flex: 1 }}>
+                      <Txt variant="headline">
+                        {med.name} <Txt variant="body" tone="muted">({med.strength})</Txt>
+                      </Txt>
+                      <Txt variant="footnote" tone="muted" style={{ marginTop: 2 }}>
+                        {med.indication} · {dayjs(med.startDate).format('MMM YYYY')} –{' '}
+                        {med.endDate ? dayjs(med.endDate).format('MMM YYYY') : 'Discontinued'}
+                      </Txt>
+                    </View>
+
+                    <PressableScale
+                      accessibilityLabel={`Reactivate ${med.name}`}
+                      onPress={() => handleToggleStatus(med.id)}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 4,
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                        borderRadius: radii.pill,
+                        backgroundColor: 'rgba(22, 163, 74, 0.1)',
+                      }}
+                    >
+                      <RefreshCw size={12} color="#16A34A" />
+                      <Txt variant="footnote" style={{ fontFamily: fonts.semibold, color: '#16A34A', fontSize: 11 }}>
+                        Reactivate
+                      </Txt>
+                    </PressableScale>
+                  </View>
+
+                  {med.note && (
+                    <View
+                      style={{
+                        borderRadius: radii.md,
+                        backgroundColor: t.surfaceMuted,
+                        padding: 10,
+                      }}
+                    >
+                      <Txt variant="footnote" tone="muted" style={{ fontStyle: 'italic', fontSize: 12 }}>
+                        {med.note}
+                      </Txt>
+                    </View>
+                  )}
+
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      paddingTop: 6,
+                      borderTopWidth: 1,
+                      borderTopColor: t.border,
+                    }}
+                  >
+                    <Txt variant="footnote" tone="muted" style={{ fontSize: 11 }}>
+                      {med.prescriber} · {med.facility}
+                    </Txt>
+
+                    <PressableScale
+                      accessibilityLabel={`Edit ${med.name}`}
+                      onPress={() => openEditMedModal(med)}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 4,
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                      }}
+                    >
+                      <Edit2 size={12} color={t.accent} />
+                      <Txt variant="footnote" color={t.accent} style={{ fontFamily: fonts.medium, fontSize: 11 }}>
+                        Edit Details
+                      </Txt>
+                    </PressableScale>
+                  </View>
+                </View>
+              ))
+            )}
           </View>
         )}
       </ScreenScroll>
+
+      {/* Medication Creation & Editing Modal */}
+      <MedicationModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        onSave={handleSaveMedication}
+        onDelete={handleDeleteMedication}
+        onToggleStatus={handleToggleStatus}
+        existingMedication={selectedMedication}
+      />
     </Screen>
   );
 }

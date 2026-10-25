@@ -1,9 +1,9 @@
-import { todaysReminders } from '@/data/medications';
+import { todaysReminders, type Medication } from '@/data/medications';
 import { pastDateKeys } from '@/lib/date';
 
 /** Adherence over the last `windowDays` completed days (excludes today, which is still in progress). */
-export function computeAdherence(takenLog: Record<string, boolean>, windowDays = 7) {
-  const reminders = todaysReminders();
+export function computeAdherence(takenLog: Record<string, boolean>, windowDays = 7, medList?: Medication[]) {
+  const reminders = todaysReminders(medList);
   const days = pastDateKeys(windowDays);
   let total = 0;
   let taken = 0;
