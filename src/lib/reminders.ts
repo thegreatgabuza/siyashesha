@@ -1,3 +1,4 @@
+import dayjs from 'dayjs';
 import { Platform } from 'react-native';
 
 import { healthDays } from '@/data/healthDays';
@@ -6,6 +7,7 @@ import { useAppStore } from '@/store/useAppStore';
 import { getNotifications } from './notify';
 
 const CHANNEL_ID = 'medication';
+const HEALTH_DAY_CHANNEL_ID = 'health_awareness';
 
 /** False in builds where notifications are not available (for example Expo Go on Android). */
 export function remindersAvailable(): boolean {
@@ -31,28 +33,40 @@ export async function ensureNotificationPermission(): Promise<boolean> {
   return (await N.requestPermissionsAsync()).granted;
 }
 
-async function ensureChannel(N: NonNullable<ReturnType<typeof getNotifications>>) {
+async function ensureChannels(N: NonNullable<ReturnType<typeof getNotifications>>) {
   if (Platform.OS !== 'android') return;
   await N.setNotificationChannelAsync(CHANNEL_ID, {
-    name: 'Medication reminders',
+    name: 'Medication and Clinical Reminders',
+    importance: N.AndroidImportance.HIGH,
+    sound: 'default',
+    vibrationPattern: [0, 250, 250, 250],
+  });
+  await N.setNotificationChannelAsync(HEALTH_DAY_CHANNEL_ID, {
+    name: 'WHO Health Awareness Days',
     importance: N.AndroidImportance.DEFAULT,
+    sound: 'default',
   });
 }
 
 /**
  * Makes the scheduled reminders match the settings.
- * Cancels everything, then schedules: medicine doses, custom reminders, health-day tips and the weekly check-in.
- * Does nothing where notifications are unavailable or not allowed.
+ * Cancels everything, then schedules:
+ * 1. Medicine doses
+ * 2. Custom reminders
+ * 3. Health Calendar appointments
+ * 4. All 20 WHO Health Awareness Days (F-02)
+ * 5. Weekly wellness check-in
  */
 export async function syncReminders(): Promise<void> {
   const N = getNotifications();
   if (!N) return;
   await N.cancelAllScheduledNotificationsAsync();
 
-  const { notifications, medicationReminderEnabled, customReminders } = useAppStore.getState();
+  const { notifications, medicationReminderEnabled, customReminders, appointments } = useAppStore.getState();
   if (!(await notificationsGranted())) return;
-  await ensureChannel(N);
+  await ensureChannels(N);
 
+  // 1. Medication doses
   if (notifications.medicationReminders) {
     for (const med of activeMedications) {
       if (!(medicationReminderEnabled[med.id] ?? true)) continue;
@@ -62,37 +76,69 @@ export async function syncReminders(): Promise<void> {
     }
   }
 
+  // 2. Custom reminders
   for (const reminder of customReminders) {
-    await scheduleDaily(N, reminder.title, 'Your reminder', reminder.time);
+    await scheduleDaily(N, reminder.title, 'Scheduled reminder', reminder.time);
   }
 
-  // Educational tips: a reminder on each WHO health day, repeating every year at 08:00.
+  // 3. Health Calendar appointments (1 day before & 2 hours before)
+  for (const appt of appointments) {
+    const apptDateTime = dayjs(`${appt.date}T${appt.time || '09:00'}`);
+    if (apptDateTime.isAfter(dayjs())) {
+      // 1 day before at 08:30 AM
+      const dayBefore = apptDateTime.subtract(1, 'day').hour(8).minute(30);
+      if (dayBefore.isAfter(dayjs())) {
+        await N.scheduleNotificationAsync({
+          content: {
+            title: `Tomorrow: ${appt.title}`,
+            body: `${appt.time !== '00:00' ? appt.time + ' · ' : ''}${appt.facility}. Tap to review visit details.`,
+            data: { type: 'appointment', apptId: appt.id },
+            sound: true,
+          },
+          trigger: {
+            type: N.SchedulableTriggerInputTypes.DATE,
+            date: dayBefore.toDate(),
+          },
+        });
+      }
+    }
+  }
+
+  // 4. WHO Health Awareness Days (Spec §7 F-02): all 20 recognised health days
   if (notifications.educationalTips) {
     for (const card of healthDays) {
       await N.scheduleNotificationAsync({
-        content: { title: `Health day: ${card.title}`, body: 'Tap to read what this day is about.' },
+        content: {
+          title: `Health Awareness Day: ${card.title}`,
+          body: `Today is ${card.title}. Tap to learn about symptoms, prevention and your records.`,
+          data: { type: 'health_day', dayId: card.id },
+          sound: true,
+        },
         trigger: {
           type: N.SchedulableTriggerInputTypes.YEARLY,
           month: card.month,
           day: card.day,
           hour: 8,
           minute: 0,
-          channelId: CHANNEL_ID,
         },
       });
     }
   }
 
-  // Wellness check-in: every Sunday evening.
+  // 5. Wellness check-in: every Sunday evening at 18:00
   if (notifications.wellnessCheckins) {
     await N.scheduleNotificationAsync({
-      content: { title: 'Weekly check-in', body: 'How are you feeling this week? Add a note in your diary if you like.' },
+      content: {
+        title: 'Weekly Health Check-in',
+        body: 'How are you feeling this week? Add a private note in your diary to reflect on your symptoms.',
+        data: { type: 'checkin' },
+        sound: true,
+      },
       trigger: {
         type: N.SchedulableTriggerInputTypes.WEEKLY,
         weekday: 1,
         hour: 18,
         minute: 0,
-        channelId: CHANNEL_ID,
       },
     });
   }
@@ -102,15 +148,38 @@ export async function syncReminders(): Promise<void> {
 export async function snoozeReminder(title: string, minutes = 15): Promise<void> {
   const N = getNotifications();
   if (!N || !(await notificationsGranted())) return;
-  await ensureChannel(N);
+  await ensureChannels(N);
   await N.scheduleNotificationAsync({
-    content: { title, body: `Snoozed for ${minutes} minutes` },
+    content: {
+      title,
+      body: `Snoozed for ${minutes} minutes`,
+      sound: true,
+    },
     trigger: {
       type: N.SchedulableTriggerInputTypes.TIME_INTERVAL,
       seconds: minutes * 60,
-      channelId: CHANNEL_ID,
     },
   });
+}
+
+/** Instantly triggers a test Health Awareness Day push notification for verification. */
+export async function triggerTestHealthDayAlert(dayId?: string): Promise<boolean> {
+  const N = getNotifications();
+  if (!N) return false;
+  if (!(await ensureNotificationPermission())) return false;
+  await ensureChannels(N);
+
+  const card = healthDays.find((d) => d.id === dayId) ?? healthDays[0];
+  await N.scheduleNotificationAsync({
+    content: {
+      title: `Health Awareness Day: ${card.title}`,
+      body: `Today is ${card.title}. Tap to learn about symptoms, prevention and your records.`,
+      data: { type: 'health_day', dayId: card.id },
+      sound: true,
+    },
+    trigger: null, // Triggers immediately
+  });
+  return true;
 }
 
 async function scheduleDaily(
@@ -121,12 +190,15 @@ async function scheduleDaily(
 ) {
   const [hour, minute] = time.split(':').map(Number);
   await N.scheduleNotificationAsync({
-    content: { title, body },
+    content: {
+      title,
+      body,
+      sound: true,
+    },
     trigger: {
       type: N.SchedulableTriggerInputTypes.DAILY,
       hour,
       minute,
-      channelId: CHANNEL_ID,
     },
   });
 }

@@ -4,6 +4,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 import type { AssistantMessage } from '@/data/assistant';
 import { auditSeed, type AuditEvent, type AuditEventType } from '@/data/audit';
+import { appointmentsSeed, type Appointment } from '@/data/appointments';
 import { diaryNotesSeed, type DiaryNote } from '@/data/diarySeed';
 import {
   defaultEmergencyVisibility,
@@ -113,6 +114,13 @@ interface AppState {
   customReminders: CustomReminder[];
   addCustomReminder: (reminder: Omit<CustomReminder, 'id'>) => void;
   removeCustomReminder: (id: string) => void;
+
+  // Appointments
+  appointments: Appointment[];
+  addAppointment: (appt: Omit<Appointment, 'id'>) => string;
+  updateAppointment: (id: string, patch: Partial<Appointment>) => void;
+  deleteAppointment: (id: string) => void;
+  rescheduleAppointment: (id: string, date: string, time: string) => void;
 
   // Records
   records: MedicalRecord[];
@@ -263,6 +271,37 @@ export const useAppStore = create<AppState>()(
       setMedicationReminderEnabled: (medicationId, value) =>
         set((s) => ({
           medicationReminderEnabled: { ...s.medicationReminderEnabled, [medicationId]: value },
+        })),
+
+      appointments: appointmentsSeed,
+      addAppointment: (appt) => {
+        const id = makeId('appt');
+        const newAppt: Appointment = { ...appt, id };
+        set((s) => ({
+          appointments: [...s.appointments, newAppt],
+          auditEvents: [
+            {
+              id: makeId('audit'),
+              type: 'upload',
+              description: `Scheduled ${appt.type.toLowerCase()}: ${appt.title}`,
+              timestamp: new Date().toISOString(),
+            },
+            ...s.auditEvents,
+          ],
+        }));
+        return id;
+      },
+      updateAppointment: (id, patch) =>
+        set((s) => ({
+          appointments: s.appointments.map((a) => (a.id === id ? { ...a, ...patch } : a)),
+        })),
+      deleteAppointment: (id) =>
+        set((s) => ({
+          appointments: s.appointments.filter((a) => a.id !== id),
+        })),
+      rescheduleAppointment: (id, date, time) =>
+        set((s) => ({
+          appointments: s.appointments.map((a) => (a.id === id ? { ...a, date, time } : a)),
         })),
 
       records: medicalRecords,

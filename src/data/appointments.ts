@@ -5,13 +5,13 @@ export interface Appointment {
   title: string;
   facility: string;
   provider?: string;
-  date: string;
-  time: string;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:mm
   type: AppointmentType;
   notes?: string;
 }
 
-export const appointments: Appointment[] = [
+export const appointmentsSeed: Appointment[] = [
   {
     id: 'appt-001',
     title: 'Quarterly Diabetes & Hypertension Review',
@@ -60,7 +60,9 @@ export const appointments: Appointment[] = [
   },
 ];
 
-export function nextAppointment(fromDate: Date = new Date()): Appointment | undefined {
-  const sorted = [...appointments].sort((a, b) => (a.date < b.date ? -1 : 1));
+export const appointments = appointmentsSeed;
+
+export function nextAppointment(list: Appointment[] = appointmentsSeed, fromDate: Date = new Date()): Appointment | undefined {
+  const sorted = [...list].sort((a, b) => (a.date < b.date ? -1 : 1));
   return sorted.find((a) => new Date(`${a.date}T${a.time || '00:00'}`) >= fromDate);
 }

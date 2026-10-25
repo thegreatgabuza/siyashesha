@@ -29,24 +29,24 @@ export function getHealthDaysForDateString(dateString: string): HealthDayCard[] 
   return healthDaysOnDate(dayjs(dateString));
 }
 
-export function getDayAgenda(dateKey: string): DayAgenda {
+export function getDayAgenda(dateKey: string, appts: Appointment[] = appointments): DayAgenda {
   const date = dayjs(dateKey);
   return {
     dateKey,
-    appointments: appointments.filter((a) => a.date === dateKey),
+    appointments: appts.filter((a) => a.date === dateKey),
     healthDays: healthDaysOnDate(date),
   };
 }
 
 /** Marks for every day in the visible month (YYYY-MM), used to decorate the calendar grid. */
-export function getMonthMarks(yearMonth: string): Record<string, DayAgenda> {
+export function getMonthMarks(yearMonth: string, appts: Appointment[] = appointments): Record<string, DayAgenda> {
   const start = dayjs(`${yearMonth}-01`);
   const daysInMonth = start.daysInMonth();
   const marks: Record<string, DayAgenda> = {};
   for (let d = 1; d <= daysInMonth; d++) {
     const date = start.date(d);
     const key = date.format('YYYY-MM-DD');
-    const agenda = getDayAgenda(key);
+    const agenda = getDayAgenda(key, appts);
     if (agenda.appointments.length || agenda.healthDays.length) {
       marks[key] = agenda;
     }
