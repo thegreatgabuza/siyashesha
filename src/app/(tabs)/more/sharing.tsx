@@ -4,6 +4,7 @@ import {
   BookHeart,
   Check,
   ChevronRight,
+  FileDown,
   History,
   ShieldCheck,
 } from 'lucide-react-native';
@@ -13,6 +14,7 @@ import QRCode from 'react-native-qrcode-svg';
 
 import { Card } from '@/components/ui/Card';
 import { RecordThumb } from '@/components/records/RecordThumb';
+import { ExportSummaryModal } from '@/components/records/ExportSummaryModal';
 import { CountUp } from '@/components/ui/CountUp';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Txt } from '@/components/ui/Txt';
@@ -52,6 +54,7 @@ export default function SharingScreen() {
   const [duration, setDuration] = useState<ShareDuration>(shareDurations[2]);
   const [pin, setPin] = useState(() => String(Math.floor(1000 + Math.random() * 9000)));
   const [completedLink, setCompletedLink] = useState<ReturnType<typeof createShare> | null>(null);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   const resetWizard = () => {
     setStep(0);
@@ -201,6 +204,7 @@ export default function SharingScreen() {
             toggleDiary={toggleDiary}
             diaryNotes={diaryNotes}
             records={records}
+            onOpenPdfExport={() => setShowExportModal(true)}
           />
         ) : step === 1 ? (
           <RecipientStep
@@ -245,6 +249,11 @@ export default function SharingScreen() {
           </View>
         ) : null}
       </ScreenScroll>
+
+      <ExportSummaryModal
+        visible={showExportModal}
+        onClose={() => setShowExportModal(false)}
+      />
     </Screen>
   );
 }
@@ -256,6 +265,7 @@ function DocumentStep({
   toggleDiary,
   diaryNotes,
   records,
+  onOpenPdfExport,
 }: {
   selectedRecordIds: string[];
   toggleRecord: (id: string) => void;
@@ -263,10 +273,35 @@ function DocumentStep({
   toggleDiary: (id: string) => void;
   diaryNotes: { id: string; title: string }[];
   records: MedicalRecord[];
+  onOpenPdfExport?: () => void;
 }) {
   const { accentSoft } = useAccent();
   return (
     <View className="gap-2.5">
+      {onOpenPdfExport ? (
+        <Pressable
+          onPress={onOpenPdfExport}
+          accessibilityRole="button"
+          accessibilityLabel="Export Certified Medical Summary PDF"
+          className="mb-2 flex-row items-center justify-between rounded-2xl border border-brand-500/30 bg-brand-50/70 p-3.5 dark:border-brand-500/20 dark:bg-brand-500/10"
+        >
+          <View className="flex-row items-center gap-2.5 flex-1 pr-2">
+            <View className="h-9 w-9 items-center justify-center rounded-xl bg-brand-500/15">
+              <FileDown size={18} color="#0D7C66" />
+            </View>
+            <View className="flex-1">
+              <Text className="font-sans-semibold text-[13px] text-brand-800 dark:text-brand-200">
+                Export Certified Medical Summary (PDF)
+              </Text>
+              <Text className="font-sans text-[11px] text-brand-700/80 dark:text-brand-300/80">
+                Print or share certified clinical passport with Enclave seal
+              </Text>
+            </View>
+          </View>
+          <ChevronRight size={16} color="#0D7C66" />
+        </Pressable>
+      ) : null}
+
       <Text className="mb-1 font-sans-semibold text-[13px] text-ink-muted dark:text-slate-400">
         Select the documents to share
       </Text>

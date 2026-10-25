@@ -15,7 +15,7 @@ import { useTokens } from '@/design/useTokens';
 import { emergencyFieldDefs } from '@/data/emergencyProfile';
 import { useEmergencyCard } from '@/hooks/useEmergencyCard';
 import { impactFeedback } from '@/lib/feedback';
-import { baseDocumentStyles, printAndShareHtml } from '@/lib/pdf';
+import { exportMedicalSummaryPdf } from '@/lib/pdf';
 import { useAppStore } from '@/store/useAppStore';
 
 /**
@@ -30,6 +30,8 @@ export default function EmergencyProfileScreen() {
   const visibility = useAppStore((s) => s.emergencyVisibility);
   const setVisible = useAppStore((s) => s.setEmergencyVisible);
   const logAudit = useAppStore((s) => s.logAudit);
+  const records = useAppStore((s) => s.records);
+  const medications = useAppStore((s) => s.medications);
   const ice = useEmergencyCard();
   const { patient, values, readiness } = ice;
   const qrSize = Math.min(width - 120, 220);
@@ -41,20 +43,17 @@ export default function EmergencyProfileScreen() {
 
   const handleExport = async () => {
     try {
-      const rows = ice.visibleFields.map((f) => `<div class="row"><span>${f.label}</span><strong>${values[f.key]}</strong></div>`).join('');
-      const contact = ice.hasContact ? `${ice.contact.name} (${ice.contact.relationship}) · ${ice.contact.phone}` : 'Unknown';
-      const html = `
-        <html><head>${baseDocumentStyles()}</head><body>
-          <span class="badge">EMERGENCY ICE CARD</span>
-          <h1>${values.fullName}</h1>
-          <div class="muted">Siyashesha Health Passport</div>
-          ${rows}
-          <div class="row"><span>Emergency Contact</span><strong>${contact}</strong></div>
-          <div class="notice">For first responders: this card reflects only the fields the patient has chosen to share. It does not replace a full clinical assessment.</div>
-        </body></html>
-      `;
-      await printAndShareHtml(html, 'Emergency ICE Card');
-      logAudit('export', 'Exported Emergency ICE card as PDF');
+      await exportMedicalSummaryPdf(
+        {
+          reportType: 'emergency',
+          patient,
+          records,
+          medications,
+          includeEnclaveVerificationSeal: true,
+        },
+        'Emergency ICE Card PDF'
+      );
+      logAudit('export', 'Exported Emergency ICE card as certified PDF');
       toast.show('Emergency card ready to share', 'success');
     } catch {
       toast.show('Could not export the card. Please try again.', 'warning');

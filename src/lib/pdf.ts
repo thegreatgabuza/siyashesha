@@ -1,13 +1,42 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import { Platform } from 'react-native';
 
-export async function printAndShareHtml(html: string, dialogTitle = 'Share document') {
+import {
+  generateMedicalSummaryHtml,
+  type MedicalSummaryExportOptions,
+  type ReportType,
+} from './medicalSummaryPdf';
+
+export { generateMedicalSummaryHtml, type MedicalSummaryExportOptions, type ReportType };
+
+/**
+ * Renders HTML into a high-resolution PDF file and opens the system share sheet
+ * (or browser print dialog on web).
+ */
+export async function printAndShareHtml(html: string, dialogTitle = 'Share document'): Promise<string> {
+  if (Platform.OS === 'web') {
+    await Print.printAsync({ html });
+    return 'web-printed';
+  }
+
   const { uri } = await Print.printToFileAsync({ html });
   const canShare = await Sharing.isAvailableAsync();
   if (canShare) {
-    await Sharing.shareAsync(uri, { dialogTitle, mimeType: 'application/pdf' });
+    await Sharing.shareAsync(uri, { dialogTitle, mimeType: 'application/pdf', UTI: '.pdf' });
   }
   return uri;
+}
+
+/**
+ * High-level helper to generate and share a customized clinical summary PDF.
+ */
+export async function exportMedicalSummaryPdf(
+  options: MedicalSummaryExportOptions,
+  dialogTitle = 'Share Medical Summary PDF'
+): Promise<string> {
+  const html = await generateMedicalSummaryHtml(options);
+  return await printAndShareHtml(html, dialogTitle);
 }
 
 export function baseDocumentStyles() {

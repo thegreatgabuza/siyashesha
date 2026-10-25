@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { Bell, FileText, LayoutGrid, Plus, Rows3, Search, SlidersHorizontal, X } from 'lucide-react-native';
+import { Bell, FileDown, FileText, LayoutGrid, Plus, Rows3, Search, SlidersHorizontal, X } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -23,6 +23,7 @@ import { categoryStyle } from '@/components/records/categoryStyle';
 import { RecordCard } from '@/components/records/RecordCard';
 import { RecordCatalog } from '@/components/records/RecordCatalog';
 import { RecordSkeleton } from '@/components/records/RecordSkeleton';
+import { ExportSummaryModal } from '@/components/records/ExportSummaryModal';
 import { type SheetOption, SheetList } from '@/components/records/SheetList';
 import { SummaryRing } from '@/components/records/SummaryRing';
 import { PressableScale } from '@/components/ui/PressableScale';
@@ -60,6 +61,7 @@ export default function RecordsScreen() {
   const [sort, setSort] = useState<RecordSort>('newest');
   const [sheet, setSheet] = useState<'sort' | null>(null);
   const [view, setView] = useState<'list' | 'catalog'>('list');
+  const [showExport, setShowExport] = useState(false);
   const reduced = useReducedMotion();
   const aboveTabBar = useAboveTabBar();
   const listBottom = useTabBarInset(72);
@@ -156,6 +158,18 @@ export default function RecordsScreen() {
             </Text>
           </View>
           <View className="flex-row gap-2">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Export Medical Summary PDF"
+            accessibilityHint="Generates a print-ready certified PDF report"
+            onPress={() => {
+              tapFeedback();
+              setShowExport(true);
+            }}
+            style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: RecordsTokens.surface, ...RecordsTokens.shadow }}
+          >
+            <FileDown size={20} color={RecordsTokens.text} />
+          </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={view === 'list' ? 'Show catalog view' : 'Show list view'}
@@ -357,6 +371,11 @@ export default function RecordsScreen() {
           setSheet(null);
         }}
         onClose={() => setSheet(null)}
+      />
+
+      <ExportSummaryModal
+        visible={showExport}
+        onClose={() => setShowExport(false)}
       />
     </View>
   );
