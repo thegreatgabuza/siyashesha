@@ -88,8 +88,13 @@ interface AppState {
   // Auth
   isSignedIn: boolean;
   pendingPhone: string;
-  signIn: (phone: string) => void;
-  completeSignIn: () => void;
+  pendingEmail: string;
+  clerkFlow: 'sign_in' | 'sign_up' | 'demo';
+  clerkSessionId?: string;
+  signIn: (phoneOrEmail: string) => void;
+  signInWithEmail: (email: string, flow?: 'sign_in' | 'sign_up' | 'demo') => void;
+  setClerkSessionId: (id: string) => void;
+  completeSignIn: (options?: { clerkSessionId?: string; email?: string }) => void;
   signOut: () => void;
 
   // Settings
@@ -194,19 +199,50 @@ export const useAppStore = create<AppState>()(
     (set) => ({
       isSignedIn: false,
       pendingPhone: '',
-      signIn: (phone) => set({ pendingPhone: phone }),
-      completeSignIn: () =>
+      pendingEmail: '',
+      clerkFlow: 'sign_in',
+      clerkSessionId: undefined,
+      signIn: (phoneOrEmail) => {
+        if (phoneOrEmail.includes('@')) {
+          set({ pendingEmail: phoneOrEmail.trim().toLowerCase(), clerkFlow: 'sign_in' });
+        } else {
+          set({ pendingPhone: phoneOrEmail });
+        }
+      },
+      signInWithEmail: (email, flow = 'sign_in') =>
+        set({ pendingEmail: email.trim().toLowerCase(), clerkFlow: flow }),
+      setClerkSessionId: (id) => set({ clerkSessionId: id }),
+      completeSignIn: (options) =>
         set((s) => {
+          const isClerk = Boolean(options?.clerkSessionId);
+          const email = options?.email || s.pendingEmail;
           const event: AuditEvent = {
             id: makeId('audit'),
             type: 'login',
-            description: 'Signed in with 2FA verification',
+            description: isClerk
+              ? `Signed in with Clerk email OTP verification${email ? ` (${email})` : ''}`
+              : 'Signed in with demo verification',
             timestamp: new Date().toISOString(),
           };
           // Returning users with an account skip the guided setup.
-          return { isSignedIn: true, hasCompletedOnboarding: true, auditEvents: [event, ...s.auditEvents] };
+          return {
+            isSignedIn: true,
+            hasCompletedOnboarding: true,
+            clerkSessionId: options?.clerkSessionId ?? s.clerkSessionId,
+            patientProfile: email
+              ? { ...s.patientProfile, email }
+              : s.patientProfile,
+            auditEvents: [event, ...s.auditEvents],
+          };
         }),
-      signOut: () => set({ isSignedIn: false, pendingPhone: '' }),
+      signOut: () =>
+        set({
+          isSignedIn: false,
+          pendingPhone: '',
+          pendingEmail: '',
+          clerkSessionId: undefined,
+          clerkFlow: 'sign_in',
+        }),
 
       themePreference: 'system',
       setThemePreference: (t) => set({ themePreference: t }),

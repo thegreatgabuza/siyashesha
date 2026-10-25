@@ -38,7 +38,8 @@
         {
           "faceIDPermission": "Allow Siyashesha to use Face ID to lock your health passport."
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,

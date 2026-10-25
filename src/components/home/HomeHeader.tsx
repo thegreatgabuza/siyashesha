@@ -1,3 +1,4 @@
+import { useClerk } from '@clerk/clerk-expo';
 import { router } from 'expo-router';
 import { Bell, ChevronRight, Globe, LogOut, Settings, UserRound } from 'lucide-react-native';
 import { useState } from 'react';
@@ -19,6 +20,7 @@ export function HomeHeader() {
   const insets = useSafeAreaInsets();
   const patient = useAppStore((s) => s.patientProfile);
   const signOut = useAppStore((s) => s.signOut);
+  const { signOut: clerkSignOut } = useClerk();
   const [menu, setMenu] = useState(false);
   const { width } = useWindowDimensions();
 
@@ -113,8 +115,13 @@ export function HomeHeader() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Sign out"
-                onPress={() => {
+                onPress={async () => {
                   setMenu(false);
+                  try {
+                    await clerkSignOut();
+                  } catch (err) {
+                    console.warn('[Clerk] Sign out:', err);
+                  }
                   signOut();
                 }}
                 style={({ pressed }) => ({ minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, backgroundColor: pressed ? t.surfaceMuted : 'transparent' })}

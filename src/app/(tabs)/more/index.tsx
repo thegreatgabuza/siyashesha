@@ -1,3 +1,4 @@
+import { useClerk } from '@clerk/clerk-expo';
 import { router } from 'expo-router';
 import {
   BellRing,
@@ -57,17 +58,23 @@ export default function MoreScreen() {
   const activeMedCount = (medications ?? activeMedications).filter((m) => m.status === 'active').length;
   const language = useAppStore((s) => s.language);
   const signOut = useAppStore((s) => s.signOut);
+  const { signOut: clerkSignOut } = useClerk();
 
   const confirmSignOut = () => {
     Alert.alert(
       'Sign Out',
-      'Are you sure you want to sign out of your health passport? You will need your PIN or password to sign back in.',
+      'Are you sure you want to sign out of your health passport? You will need to verify your email to sign back in.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Sign Out',
           style: 'destructive',
-          onPress: () => {
+          onPress: async () => {
+            try {
+              await clerkSignOut();
+            } catch (err) {
+              console.warn('[Clerk] Sign out:', err);
+            }
             signOut();
             router.replace('/(auth)/sign-in');
           },

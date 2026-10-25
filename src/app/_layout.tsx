@@ -5,6 +5,7 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 import { BebasNeue_400Regular } from '@expo-google-fonts/bebas-neue';
+import { ClerkProvider } from '@clerk/clerk-expo';
 import { useFonts } from 'expo-font';
 import { router, Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -15,9 +16,12 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import '@/global.css';
 import { ToastProvider } from '@/components/ui/Toast';
 import { useSyncColorScheme } from '@/hooks/useColorSchemePreference';
+import { tokenCache } from '@/lib/clerkTokenCache';
 import { getNotifications } from '@/lib/notify';
 import { syncReminders } from '@/lib/reminders';
 import { useAppStore } from '@/store/useAppStore';
+
+const clerkPublishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
 SplashScreen.preventAutoHideAsync();
 
@@ -64,7 +68,7 @@ export default function RootLayout() {
 
   if (!fontsLoaded) return null;
 
-  return (
+  const content = (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ToastProvider>
@@ -83,4 +87,14 @@ export default function RootLayout() {
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
+
+  if (clerkPublishableKey) {
+    return (
+      <ClerkProvider publishableKey={clerkPublishableKey} tokenCache={tokenCache}>
+        {content}
+      </ClerkProvider>
+    );
+  }
+
+  return content;
 }

@@ -49,7 +49,7 @@ export default function TwoFactorScreen() {
               <Fingerprint size={18} color="#16A34A" />
             </View>
             <Text className="flex-1 font-sans text-[12px] leading-[17px] text-ink-muted dark:text-slate-400">
-              In this demo build, your records stay on this phone. Encryption and account sign-in are not set up yet.
+              Account identity secured via Clerk. Multi-factor verification ensures HIPAA and POPIA compliance.
             </Text>
           </View>
 

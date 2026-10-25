@@ -1,3 +1,4 @@
+import { useClerk } from '@clerk/clerk-expo';
 import { router } from 'expo-router';
 import {
   ChevronRight,
@@ -36,6 +37,7 @@ export default function SettingsScreen() {
   const signOut = useAppStore((s) => s.signOut);
   const biometricLock = useAppStore((s) => s.biometricLock);
   const setBiometricLock = useAppStore((s) => s.setBiometricLock);
+  const { signOut: clerkSignOut } = useClerk();
 
   const toggleBiometric = async (value: boolean) => {
     if (!value) {
@@ -117,7 +119,7 @@ export default function SettingsScreen() {
             className="mt-1 min-h-[40px] items-center justify-center rounded-full bg-slate-200 dark:bg-canvasdark"
           >
             <Text className="font-sans-semibold text-[13px] text-ink-muted dark:text-slate-400">
-              Available once account sign-in is set up
+              Passwordless auth managed via Clerk email OTP
             </Text>
           </Pressable>
         </View>
@@ -238,9 +240,20 @@ export default function SettingsScreen() {
           accessibilityRole="button"
           accessibilityLabel="Sign out"
           onPress={() =>
-            Alert.alert('Sign out?', 'You will need to verify your phone number again to sign back in.', [
+            Alert.alert('Sign out?', 'You will need to verify your email again to sign back in.', [
               { text: 'Cancel', style: 'cancel' },
-              { text: 'Sign out', style: 'destructive', onPress: signOut },
+              {
+                text: 'Sign out',
+                style: 'destructive',
+                onPress: async () => {
+                  try {
+                    await clerkSignOut();
+                  } catch (err) {
+                    console.warn('[Clerk] Sign out error:', err);
+                  }
+                  signOut();
+                },
+              },
             ])
           }
           className="mb-2 mt-6 flex-row items-center justify-center gap-2 rounded-full border border-emergency-500 py-3.5"
