@@ -16,6 +16,7 @@ declare namespace NodeJS {
     // Google Gemini API
     readonly EXPO_PUBLIC_GEMINI_API_KEY?: string;
     readonly EXPO_PUBLIC_AI_ASSISTANT_PROVIDER?: 'mock' | 'gemini' | 'openai';
+    readonly EXPO_PUBLIC_GEMINI_MODEL?: string;
 
     // Analytics & Error Tracking
     readonly EXPO_PUBLIC_ENABLE_ANALYTICS?: string;

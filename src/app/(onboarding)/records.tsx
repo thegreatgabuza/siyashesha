@@ -15,6 +15,7 @@ import { SpeechBubble } from '@/components/onboarding/SpeechBubble';
 import type { MedicalRecord } from '@/data/records';
 import type { StampId } from '@/store/useAppStore';
 import { saveOriginal } from '@/lib/documents';
+import { syncRecordToDatabase } from '@/lib/supabase';
 import { useAppStore } from '@/store/useAppStore';
 
 export default function RecordsOnboardingScreen() {
@@ -40,7 +41,7 @@ export default function RecordsOnboardingScreen() {
       setMessage('Could not keep a copy of that file. Please try again.');
       return;
     }
-    addRecord({
+    const newRecord: MedicalRecord = {
       id,
       originalFile,
       category: 'Other',
@@ -52,7 +53,9 @@ export default function RecordsOnboardingScreen() {
       documentType: 'Uploaded document',
       status: 'Extracted from document',
       clinicalNotes: 'No notes yet. The date is the day this was added, and you can review it in the record.',
-    });
+    };
+    addRecord(newRecord);
+    syncRecordToDatabase(newRecord).catch(() => {});
     setAdded(title);
     setMessage(null);
     if (earnStamp('record')) setReward('record');

@@ -16,6 +16,7 @@ import { springs } from '@/design/tokens';
 import Animated, { ZoomIn } from 'react-native-reanimated';
 import { TranslationSheet } from '@/components/TranslationSheet';
 import { removeOriginal } from '@/lib/documents';
+import { deleteRecordFromDatabase } from '@/lib/supabase';
 import { formatEventDate, reviewLabel } from '@/lib/recordSearch';
 import { baseDocumentStyles, printAndShareHtml } from '@/lib/pdf';
 import { useAppStore } from '@/store/useAppStore';
@@ -74,6 +75,7 @@ export default function RecordDetailScreen() {
         onPress: () => {
           removeOriginal(record.originalFile);
           deleteRecord(record.id);
+          deleteRecordFromDatabase(record.id).catch(() => {});
           toast.show('Record deleted', 'info');
           router.back();
         },

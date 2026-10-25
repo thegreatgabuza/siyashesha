@@ -35,6 +35,8 @@ export interface OriginalFile {
   uri: string;
   name: string;
   mimeType: string;
+  remoteUrl?: string;
+  storagePath?: string;
 }
 
 export interface MedicalRecord {

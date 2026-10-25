@@ -1,9 +1,9 @@
 import dayjs from 'dayjs';
 import { useLocalSearchParams } from 'expo-router';
-import { ArrowUp, ChevronLeft, ChevronRight, Lock, Sparkles } from 'lucide-react-native';
+import { ArrowUp, ChevronLeft, ChevronRight, Lock, Sparkles, ShieldCheck } from 'lucide-react-native';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from 'react-native';
-import Animated, { FadeIn, FadeInDown, FadeInUp, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AnswerCard } from '@/components/assistant/AnswerCards';
@@ -13,9 +13,9 @@ import { PressableScale } from '@/components/ui/PressableScale';
 import { Txt } from '@/components/ui/Txt';
 import { elevation, fonts, radii, springs } from '@/design/tokens';
 import { useTokens } from '@/design/useTokens';
-import { assistantEncryptionNotice, assistantGreeting, quickCommands, type AssistantMessage } from '@/data/assistant';
+import { assistantGreeting, quickCommands, type AssistantMessage } from '@/data/assistant';
 import { useAboveTabBar } from '@/hooks/useTabBarInset';
-import { answer } from '@/lib/assistantEngine';
+import { askAssistant } from '@/lib/assistantEngine';
 import { todayKey } from '@/lib/date';
 import { tapFeedback } from '@/lib/feedback';
 import { useAppStore } from '@/store/useAppStore';
@@ -32,9 +32,8 @@ function dayLabel(key: string) {
 }
 
 /**
- * Siyashesha Assistant. Familiar numbered shortcuts, calm canvas, replies that stream in and
- * render medications, results and emergency details as cards. One conversation per day; page
- * back through earlier days from the header.
+ * Siyashesha Assistant. Powered by Google Gemini 3.8 Flash with full clinical context,
+ * clinical safety guardrails, rich cards, and automatic on-device offline fallback.
  */
 export default function AssistantScreen() {
   const t = useTokens();
@@ -68,24 +67,47 @@ export default function AssistantScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const handledQ = useRef<string | undefined>(undefined);
 
-  const send = (raw: string) => {
+  const scrollToEnd = () => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: !reduced }), 60);
+
+  const send = async (raw: string) => {
     const value = raw.trim();
     if (!value || thinking) return;
     tapFeedback();
     setDayIndex(null);
-    addMessage(today, { id: makeId(), sender: 'user', text: value, timestamp: new Date().toISOString() });
+    const userMsg: AssistantMessage = { id: makeId(), sender: 'user', text: value, timestamp: new Date().toISOString() };
+    addMessage(today, userMsg);
     setInput('');
     setThinking(true);
-    setTimeout(
-      () => {
-        const reply = answer(value, { recordCount });
-        const msg: AssistantMessage = { id: makeId(), sender: 'assistant', text: reply.text, card: reply.card, timestamp: new Date().toISOString() };
-        setFresh((f) => new Set(f).add(msg.id));
-        setThinking(false);
-        addMessage(today, msg);
-      },
-      reduced ? 150 : 650
-    );
+    scrollToEnd();
+
+    try {
+      const reply = await askAssistant(value, {
+        recordCount,
+        history: [...(threads[today] ?? []), userMsg],
+      });
+      const assistantMsg: AssistantMessage = {
+        id: makeId(),
+        sender: 'assistant',
+        text: reply.text,
+        card: reply.card,
+        timestamp: new Date().toISOString(),
+      };
+      setFresh((f) => new Set(f).add(assistantMsg.id));
+      setThinking(false);
+      addMessage(today, assistantMsg);
+      scrollToEnd();
+    } catch {
+      const fallbackMsg: AssistantMessage = {
+        id: makeId(),
+        sender: 'assistant',
+        text: "I'm not sure about that yet, but your clinician or clinic sister can help. You can also pick a numbered shortcut or ask about your records, medications, or emergency profile.",
+        timestamp: new Date().toISOString(),
+      };
+      setFresh((f) => new Set(f).add(fallbackMsg.id));
+      setThinking(false);
+      addMessage(today, fallbackMsg);
+      scrollToEnd();
+    }
   };
 
   // A question handed over from Home's Ask bar.
@@ -97,19 +119,25 @@ export default function AssistantScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.q]);
 
-  const scrollToEnd = () => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: !reduced }), 60);
-
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: t.canvas }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      {/* Header with day pager */}
+      {/* Header with model badge and day pager */}
       <View style={{ paddingTop: insets.top + 8, paddingHorizontal: 16, paddingBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
         <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: t.interactive, alignItems: 'center', justifyContent: 'center' }}>
           <Sparkles size={18} color={t.scheme === 'dark' ? '#0B1024' : '#FFFFFF'} />
         </View>
         <View style={{ flex: 1 }}>
-          <Txt variant="bodyStrong">Siyashesha</Txt>
-          <Txt variant="footnote" tone="muted">
-            {thinking ? 'Thinking…' : 'Your health assistant'}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Txt variant="bodyStrong">Siyashesha AI</Txt>
+            <View style={{ backgroundColor: t.interactiveSoft, paddingHorizontal: 6, paddingVertical: 2, borderRadius: radii.pill, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <ShieldCheck size={11} color={t.interactive} />
+              <Txt variant="footnote" color={t.interactive} style={{ fontFamily: fonts.semibold, fontSize: 10 }}>
+                Gemini 3.8 Flash
+              </Txt>
+            </View>
+          </View>
+          <Txt variant="footnote" tone="muted" style={{ fontSize: 12 }}>
+            {thinking ? 'Gemini is thinking…' : 'Clinical safety guardrails active'}
           </Txt>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -118,25 +146,26 @@ export default function AssistantScreen() {
             disabled={activeIndex === 0}
             onPress={() => setDayIndex(activeIndex - 1)}
             haptic="selection"
-            style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center', opacity: activeIndex === 0 ? 0.3 : 1 }}
+            style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', opacity: activeIndex === 0 ? 0.35 : 1 }}
           >
             <ChevronLeft size={20} color={t.text} />
           </PressableScale>
-          <Txt variant="footnote" style={{ fontFamily: fonts.semibold, minWidth: 64, textAlign: 'center' }} accessibilityLiveRegion="polite">
+          <Txt variant="callout" style={{ minWidth: 68, textAlign: 'center', fontFamily: fonts.medium }}>
             {dayLabel(activeDay)}
           </Txt>
           <PressableScale
             accessibilityLabel="Next day's conversation"
-            disabled={activeIndex >= days.length - 1}
+            disabled={activeIndex === days.length - 1}
             onPress={() => setDayIndex(activeIndex + 1)}
             haptic="selection"
-            style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center', opacity: activeIndex >= days.length - 1 ? 0.3 : 1 }}
+            style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', opacity: activeIndex === days.length - 1 ? 0.35 : 1 }}
           >
             <ChevronRight size={20} color={t.text} />
           </PressableScale>
         </View>
       </View>
 
+      {/* Messages */}
       <ScrollView
         ref={scrollRef}
         key={activeDay}
@@ -170,7 +199,9 @@ export default function AssistantScreen() {
                       <Txt variant="callout" style={{ flex: 1, fontFamily: fonts.medium }}>
                         {c.label}
                       </Txt>
-                      <ChevronRight size={16} color={t.textMuted} />
+                      <Txt variant="footnote" tone="muted">
+                        Tap or reply {c.number}
+                      </Txt>
                     </PressableScale>
                   </Animated.View>
                 ))}
@@ -179,15 +210,26 @@ export default function AssistantScreen() {
           ) : null}
         </Animated.View>
 
+        {/* Message history */}
         {messages.map((m) =>
           m.sender === 'user' ? (
-            <Animated.View key={m.id} entering={reduced ? undefined : FadeInUp.springify().damping(springs.snappy.damping)} style={{ alignSelf: 'flex-end', maxWidth: '82%' }}>
-              <View style={{ backgroundColor: t.interactive, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 22, borderBottomRightRadius: 6 }}>
-                <Txt variant="body" color={t.scheme === 'dark' ? '#0B1024' : '#FFFFFF'}>
-                  {m.text}
-                </Txt>
-              </View>
-              <Txt variant="footnote" tone="muted" style={{ textAlign: 'right', marginTop: 4, fontSize: 12 }}>
+            <Animated.View
+              key={m.id}
+              entering={reduced ? undefined : FadeInDown.duration(200)}
+              style={{
+                alignSelf: 'flex-end',
+                maxWidth: '82%',
+                backgroundColor: t.interactive,
+                borderRadius: radii.lg,
+                borderBottomRightRadius: radii.xs,
+                paddingHorizontal: 16,
+                paddingVertical: 12,
+              }}
+            >
+              <Txt variant="body" color={t.scheme === 'dark' ? '#0B1024' : '#FFFFFF'}>
+                {m.text}
+              </Txt>
+              <Txt variant="footnote" color={t.scheme === 'dark' ? '#0B1024' : '#FFFFFF'} style={{ opacity: 0.75, textAlign: 'right', marginTop: 4, fontSize: 11 }}>
                 {dayjs(m.timestamp).format('h:mm A')}
               </Txt>
             </Animated.View>
@@ -221,8 +263,8 @@ export default function AssistantScreen() {
 
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingTop: 4 }}>
           <Lock size={12} color={t.textMuted} />
-          <Txt variant="footnote" tone="muted" style={{ fontSize: 12, textAlign: 'center', flexShrink: 1 }}>
-            {assistantEncryptionNotice}
+          <Txt variant="footnote" tone="muted" style={{ fontSize: 11, textAlign: 'center', flexShrink: 1 }}>
+            Powered by Gemini 3.8 Flash & Local Vault · Guardrails active · Educational guidance only
           </Txt>
         </View>
       </ScrollView>
@@ -238,20 +280,20 @@ export default function AssistantScreen() {
           <TextInput
             value={input}
             onChangeText={setInput}
-            placeholder={isToday ? 'Ask, or type a number' : 'Go to today to ask'}
+            placeholder={isToday ? 'Ask clinical assistant, or type a number' : 'Go to today to ask'}
             editable={isToday}
             placeholderTextColor={t.textMuted}
             returnKeyType="send"
             onSubmitEditing={() => send(input)}
-            accessibilityLabel="Message Siyashesha"
+            accessibilityLabel="Message Siyashesha Clinical AI"
             style={{ flex: 1, minHeight: 48, fontFamily: fonts.regular, fontSize: 16, color: t.text }}
           />
           <PressableScale
             accessibilityLabel="Send message"
-            disabled={!input.trim()}
+            disabled={!input.trim() || thinking}
             onPress={() => send(input)}
             scaleTo={0.9}
-            style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: input.trim() ? t.interactive : t.border }}
+            style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: input.trim() && !thinking ? t.interactive : t.border }}
           >
             <ArrowUp size={20} color={t.scheme === 'dark' ? '#0B1024' : '#FFFFFF'} />
           </PressableScale>

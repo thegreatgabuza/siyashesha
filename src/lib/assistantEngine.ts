@@ -1,11 +1,12 @@
 import dayjs from 'dayjs';
 
-import { assistantFallback, quickCommands, type AssistantCard } from '@/data/assistant';
+import { assistantFallback, quickCommands, type AssistantCard, type AssistantMessage } from '@/data/assistant';
 import { hba1cSeries } from '@/data/timeline';
+import { askGeminiAssistant } from '@/lib/geminiAssistant';
 
 /**
- * The on-device demo assistant. Matches a numbered shortcut or keywords to an intent and returns
- * a short reply plus, where it helps, a rich card. Nothing leaves the phone.
+ * The on-device rule-based assistant fallback. Matches numbered shortcuts or keywords
+ * to provide instant, zero-latency replies even when completely offline.
  */
 export function answer(input: string, ctx: { recordCount: number }): { text: string; card?: AssistantCard } {
   const text = input.trim().toLowerCase();
@@ -36,5 +37,35 @@ export function answer(input: string, ctx: { recordCount: number }): { text: str
     }
     default:
       return { text: assistantFallback };
+  }
+}
+
+/**
+ * Intelligent Conversational Assistant: Calls Google Gemini with full patient clinical context
+ * and clinical safety guardrails, falling back seamlessly to the on-device rule engine if offline.
+ */
+export async function askAssistant(
+  input: string,
+  ctx: { recordCount: number; history?: AssistantMessage[] }
+): Promise<{ text: string; card?: AssistantCard; modelUsed: string }> {
+  const trimmed = input.trim();
+
+  // If user enters a simple number "1"-"5", match the quick command directly for instant response
+  if (/^[1-5]$/.test(trimmed)) {
+    const local = answer(trimmed, ctx);
+    return { ...local, modelUsed: 'quick-action' };
+  }
+
+  try {
+    const geminiReply = await askGeminiAssistant(trimmed, ctx.history ?? []);
+    return geminiReply;
+  } catch (err) {
+    console.warn('[AssistantEngine] Gemini request failed, using on-device fallback:', err);
+    const fallback = answer(trimmed, ctx);
+    return {
+      text: fallback.text,
+      card: fallback.card,
+      modelUsed: 'offline-vault',
+    };
   }
 }

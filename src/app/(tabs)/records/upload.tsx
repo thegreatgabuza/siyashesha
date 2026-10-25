@@ -14,6 +14,7 @@ import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { useToast } from '@/components/ui/Toast';
 import { recordCategories, type MedicalRecord, type RecordCategory } from '@/data/records';
 import { saveOriginal } from '@/lib/documents';
+import { syncRecordToDatabase } from '@/lib/supabase';
 import { useAppStore } from '@/store/useAppStore';
 import { useAccent } from '@/hooks/useAccent';
 
@@ -90,6 +91,7 @@ export default function UploadRecordScreen() {
     };
     try {
       addRecord(record);
+      syncRecordToDatabase(record).catch(() => {});
     } catch {
       toast.show('Could not save the record. Please try again.', 'warning');
       return;
