@@ -1,8 +1,7 @@
-import * as LocalAuthentication from 'expo-local-authentication';
 import { router } from 'expo-router';
 import { Check, Eye, Lock, ShieldCheck, Smartphone } from 'lucide-react-native';
 import { useState } from 'react';
-import { Pressable, Switch, Text, View } from 'react-native';
+import { Platform, Pressable, Switch, Text, View } from 'react-native';
 
 import { ChunkyButton } from '@/components/onboarding/ChunkyButton';
 import { Mascot } from '@/components/onboarding/Mascot';
@@ -10,6 +9,11 @@ import { OnboardingShell } from '@/components/onboarding/OnboardingShell';
 import { RewardModal } from '@/components/onboarding/RewardModal';
 import { SpeechBubble } from '@/components/onboarding/SpeechBubble';
 import { tapFeedback } from '@/lib/feedback';
+import {
+  authenticateWithBiometrics,
+  getBiometricCapabilities,
+  getOrCreateEnclaveKey,
+} from '@/lib/security/enclaveSecurity';
 import type { StampId } from '@/store/useAppStore';
 import { useAppStore } from '@/store/useAppStore';
 
@@ -45,17 +49,16 @@ export default function PrivacyScreen() {
       setBiometricLock(false);
       return;
     }
-    const hardware = await LocalAuthentication.hasHardwareAsync();
-    const enrolled = await LocalAuthentication.isEnrolledAsync();
-    if (!hardware || !enrolled) {
-      setNote('Set up Face ID or a fingerprint in your phone settings first, then come back here.');
-      return;
+    const caps = await getBiometricCapabilities();
+    if (!caps.hasHardware || !caps.isEnrolled) {
+      if (Platform.OS !== 'web') {
+        setNote('Set up Face ID or a fingerprint in your phone settings first, then come back here.');
+        return;
+      }
     }
-    const result = await LocalAuthentication.authenticateAsync({
-      promptMessage: 'Confirm to turn on biometric lock',
-      cancelLabel: 'Cancel',
-    });
+    const result = await authenticateWithBiometrics('Confirm to turn on biometric lock');
     if (result.success) {
+      await getOrCreateEnclaveKey();
       setBiometricLock(true);
       setNote(null);
       tapFeedback();

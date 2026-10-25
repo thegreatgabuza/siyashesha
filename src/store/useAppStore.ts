@@ -191,6 +191,10 @@ interface AppState {
   addUserMedication: (med: Omit<UserMedication, 'id'>) => void;
   biometricLock: boolean;
   setBiometricLock: (v: boolean) => void;
+  isAppLocked: boolean;
+  setAppLocked: (locked: boolean) => void;
+  unlockApp: () => void;
+  lockApp: () => void;
   finishOnboarding: () => void;
 }
 
@@ -549,7 +553,39 @@ export const useAppStore = create<AppState>()(
       addUserMedication: (med) =>
         set((s) => ({ userMedications: [...s.userMedications, { ...med, id: makeId('med') }] })),
       biometricLock: false,
-      setBiometricLock: (v) => set({ biometricLock: v }),
+      isAppLocked: false,
+      setBiometricLock: (v) =>
+        set((s) => ({
+          biometricLock: v,
+          isAppLocked: false,
+          auditEvents: [
+            {
+              id: makeId('audit'),
+              type: 'login',
+              description: v
+                ? 'Enabled Face ID / Biometric lock with Secure Enclave protection'
+                : 'Disabled Biometric authentication lock',
+              timestamp: new Date().toISOString(),
+            },
+            ...s.auditEvents,
+          ],
+        })),
+      setAppLocked: (locked) => set({ isAppLocked: locked }),
+      unlockApp: () =>
+        set((s) => ({
+          isAppLocked: false,
+          auditEvents: [
+            {
+              id: makeId('audit'),
+              type: 'login',
+              description: 'Health passport unlocked via biometric verification',
+              timestamp: new Date().toISOString(),
+            },
+            ...s.auditEvents,
+          ],
+        })),
+      lockApp: () =>
+        set((s) => (s.biometricLock ? { isAppLocked: true } : {})),
       finishOnboarding: () =>
         set((s) => {
           const d = s.onboardingDraft;
@@ -586,6 +622,10 @@ export const useAppStore = create<AppState>()(
     {
       name: 'siyashesha-app-store',
       storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => {
+        const { isAppLocked, ...rest } = state;
+        return rest;
+      },
     }
   )
 );

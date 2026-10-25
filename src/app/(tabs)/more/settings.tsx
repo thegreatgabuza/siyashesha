@@ -3,12 +3,13 @@ import { router } from 'expo-router';
 import {
   ChevronRight,
   Globe,
+  Lock,
   LogOut,
   Moon,
   ShieldCheck,
 } from 'lucide-react-native';
-import { useState } from 'react';
-import { Alert, Pressable, Switch, Text, TextInput, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Alert, Platform, Pressable, Switch, Text, TextInput, View } from 'react-native';
 
 import { ScreenScroll } from '@/components/ui/ScreenScroll';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
@@ -17,9 +18,14 @@ import { SectionHeader } from '@/components/ui/SectionHeader';
 import { useToast } from '@/components/ui/Toast';
 import { languageNames } from '@/i18n/translations';
 import { useAppStore, type ThemePreference } from '@/store/useAppStore';
-import * as LocalAuthentication from 'expo-local-authentication';
 import { useAccent } from '@/hooks/useAccent';
 import { ensureNotificationPermission, syncReminders } from '@/lib/reminders';
+import {
+  authenticateWithBiometrics,
+  getBiometricCapabilities,
+  getOrCreateEnclaveKey,
+  type BiometricCapabilities,
+} from '@/lib/security/enclaveSecurity';
 
 export default function SettingsScreen() {
   const { accent, accentSoft } = useAccent();
@@ -37,23 +43,41 @@ export default function SettingsScreen() {
   const signOut = useAppStore((s) => s.signOut);
   const biometricLock = useAppStore((s) => s.biometricLock);
   const setBiometricLock = useAppStore((s) => s.setBiometricLock);
+  const lockApp = useAppStore((s) => s.lockApp);
   const { signOut: clerkSignOut } = useClerk();
+
+  const [capabilities, setCapabilities] = useState<BiometricCapabilities | null>(null);
+
+  useEffect(() => {
+    getBiometricCapabilities().then(setCapabilities);
+  }, []);
 
   const toggleBiometric = async (value: boolean) => {
     if (!value) {
+      const verify = await authenticateWithBiometrics('Confirm identity to disable biometric lock');
+      if (!verify.success) {
+        toast.show('Identity verification required to turn off biometric lock', 'warning');
+        return;
+      }
       setBiometricLock(false);
+      toast.show('Biometric lock disabled', 'info');
       return;
     }
-    const hardware = await LocalAuthentication.hasHardwareAsync();
-    const enrolled = await LocalAuthentication.isEnrolledAsync();
-    if (!hardware || !enrolled) {
-      toast.show('Set up Face ID or a fingerprint in your phone settings first', 'warning');
+
+    if (capabilities && !capabilities.hasHardware && Platform.OS !== 'web') {
+      toast.show('Biometric hardware is not available on this device', 'warning');
       return;
     }
-    const result = await LocalAuthentication.authenticateAsync({ promptMessage: 'Confirm to turn on biometric lock', cancelLabel: 'Cancel' });
+
+    const result = await authenticateWithBiometrics(
+      `Confirm to enable ${capabilities?.label || 'biometric lock'}`
+    );
     if (result.success) {
+      await getOrCreateEnclaveKey();
       setBiometricLock(true);
-      toast.show('Biometric lock on', 'success');
+      toast.show(`${capabilities?.label || 'Biometric lock'} enabled with Secure Enclave`, 'success');
+    } else {
+      toast.show(result.error || 'Authentication cancelled', 'warning');
     }
   };
 
@@ -99,11 +123,28 @@ export default function SettingsScreen() {
           onValueChange={setMfaEnabled}
         />
         <ToggleRow
-          label="Lock with Face ID or fingerprint"
-          caption="Asks for you before the app opens"
+          icon={<Lock size={16} color={accent} />}
+          label={`Lock with ${capabilities?.label || 'Face ID / Fingerprint'}`}
+          caption="Enclave-encrypted; prompts on launch and after 15s in background"
           value={biometricLock}
           onValueChange={toggleBiometric}
         />
+        {biometricLock ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Lock Health Passport Now"
+            onPress={() => {
+              lockApp();
+              toast.show('Health passport locked', 'info');
+            }}
+            className="mb-2 mt-1 flex-row items-center justify-center gap-2 rounded-2xl border border-brand-500/30 bg-brand-50/70 py-3 dark:border-brand-500/20 dark:bg-brand-500/10"
+          >
+            <Lock size={15} color={accent} />
+            <Text className="font-sans-semibold text-[13px] text-brand-700 dark:text-brand-300">
+              Lock Health Passport Now
+            </Text>
+          </Pressable>
+        ) : null}
         <View className="mt-2 gap-2 rounded-2xl border border-slate-200 bg-white p-4 dark:border-canvasdark-card dark:bg-canvasdark-card">
           <Text className="mb-1 font-sans-semibold text-[13px] text-ink dark:text-slate-50">
             Change password

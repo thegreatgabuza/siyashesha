@@ -14,6 +14,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import '@/global.css';
+import { BiometricGate } from '@/components/security/BiometricGate';
 import { ToastProvider } from '@/components/ui/Toast';
 import { useSyncColorScheme } from '@/hooks/useColorSchemePreference';
 import { tokenCache } from '@/lib/clerkTokenCache';
@@ -72,17 +73,19 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ToastProvider>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Protected guard={!hasCompletedOnboarding}>
-              <Stack.Screen name="(onboarding)" />
-            </Stack.Protected>
-            <Stack.Protected guard={isSignedIn}>
-              <Stack.Screen name="(tabs)" />
-            </Stack.Protected>
-            <Stack.Protected guard={!isSignedIn}>
-              <Stack.Screen name="(auth)" />
-            </Stack.Protected>
-          </Stack>
+          <BiometricGate>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Protected guard={!hasCompletedOnboarding}>
+                <Stack.Screen name="(onboarding)" />
+              </Stack.Protected>
+              <Stack.Protected guard={isSignedIn}>
+                <Stack.Screen name="(tabs)" />
+              </Stack.Protected>
+              <Stack.Protected guard={!isSignedIn}>
+                <Stack.Screen name="(auth)" />
+              </Stack.Protected>
+            </Stack>
+          </BiometricGate>
         </ToastProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
