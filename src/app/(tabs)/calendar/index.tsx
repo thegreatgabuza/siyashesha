@@ -2,10 +2,14 @@ import dayjs from 'dayjs';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import {
+  Bell,
   CalendarDays,
   CalendarPlus,
+  Check,
+  CheckCircle2,
   Clock,
   Edit2,
+  ExternalLink,
   FileText,
   MapPin,
   Pill as PillIcon,
@@ -20,6 +24,7 @@ import { Calendar } from 'react-native-calendars';
 
 import { CalendarDayCell } from '@/components/CalendarDayCell';
 import { AppointmentModal } from '@/components/calendar/AppointmentModal';
+import { HealthDaysModal } from '@/components/calendar/HealthDaysModal';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { HeroAction, heroShadow } from '@/components/ui/HeroAction';
@@ -44,6 +49,7 @@ export default function CalendarScreen() {
   const toast = useToast();
 
   const appointments = useAppStore((s) => s.appointments);
+  const records = useAppStore((s) => s.records);
   const addAppointment = useAppStore((s) => s.addAppointment);
   const updateAppointment = useAppStore((s) => s.updateAppointment);
   const deleteAppointment = useAppStore((s) => s.deleteAppointment);
@@ -53,9 +59,10 @@ export default function CalendarScreen() {
   const [visibleMonth, setVisibleMonth] = useState(dayjs().format('YYYY-MM'));
   const [selectedDate, setSelectedDate] = useState(today);
 
-  // Modal state
+  // Modals
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | undefined>();
+  const [showAllHealthDays, setShowAllHealthDays] = useState(false);
 
   const openNewAppointmentModal = (dateToUse?: string) => {
     setSelectedAppointment(undefined);
@@ -83,6 +90,16 @@ export default function CalendarScreen() {
     toast.show('Visit cancelled', 'info');
   };
 
+  const toggleAppointmentComplete = (appt: Appointment) => {
+    const nextStatus = appt.status === 'completed' ? 'confirmed' : 'completed';
+    updateAppointment(appt.id, { status: nextStatus });
+    if (nextStatus === 'completed') {
+      toast.show('Visit marked as completed! Tap Doctor Notes to record consultation summary.', 'success');
+    } else {
+      toast.show('Visit marked as upcoming', 'info');
+    }
+  };
+
   const openAppointmentDiary = (appt: Appointment) => {
     const linkedNote = diaryNotes.find((n) => n.linkedAppointmentId === appt.id);
     if (linkedNote) {
@@ -104,7 +121,6 @@ export default function CalendarScreen() {
   const upcoming = useMemo(() => upcomingHealthDays(), []);
   const next = useMemo(() => nextAppointment(appointments), [appointments]);
 
-  // Month totals come directly from the dynamic appointments store
   const monthTotals = useMemo(() => {
     let apptCount = 0;
     let healthDayCount = 0;
@@ -306,168 +322,248 @@ export default function CalendarScreen() {
         ) : (
           <View className="gap-3">
             {/* Appointments */}
-            {agenda.appointments.map((appt) => (
-              <View
-                key={appt.id}
-                style={[
-                  {
-                    borderRadius: radii.xl,
-                    backgroundColor: t.surface,
-                    padding: 16,
-                    borderWidth: 1,
-                    borderColor: t.border,
-                  },
-                  elevation[1],
-                ]}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+            {agenda.appointments.map((appt) => {
+              const isCompleted = appt.status === 'completed';
+              const linkedDoc = appt.linkedRecordId ? records.find((r) => r.id === appt.linkedRecordId) : null;
+
+              return (
+                <View
+                  key={appt.id}
+                  style={[
+                    {
+                      borderRadius: radii.xl,
+                      backgroundColor: t.surface,
+                      padding: 16,
+                      borderWidth: 1,
+                      borderColor: isCompleted ? 'rgba(22, 163, 74, 0.3)' : t.border,
+                      opacity: isCompleted ? 0.85 : 1,
+                    },
+                    elevation[1],
+                  ]}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+                    <View
+                      style={{
+                        height: 44,
+                        width: 44,
+                        borderRadius: radii.md,
+                        backgroundColor: isCompleted
+                          ? 'rgba(22, 163, 74, 0.14)'
+                          : appt.type === 'Medication Refill'
+                            ? 'rgba(22, 163, 74, 0.12)'
+                            : 'rgba(14, 116, 144, 0.12)',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {isCompleted ? (
+                        <CheckCircle2 size={22} color="#16A34A" />
+                      ) : appt.type === 'Medication Refill' ? (
+                        <PillIcon size={20} color="#16A34A" />
+                      ) : (
+                        <Stethoscope size={20} color={t.accent} />
+                      )}
+                    </View>
+
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Txt
+                          variant="bodyStrong"
+                          numberOfLines={1}
+                          style={{ textDecorationLine: isCompleted ? 'line-through' : 'none' }}
+                        >
+                          {appt.title}
+                        </Txt>
+                        <View
+                          style={{
+                            backgroundColor: isCompleted
+                              ? 'rgba(22, 163, 74, 0.12)'
+                              : appt.type === 'Medication Refill'
+                                ? 'rgba(22, 163, 74, 0.12)'
+                                : t.surfaceMuted,
+                            paddingHorizontal: 8,
+                            paddingVertical: 2,
+                            borderRadius: radii.pill,
+                          }}
+                        >
+                          <Txt
+                            variant="label"
+                            color={
+                              isCompleted
+                                ? '#16A34A'
+                                : appt.type === 'Medication Refill'
+                                  ? '#16A34A'
+                                  : t.textMuted
+                            }
+                          >
+                            {isCompleted ? 'Done' : appt.type === 'Medication Refill' ? 'Refill' : 'Visit'}
+                          </Txt>
+                        </View>
+                      </View>
+
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                        <MapPin size={13} color={t.textMuted} />
+                        <Txt variant="footnote" tone="muted" numberOfLines={1}>
+                          {appt.facility}
+                        </Txt>
+                      </View>
+
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                        <Clock size={13} color={t.textMuted} />
+                        <Txt variant="footnote" tone="muted">
+                          {appt.time !== '00:00' ? formatTime12(appt.time) : 'All day'}
+                          {appt.provider ? ` · ${appt.provider}` : ''}
+                        </Txt>
+                      </View>
+
+                      {appt.reminderOption && appt.reminderOption !== 'none' ? (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                          <Bell size={11} color={t.accent} />
+                          <Txt variant="footnote" color={t.accent} style={{ fontSize: 11, fontFamily: fonts.medium }}>
+                            Alert: {appt.reminderOption.replace('_', ' ')}
+                          </Txt>
+                        </View>
+                      ) : null}
+
+                      {linkedDoc ? (
+                        <PressableScale
+                          onPress={() => router.push(`/records/${linkedDoc.id}` as any)}
+                          style={{
+                            marginTop: 8,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 5,
+                            backgroundColor: 'rgba(14, 116, 144, 0.08)',
+                            paddingHorizontal: 8,
+                            paddingVertical: 4,
+                            borderRadius: radii.sm,
+                            alignSelf: 'flex-start',
+                          }}
+                        >
+                          <FileText size={12} color={t.accent} />
+                          <Txt variant="footnote" color={t.accent} style={{ fontSize: 11, fontFamily: fonts.medium }}>
+                            Record: {linkedDoc.title}
+                          </Txt>
+                          <ExternalLink size={10} color={t.accent} />
+                        </PressableScale>
+                      ) : null}
+
+                      {appt.notes ? (
+                        <View
+                          style={{
+                            marginTop: 8,
+                            backgroundColor: t.surfaceMuted,
+                            paddingHorizontal: 10,
+                            paddingVertical: 6,
+                            borderRadius: radii.sm,
+                          }}
+                        >
+                          <Txt variant="footnote" tone="muted">
+                            Prep notes: {appt.notes}
+                          </Txt>
+                        </View>
+                      ) : null}
+                    </View>
+                  </View>
+
+                  {/* Action buttons */}
                   <View
                     style={{
-                      height: 44,
-                      width: 44,
-                      borderRadius: radii.md,
-                      backgroundColor:
-                        appt.type === 'Medication Refill' ? 'rgba(22, 163, 74, 0.12)' : 'rgba(14, 116, 144, 0.12)',
-                      alignItems: 'center',
-                      justifyContent: 'center',
+                      flexDirection: 'row',
+                      gap: 8,
+                      marginTop: 12,
+                      paddingTop: 10,
+                      borderTopWidth: 1,
+                      borderTopColor: t.border,
                     }}
                   >
-                    {appt.type === 'Medication Refill' ? (
-                      <PillIcon size={20} color="#16A34A" />
-                    ) : (
-                      <Stethoscope size={20} color={t.accent} />
-                    )}
-                  </View>
-
-                  <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Txt variant="bodyStrong" numberOfLines={1}>
-                        {appt.title}
-                      </Txt>
-                      <View
-                        style={{
-                          backgroundColor:
-                            appt.type === 'Medication Refill' ? 'rgba(22, 163, 74, 0.12)' : t.surfaceMuted,
-                          paddingHorizontal: 8,
-                          paddingVertical: 2,
-                          borderRadius: radii.pill,
-                        }}
+                    {/* Complete toggle */}
+                    <PressableScale
+                      onPress={() => toggleAppointmentComplete(appt)}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 5,
+                        paddingHorizontal: 10,
+                        paddingVertical: 7,
+                        borderRadius: radii.pill,
+                        backgroundColor: isCompleted ? 'rgba(22, 163, 74, 0.12)' : t.surfaceMuted,
+                      }}
+                    >
+                      <Check size={13} color={isCompleted ? '#16A34A' : t.textMuted} />
+                      <Txt
+                        variant="footnote"
+                        color={isCompleted ? '#16A34A' : t.text}
+                        style={{ fontFamily: fonts.medium }}
                       >
-                        <Txt
-                          variant="label"
-                          color={appt.type === 'Medication Refill' ? '#16A34A' : t.textMuted}
-                        >
-                          {appt.type === 'Medication Refill' ? 'Refill' : 'Visit'}
-                        </Txt>
-                      </View>
-                    </View>
-
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                      <MapPin size={13} color={t.textMuted} />
-                      <Txt variant="footnote" tone="muted" numberOfLines={1}>
-                        {appt.facility}
+                        {isCompleted ? 'Completed' : 'Mark Done'}
                       </Txt>
-                    </View>
+                    </PressableScale>
 
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
-                      <Clock size={13} color={t.textMuted} />
-                      <Txt variant="footnote" tone="muted">
-                        {appt.time !== '00:00' ? formatTime12(appt.time) : 'All day'}
-                        {appt.provider ? ` · ${appt.provider}` : ''}
+                    <PressableScale
+                      onPress={() => openAppointmentDiary(appt)}
+                      style={{
+                        flex: 1,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 5,
+                        paddingVertical: 7,
+                        borderRadius: radii.pill,
+                        backgroundColor: t.surfaceMuted,
+                      }}
+                    >
+                      <FileText size={13} color={t.text} />
+                      <Txt variant="footnote" style={{ fontFamily: fonts.medium }}>
+                        Doctor Notes
                       </Txt>
-                    </View>
+                    </PressableScale>
 
-                    {appt.notes ? (
-                      <View
-                        style={{
-                          marginTop: 10,
-                          backgroundColor: t.surfaceMuted,
-                          paddingHorizontal: 10,
-                          paddingVertical: 6,
-                          borderRadius: radii.sm,
-                        }}
-                      >
-                        <Txt variant="footnote" tone="muted">
-                          Notes: {appt.notes}
-                        </Txt>
-                      </View>
-                    ) : null}
+                    <PressableScale
+                      onPress={() => openEditAppointmentModal(appt)}
+                      style={{
+                        flex: 1,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 5,
+                        paddingVertical: 7,
+                        borderRadius: radii.pill,
+                        backgroundColor: t.surfaceMuted,
+                      }}
+                    >
+                      <Edit2 size={13} color={t.accent} />
+                      <Txt variant="footnote" color={t.accent} style={{ fontFamily: fonts.medium }}>
+                        Reschedule
+                      </Txt>
+                    </PressableScale>
+
+                    <PressableScale
+                      onPress={() => {
+                        Alert.alert('Cancel Appointment', `Cancel "${appt.title}"?`, [
+                          { text: 'Keep', style: 'cancel' },
+                          {
+                            text: 'Cancel Visit',
+                            style: 'destructive',
+                            onPress: () => handleDeleteAppointment(appt.id),
+                          },
+                        ]);
+                      }}
+                      style={{
+                        width: 36,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: radii.pill,
+                        backgroundColor: 'rgba(220, 31, 38, 0.08)',
+                      }}
+                    >
+                      <Trash2 size={14} color="#DC1F26" />
+                    </PressableScale>
                   </View>
                 </View>
-
-                {/* Action buttons */}
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    gap: 8,
-                    marginTop: 12,
-                    paddingTop: 10,
-                    borderTopWidth: 1,
-                    borderTopColor: t.border,
-                  }}
-                >
-                  <PressableScale
-                    onPress={() => openAppointmentDiary(appt)}
-                    style={{
-                      flex: 1,
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 6,
-                      paddingVertical: 7,
-                      borderRadius: radii.pill,
-                      backgroundColor: t.surfaceMuted,
-                    }}
-                  >
-                    <FileText size={14} color={t.text} />
-                    <Txt variant="footnote" style={{ fontFamily: fonts.medium }}>
-                      Doctor Notes
-                    </Txt>
-                  </PressableScale>
-
-                  <PressableScale
-                    onPress={() => openEditAppointmentModal(appt)}
-                    style={{
-                      flex: 1,
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 6,
-                      paddingVertical: 7,
-                      borderRadius: radii.pill,
-                      backgroundColor: t.surfaceMuted,
-                    }}
-                  >
-                    <Edit2 size={14} color={t.accent} />
-                    <Txt variant="footnote" color={t.accent} style={{ fontFamily: fonts.medium }}>
-                      Reschedule
-                    </Txt>
-                  </PressableScale>
-
-                  <PressableScale
-                    onPress={() => {
-                      Alert.alert('Cancel Appointment', `Cancel "${appt.title}"?`, [
-                        { text: 'Keep', style: 'cancel' },
-                        {
-                          text: 'Cancel Visit',
-                          style: 'destructive',
-                          onPress: () => handleDeleteAppointment(appt.id),
-                        },
-                      ]);
-                    }}
-                    style={{
-                      width: 36,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      borderRadius: radii.pill,
-                      backgroundColor: 'rgba(220, 31, 38, 0.08)',
-                    }}
-                  >
-                    <Trash2 size={14} color="#DC1F26" />
-                  </PressableScale>
-                </View>
-              </View>
-            ))}
+              );
+            })}
 
             {/* Health Days on that day */}
             {agenda.healthDays.map((card) => (
@@ -518,7 +614,11 @@ export default function CalendarScreen() {
 
       {/* Upcoming Health Awareness Days Carousel */}
       <View className="pt-6 pb-8">
-        <SectionHeader title="Upcoming Health Awareness Days" />
+        <SectionHeader
+          title="Upcoming Health Awareness Days"
+          action="See all 20"
+          onActionPress={() => setShowAllHealthDays(true)}
+        />
         <FlatList
           data={upcoming}
           keyExtractor={(item) => item.id}
@@ -577,6 +677,12 @@ export default function CalendarScreen() {
         onDelete={handleDeleteAppointment}
         initialDate={selectedDate}
         existingAppointment={selectedAppointment}
+      />
+
+      {/* All 20 Health Days Browser Modal */}
+      <HealthDaysModal
+        visible={showAllHealthDays}
+        onClose={() => setShowAllHealthDays(false)}
       />
     </Screen>
   );

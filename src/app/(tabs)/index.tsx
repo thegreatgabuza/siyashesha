@@ -6,6 +6,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { AskBar } from '@/components/home/AskBar';
 import { EmergencyReadinessCard } from '@/components/home/EmergencyReadinessCard';
+import { HealthAwarenessSpotlight } from '@/components/home/HealthAwarenessSpotlight';
 import { HomeHeader } from '@/components/home/HomeHeader';
 import { PassportCard } from '@/components/home/PassportCard';
 import { PassportProgress } from '@/components/home/PassportProgress';
@@ -101,20 +102,25 @@ export default function HomeScreen() {
         <TodayCard />
       </Animated.View>
 
+      <Animated.View entering={enter(4)} style={{ marginTop: 28 }}>
+        <SectionTitle title="Health Awareness" action="Calendar" onAction={() => router.push('/calendar')} />
+        <HealthAwarenessSpotlight />
+      </Animated.View>
+
       {progress.next ? (
-        <Animated.View entering={enter(4)} style={{ marginTop: 28 }}>
+        <Animated.View entering={enter(5)} style={{ marginTop: 28 }}>
           <SectionTitle title="Your passport" />
           <PassportProgress progress={progress} />
         </Animated.View>
       ) : null}
 
-      <Animated.View entering={enter(5)} style={{ marginTop: 28 }}>
+      <Animated.View entering={enter(6)} style={{ marginTop: 28 }}>
         <SectionTitle title={tr('home.recentActivity')} />
         <RecentActivity />
       </Animated.View>
 
       {!progress.next ? (
-        <Animated.View entering={enter(6)} style={{ marginTop: 28 }}>
+        <Animated.View entering={enter(7)} style={{ marginTop: 28 }}>
           <PassportProgress progress={progress} />
         </Animated.View>
       ) : null}

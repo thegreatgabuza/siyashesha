@@ -1,5 +1,9 @@
 export type AppointmentType = 'Appointment' | 'Medication Refill';
 
+export type AppointmentStatus = 'confirmed' | 'completed' | 'cancelled';
+
+export type AppointmentReminderOption = '1_day' | '2_hours' | 'morning_of' | 'none';
+
 export interface Appointment {
   id: string;
   title: string;
@@ -9,6 +13,9 @@ export interface Appointment {
   time: string; // HH:mm
   type: AppointmentType;
   notes?: string;
+  status?: AppointmentStatus;
+  reminderOption?: AppointmentReminderOption;
+  linkedRecordId?: string;
 }
 
 export const appointmentsSeed: Appointment[] = [
@@ -21,6 +28,8 @@ export const appointmentsSeed: Appointment[] = [
     time: '09:00',
     type: 'Appointment',
     notes: 'Bring glucose diary and current medication.',
+    status: 'completed',
+    reminderOption: '1_day',
   },
   {
     id: 'appt-002',
@@ -30,6 +39,8 @@ export const appointmentsSeed: Appointment[] = [
     date: '2026-10-30',
     time: '08:30',
     type: 'Appointment',
+    status: 'confirmed',
+    reminderOption: '1_day',
   },
   {
     id: 'appt-003',
@@ -38,6 +49,8 @@ export const appointmentsSeed: Appointment[] = [
     date: '2026-11-02',
     time: '00:00',
     type: 'Medication Refill',
+    status: 'confirmed',
+    reminderOption: 'morning_of',
   },
   {
     id: 'appt-004',
@@ -48,6 +61,8 @@ export const appointmentsSeed: Appointment[] = [
     time: '07:30',
     type: 'Appointment',
     notes: 'Fasting required — no food for 8 hours before the test.',
+    status: 'confirmed',
+    reminderOption: '1_day',
   },
   {
     id: 'appt-005',
@@ -57,12 +72,16 @@ export const appointmentsSeed: Appointment[] = [
     date: '2027-06-18',
     time: '10:00',
     type: 'Appointment',
+    status: 'confirmed',
+    reminderOption: '1_day',
   },
 ];
 
 export const appointments = appointmentsSeed;
 
 export function nextAppointment(list: Appointment[] = appointmentsSeed, fromDate: Date = new Date()): Appointment | undefined {
-  const sorted = [...list].sort((a, b) => (a.date < b.date ? -1 : 1));
+  const sorted = [...list]
+    .filter((a) => a.status !== 'completed' && a.status !== 'cancelled')
+    .sort((a, b) => (a.date < b.date ? -1 : 1));
   return sorted.find((a) => new Date(`${a.date}T${a.time || '00:00'}`) >= fromDate);
 }

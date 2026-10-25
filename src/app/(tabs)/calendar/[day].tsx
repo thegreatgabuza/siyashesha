@@ -20,7 +20,7 @@ export default function HealthDayDetailScreen() {
 
   if (!card) {
     return (
-      <Screen headerOwnsTopInset scroll={false}>
+      <Screen headerOwnsTopInset contentClassName="pb-10">
         <ScreenHeader title="Health Awareness Day" onBack={() => router.back()} />
         <Text className="px-5 font-sans text-ink-muted dark:text-slate-400">This health day could not be found.</Text>
       </Screen>
@@ -28,7 +28,7 @@ export default function HealthDayDetailScreen() {
   }
 
   return (
-    <Screen headerOwnsTopInset scroll={false}>
+    <Screen headerOwnsTopInset contentClassName="pb-10">
       <ScreenHeader title="Health Awareness Day" onBack={() => router.back()} />
       <View className="px-5">
         <View className="rounded-[32px] bg-ink p-5 dark:bg-canvasdark-card" style={heroShadow}>
