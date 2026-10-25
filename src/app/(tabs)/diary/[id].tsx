@@ -1,7 +1,7 @@
 import dayjs from 'dayjs';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Bell, FileText, Link2, Lock, Pencil, Pin, Trash2 } from 'lucide-react-native';
+import { Bell, FileText, Link2, Lock, Pencil, Pin, Trash2, Volume2 } from 'lucide-react-native';
 import { useState } from 'react';
 import { Alert, Text, View } from 'react-native';
 
@@ -118,10 +118,23 @@ export default function DiaryDetailScreen() {
                     key={att.id}
                     className="flex-row items-center gap-3 rounded-3xl border border-slate-200 bg-white px-4 py-3 dark:border-canvasdark-card dark:bg-canvasdark-card"
                   >
-                    <View className="h-9 w-9 items-center justify-center rounded-2xl bg-brand-100 dark:bg-brand-500/20">
-                      <FileText size={16} color={accent} />
+                    <View
+                      className={`h-9 w-9 items-center justify-center rounded-2xl ${att.kind === 'voice' ? 'bg-emergency-50 dark:bg-emergency-500/20' : 'bg-brand-100 dark:bg-brand-500/20'}`}
+                    >
+                      {att.kind === 'voice' ? (
+                        <Volume2 size={16} color="#DC1F26" />
+                      ) : (
+                        <FileText size={16} color={accent} />
+                      )}
                     </View>
-                    <Text className="flex-1 font-sans text-[13px] text-ink-soft dark:text-slate-200">{att.name}</Text>
+                    <View className="flex-1">
+                      <Text className="font-sans text-[13px] text-ink-soft dark:text-slate-200">{att.name}</Text>
+                      {att.duration ? (
+                        <Text className="font-sans text-[11px] text-ink-muted dark:text-slate-400">
+                          Recorded Voice Note · ${att.duration}
+                        </Text>
+                      ) : null}
+                    </View>
                   </View>
                 )
               )}

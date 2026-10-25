@@ -8,6 +8,8 @@ import {
   FileText,
   Image as ImageIcon,
   Link2,
+  Mic,
+  Volume2,
   X,
 } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
@@ -26,6 +28,9 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenScroll } from '@/components/ui/ScreenScroll';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { useToast } from '@/components/ui/Toast';
+import { PressableScale } from '@/components/ui/PressableScale';
+import { VoiceDictationModal } from '@/components/diary/VoiceDictationModal';
+import { fonts } from '@/design/tokens';
 import { appointments } from '@/data/appointments';
 import { diaryCategories, type DiaryAttachment, type DiaryCategory } from '@/data/diarySeed';
 import { useAppStore } from '@/store/useAppStore';
@@ -66,6 +71,7 @@ export default function DiaryEditorScreen() {
   const [pickingAppointment, setPickingAppointment] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [voiceModalVisible, setVoiceModalVisible] = useState(false);
 
   const bodyRef = useRef<TextInput>(null);
   const draftTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -142,6 +148,28 @@ export default function DiaryEditorScreen() {
     }
   };
 
+  const handleInsertDictatedText = (text: string, mode: 'append' | 'replace') => {
+    if (mode === 'append' && body.trim()) {
+      setBody((prev) => `${prev.trim()}\n\n${text}`);
+    } else {
+      setBody(text);
+    }
+    toast.show('Dictated text added to your note', 'success');
+  };
+
+  const handleAttachVoiceNote = (name: string, duration: string) => {
+    setAttachments((prev) => [
+      ...prev,
+      {
+        id: `att-voice-${Date.now()}`,
+        kind: 'voice',
+        name,
+        duration,
+      },
+    ]);
+    toast.show('Voice note attached', 'success');
+  };
+
   return (
     <KeyboardAvoidingView
       className="flex-1 bg-slate-50 dark:bg-canvasdark"
@@ -190,6 +218,24 @@ export default function DiaryEditorScreen() {
           <Text className="font-sans-semibold text-[13px] text-ink-muted dark:text-slate-400">
             Your note
           </Text>
+          <PressableScale
+            accessibilityLabel="Dictate note using microphone"
+            onPress={() => setVoiceModalVisible(true)}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 5,
+              backgroundColor: 'rgba(220, 31, 38, 0.1)',
+              paddingHorizontal: 12,
+              paddingVertical: 5,
+              borderRadius: 100,
+            }}
+          >
+            <Mic size={14} color="#DC1F26" />
+            <Text style={{ fontFamily: fonts.semibold, fontSize: 12, color: '#DC1F26' }}>
+              Dictate Note
+            </Text>
+          </PressableScale>
         </View>
         <TextInput
           ref={bodyRef}
@@ -224,9 +270,10 @@ export default function DiaryEditorScreen() {
         <Text className="mb-2 font-sans-semibold text-[13px] text-ink-muted dark:text-slate-400">
           Attachments
         </Text>
-        <View className="mb-2 flex-row gap-2">
+        <View className="mb-2 flex-row flex-wrap gap-2">
           <AttachButton label="Add photo" icon={<ImageIcon size={16} color={accent} />} onPress={addPhoto} />
           <AttachButton label="Add document" icon={<FileText size={16} color={accent} />} onPress={addDocument} />
+          <AttachButton label="Record voice note" icon={<Mic size={16} color="#DC1F26" />} onPress={() => setVoiceModalVisible(true)} />
         </View>
         {attachments.length > 0 ? (
           <View className="mb-5 gap-2">
@@ -237,11 +284,13 @@ export default function DiaryEditorScreen() {
               >
                 {att.kind === 'photo' ? (
                   <ImageIcon size={14} color="#5B6478" />
+                ) : att.kind === 'voice' ? (
+                  <Volume2 size={14} color="#DC1F26" />
                 ) : (
                   <FileText size={14} color="#5B6478" />
                 )}
                 <Text className="flex-1 font-sans text-[12px] text-ink-soft dark:text-slate-200" numberOfLines={1}>
-                  {att.name}
+                  {att.name} {att.duration ? `(${att.duration})` : ''}
                 </Text>
                 <Pressable
                   accessibilityRole="button"
@@ -348,6 +397,14 @@ export default function DiaryEditorScreen() {
 
         <PrimaryButton label={isEditing ? 'Save changes' : 'Save note'} onPress={handleSave} />
       </ScreenScroll>
+
+      <VoiceDictationModal
+        visible={voiceModalVisible}
+        onClose={() => setVoiceModalVisible(false)}
+        onInsertText={handleInsertDictatedText}
+        onAttachVoiceNote={handleAttachVoiceNote}
+        existingBody={body}
+      />
     </KeyboardAvoidingView>
   );
 }

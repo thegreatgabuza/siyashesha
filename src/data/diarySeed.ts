@@ -10,7 +10,8 @@ export const diaryCategories: DiaryCategory[] = [
 
 export interface DiaryAttachment {
   id: string;
-  kind: 'photo' | 'document';
+  kind: 'photo' | 'document' | 'voice';
+  duration?: string;
   name: string;
   uri?: string;
 }
