@@ -82,6 +82,8 @@ export interface NotificationSettings {
   medicationReminders: boolean;
   educationalTips: boolean;
   wellnessCheckins: boolean;
+  missedDoseAlerts: boolean;
+  appointmentAlerts: boolean;
 }
 
 interface AppState {
@@ -108,6 +110,10 @@ interface AppState {
   setSharingRequiresPin: (v: boolean) => void;
   notifications: NotificationSettings;
   setNotification: (key: keyof NotificationSettings, value: boolean) => void;
+  pushToken?: string;
+  lastPushSyncAt?: string;
+  setPushToken: (token: string) => void;
+  setLastPushSyncAt: (timestamp: string) => void;
 
   // Medication adherence
   takenLog: Record<string, boolean>;
@@ -268,10 +274,16 @@ export const useAppStore = create<AppState>()(
       setMfaEnabled: (v) => set({ mfaEnabled: v }),
       sharingRequiresPin: true,
       setSharingRequiresPin: (v) => set({ sharingRequiresPin: v }),
+      pushToken: undefined,
+      lastPushSyncAt: undefined,
+      setPushToken: (token) => set({ pushToken: token }),
+      setLastPushSyncAt: (timestamp) => set({ lastPushSyncAt: timestamp }),
       notifications: {
         medicationReminders: true,
         educationalTips: true,
         wellnessCheckins: true,
+        missedDoseAlerts: true,
+        appointmentAlerts: true,
       },
       setNotification: (key, value) =>
         set((s) => ({ notifications: { ...s.notifications, [key]: value } })),

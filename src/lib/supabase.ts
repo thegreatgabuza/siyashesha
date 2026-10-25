@@ -339,3 +339,94 @@ export async function syncMedications(medications: Medication[]): Promise<boolea
     return false;
   }
 }
+
+/**
+ * Registers / syncs the device Expo push token to Supabase for native background alerts (Spec §4.6 & §8.2).
+ */
+export async function syncPushTokenToBackend(params: {
+  patientId: string;
+  token: string;
+  deviceOs?: string;
+  deviceName?: string;
+  appVersion?: string;
+}): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
+
+  try {
+    const row = {
+      id: `${params.patientId}_${params.token.slice(-12).replace(/[^a-zA-Z0-9]/g, '')}`,
+      patient_id: params.patientId,
+      expo_push_token: params.token,
+      device_os: params.deviceOs ?? Platform.OS,
+      device_name: params.deviceName ?? null,
+      app_version: params.appVersion ?? null,
+      is_active: true,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase.from('push_notification_tokens').upsert(row);
+    if (error) {
+      console.warn('[Supabase DB] Error syncing push token:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn('[Supabase DB] Unexpected error syncing push token:', err);
+    return false;
+  }
+}
+
+export interface SyncReminderItem {
+  id: string;
+  reminderType:
+    | 'medication'
+    | 'missed_dose'
+    | 'appointment'
+    | 'health_day'
+    | 'checkin'
+    | 'diary_reminder'
+    | 'custom';
+  title: string;
+  body: string;
+  scheduledTime: string;
+  recurrence?: string;
+  status?: string;
+  metadata?: Record<string, any>;
+}
+
+/**
+ * Synchronizes scheduled reminders with Supabase cloud backend (Spec §4.6 & §8.2).
+ */
+export async function syncRemindersToBackend(
+  patientId: string,
+  reminders: SyncReminderItem[]
+): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
+
+  try {
+    if (reminders.length === 0) return true;
+
+    const rows = reminders.map((r) => ({
+      id: r.id,
+      patient_id: patientId,
+      reminder_type: r.reminderType,
+      title: r.title,
+      body: r.body,
+      scheduled_time: r.scheduledTime,
+      recurrence: r.recurrence ?? 'daily',
+      status: r.status ?? 'active',
+      metadata: r.metadata ?? {},
+      synced_at: new Date().toISOString(),
+    }));
+
+    const { error } = await supabase.from('scheduled_reminders_sync').upsert(rows);
+    if (error) {
+      console.warn('[Supabase DB] Error syncing scheduled reminders:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn('[Supabase DB] Unexpected error syncing reminders:', err);
+    return false;
+  }
+}

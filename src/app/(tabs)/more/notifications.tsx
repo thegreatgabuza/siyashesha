@@ -3,18 +3,24 @@ import dayjs from 'dayjs';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import {
+  AlertTriangle,
   BellRing,
   BookHeart,
+  Calendar,
   Check,
+  CheckCircle2,
   ChevronRight,
   Clock,
+  Cloud,
+  Pill,
+  RefreshCw,
   Send,
   SkipForward,
   Sparkles,
   Trash2,
 } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, Switch, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, Switch, Text, TextInput, View } from 'react-native';
 
 import { heroShadow } from '@/components/ui/HeroAction';
 import { PressableScale } from '@/components/ui/PressableScale';
@@ -37,14 +43,18 @@ import {
   notificationsGranted,
   remindersAvailable,
   snoozeReminder,
+  syncPushTokenAndRemindersWithBackend,
   syncReminders,
+  triggerTestAppointmentAlert,
   triggerTestHealthDayAlert,
+  triggerTestMissedDoseAlert,
 } from '@/lib/reminders';
+import { isSupabaseConfigured } from '@/lib/supabase';
 import { useAppStore } from '@/store/useAppStore';
 
 type Item = { id: string; label: string; time: string; custom: boolean };
 
-/** Notifications: today's reminders with Taken, Snooze and Skip, WHO health days, and custom reminders. */
+/** Notifications: today's reminders with Taken, Snooze and Skip, WHO health days, push server sync, and custom reminders. */
 export default function NotificationsScreen() {
   const { accent } = useAccent();
   const t = useTokens();
@@ -59,13 +69,18 @@ export default function NotificationsScreen() {
   const removeCustomReminder = useAppStore((s) => s.removeCustomReminder);
   const notifications = useAppStore((s) => s.notifications);
   const setNotification = useAppStore((s) => s.setNotification);
+  const pushToken = useAppStore((s) => s.pushToken);
+  const lastPushSyncAt = useAppStore((s) => s.lastPushSyncAt);
 
   const dateKey = todayKey();
   const [permitted, setPermitted] = useState<boolean | null>(null);
   const [title, setTitle] = useState('');
   const [time, setTime] = useState<string | null>(null);
   const [showTimePicker, setShowTimePicker] = useState(false);
-  const [testingAlert, setTestingAlert] = useState(false);
+  const [testingHealthDay, setTestingHealthDay] = useState(false);
+  const [testingMissedAlert, setTestingMissedAlert] = useState(false);
+  const [testingApptAlert, setTestingApptAlert] = useState(false);
+  const [syncingServer, setSyncingServer] = useState(false);
 
   const nextHealthDays = useMemo(() => upcomingHealthDays(new Date(), 4), []);
 
@@ -103,7 +118,12 @@ export default function NotificationsScreen() {
 
   const handleSkip = (item: Item) => {
     skipReminder(item.id, dateKey);
-    toast.show(statusOf(item.id) === 'skipped' ? `${item.label} is back on your list` : `${item.label} skipped for today`, 'info');
+    toast.show(
+      statusOf(item.id) === 'skipped'
+        ? `${item.label} is back on your list`
+        : `${item.label} skipped for today`,
+      'info'
+    );
   };
 
   const handleAddCustom = async () => {
@@ -145,14 +165,79 @@ export default function NotificationsScreen() {
     toast.show(value ? '20 WHO health days scheduled' : 'Health day alerts paused', 'success');
   };
 
+  const handleToggleMissedDose = async (value: boolean) => {
+    setNotification('missedDoseAlerts', value);
+    if (value && !(await notificationsGranted())) {
+      const granted = await ensureNotificationPermission();
+      setPermitted(granted);
+    }
+    await syncReminders();
+    toast.show(
+      value ? 'Missed dose alerts active (45m follow-up)' : 'Missed dose alerts paused',
+      'info'
+    );
+  };
+
+  const handleToggleAppointmentAlerts = async (value: boolean) => {
+    setNotification('appointmentAlerts', value);
+    if (value && !(await notificationsGranted())) {
+      const granted = await ensureNotificationPermission();
+      setPermitted(granted);
+    }
+    await syncReminders();
+    toast.show(
+      value ? 'Doctor appointment alerts active (24h & 2h prior)' : 'Appointment alerts paused',
+      'info'
+    );
+  };
+
   const handleTestHealthDayAlert = async () => {
-    setTestingAlert(true);
+    setTestingHealthDay(true);
     const ok = await triggerTestHealthDayAlert();
-    setTestingAlert(false);
+    setTestingHealthDay(false);
     if (ok) {
       toast.show('Sample WHO awareness alert triggered!', 'success');
     } else {
       toast.show('Please enable notification permissions to preview alerts', 'warning');
+    }
+  };
+
+  const handleTestMissedDoseAlert = async () => {
+    setTestingMissedAlert(true);
+    const ok = await triggerTestMissedDoseAlert();
+    setTestingMissedAlert(false);
+    if (ok) {
+      toast.show('Test missed-dose alert triggered with interactive actions', 'success');
+    } else {
+      toast.show('Please enable notification permissions to preview alerts', 'warning');
+    }
+  };
+
+  const handleTestAppointmentAlert = async () => {
+    setTestingApptAlert(true);
+    const ok = await triggerTestAppointmentAlert();
+    setTestingApptAlert(false);
+    if (ok) {
+      toast.show('Test appointment alert linked to consultation notes triggered', 'success');
+    } else {
+      toast.show('Please enable notification permissions to preview alerts', 'warning');
+    }
+  };
+
+  const handleSyncServer = async () => {
+    setSyncingServer(true);
+    tapFeedback();
+    try {
+      const res = await syncPushTokenAndRemindersWithBackend();
+      if (res.success) {
+        toast.show(res.message, 'success');
+      } else {
+        toast.show(res.message, 'info');
+      }
+    } catch {
+      toast.show('Failed to sync with push server', 'warning');
+    } finally {
+      setSyncingServer(false);
     }
   };
 
@@ -178,7 +263,9 @@ export default function NotificationsScreen() {
             <Text className="font-sans-bold text-[44px] leading-[48px] text-white">
               {done}/{items.length}
             </Text>
-            <Text className="mt-1 font-sans text-[13px] text-white/60">medications or checks completed today</Text>
+            <Text className="mt-1 font-sans text-[13px] text-white/60">
+              medications or checks completed today
+            </Text>
           </View>
         </View>
 
@@ -205,8 +292,231 @@ export default function NotificationsScreen() {
           </Pressable>
         ) : null}
 
+        {/* Push Notification Server Sync Card (Spec §4.6 & §8.2) */}
+        <View style={{ marginTop: 24 }}>
+          <SectionHeader title="Push Notification Server Sync" />
+          <View
+            style={[
+              {
+                borderRadius: radii.xl,
+                backgroundColor: t.surface,
+                padding: 16,
+                borderWidth: 1,
+                borderColor: t.border,
+              },
+              elevation[1],
+            ]}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, paddingRight: 12 }}>
+                <View
+                  style={{
+                    height: 42,
+                    width: 42,
+                    borderRadius: radii.md,
+                    backgroundColor: 'rgba(59, 130, 246, 0.12)',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Cloud size={20} color="#2563EB" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Txt variant="bodyStrong">Cloud Backend Push Engine</Txt>
+                  <Txt variant="footnote" tone="muted" style={{ marginTop: 2 }}>
+                    {isSupabaseConfigured
+                      ? 'Connected to Supabase Notification Sync'
+                      : 'Local Device Notification Engine'}
+                  </Txt>
+                </View>
+              </View>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 4,
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: radii.pill,
+                  backgroundColor: 'rgba(22, 163, 74, 0.12)',
+                }}
+              >
+                <CheckCircle2 size={12} color="#16A34A" />
+                <Txt variant="footnote" color="#16A34A" style={{ fontSize: 11, fontFamily: fonts.semibold }}>
+                  Active
+                </Txt>
+              </View>
+            </View>
+
+            <View style={{ height: 1, backgroundColor: t.border, marginVertical: 12 }} />
+
+            <View style={{ gap: 6 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Txt variant="footnote" tone="muted">
+                  Device Push Token
+                </Txt>
+                <Txt variant="footnote" style={{ fontFamily: fonts.medium }}>
+                  {pushToken ? `${pushToken.slice(0, 16)}...` : 'Registered on sync'}
+                </Txt>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Txt variant="footnote" tone="muted">
+                  Last Server Sync
+                </Txt>
+                <Txt variant="footnote" style={{ fontFamily: fonts.medium }}>
+                  {lastPushSyncAt ? dayjs(lastPushSyncAt).format('MMM D, YYYY · HH:mm') : 'Pending sync'}
+                </Txt>
+              </View>
+            </View>
+
+            <PressableScale
+              onPress={handleSyncServer}
+              disabled={syncingServer}
+              style={{
+                marginTop: 14,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                paddingVertical: 10,
+                borderRadius: radii.pill,
+                backgroundColor: t.accent,
+                opacity: syncingServer ? 0.7 : 1,
+              }}
+            >
+              {syncingServer ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <RefreshCw size={14} color="#FFFFFF" />
+              )}
+              <Txt variant="footnote" color="#FFFFFF" style={{ fontFamily: fonts.semibold }}>
+                {syncingServer ? 'Syncing with Server...' : 'Sync Reminders to Cloud Backend'}
+              </Txt>
+            </PressableScale>
+          </View>
+        </View>
+
+        {/* Automated Clinical Alert Scheduling (Spec §4.6 & §8.2) */}
+        <View style={{ marginTop: 24 }}>
+          <SectionHeader title="Clinical Alert Scheduling" />
+          <View
+            style={[
+              {
+                borderRadius: radii.xl,
+                backgroundColor: t.surface,
+                padding: 16,
+                borderWidth: 1,
+                borderColor: t.border,
+              },
+              elevation[1],
+            ]}
+          >
+            {/* Missed Dose Alerts (Spec §4.6) */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, paddingRight: 12 }}>
+                <View
+                  style={{
+                    height: 42,
+                    width: 42,
+                    borderRadius: radii.md,
+                    backgroundColor: 'rgba(234, 88, 12, 0.12)',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <AlertTriangle size={20} color="#EA580C" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Txt variant="bodyStrong">Missed Dose Follow-up</Txt>
+                  <Txt variant="footnote" tone="muted" style={{ marginTop: 2 }}>
+                    Automatic alert 45m after dose time if unlogged
+                  </Txt>
+                </View>
+              </View>
+              <Switch
+                thumbColor="#FFFFFF"
+                value={notifications.missedDoseAlerts}
+                onValueChange={handleToggleMissedDose}
+                trackColor={{ true: accent, false: '#E2E8F0' }}
+              />
+            </View>
+
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 8 }}>
+              <PressableScale
+                onPress={handleTestMissedDoseAlert}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: radii.pill,
+                  backgroundColor: t.surfaceMuted,
+                }}
+              >
+                <Pill size={12} color={t.accent} />
+                <Txt variant="footnote" color={t.accent} style={{ fontFamily: fonts.semibold }}>
+                  {testingMissedAlert ? 'Testing...' : 'Test Missed Dose Alert'}
+                </Txt>
+              </PressableScale>
+            </View>
+
+            <View style={{ height: 1, backgroundColor: t.border, marginVertical: 14 }} />
+
+            {/* Doctor Appointment Alerts & Diary Linking (Spec §8.2) */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, paddingRight: 12 }}>
+                <View
+                  style={{
+                    height: 42,
+                    width: 42,
+                    borderRadius: radii.md,
+                    backgroundColor: 'rgba(124, 58, 237, 0.12)',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Calendar size={20} color="#7C3AED" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Txt variant="bodyStrong">Doctor Visit Reminders</Txt>
+                  <Txt variant="footnote" tone="muted" style={{ marginTop: 2 }}>
+                    24h & 2h alerts linked to your consultation notes
+                  </Txt>
+                </View>
+              </View>
+              <Switch
+                thumbColor="#FFFFFF"
+                value={notifications.appointmentAlerts}
+                onValueChange={handleToggleAppointmentAlerts}
+                trackColor={{ true: accent, false: '#E2E8F0' }}
+              />
+            </View>
+
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 8 }}>
+              <PressableScale
+                onPress={handleTestAppointmentAlert}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: radii.pill,
+                  backgroundColor: t.surfaceMuted,
+                }}
+              >
+                <Calendar size={12} color={t.accent} />
+                <Txt variant="footnote" color={t.accent} style={{ fontFamily: fonts.semibold }}>
+                  {testingApptAlert ? 'Testing...' : 'Test Appointment Alert'}
+                </Txt>
+              </PressableScale>
+            </View>
+          </View>
+        </View>
+
         {/* WHO Health Awareness Days (Spec §7 F-02) */}
-        <View style={{ marginTop: 26 }}>
+        <View style={{ marginTop: 24 }}>
           <SectionHeader title="WHO Health Awareness Days" />
           <View
             style={[
@@ -273,7 +583,7 @@ export default function NotificationsScreen() {
               >
                 <Send size={12} color={t.accent} />
                 <Txt variant="footnote" color={t.accent} style={{ fontFamily: fonts.semibold }}>
-                  {testingAlert ? 'Sending...' : 'Test Alert'}
+                  {testingHealthDay ? 'Sending...' : 'Test Alert'}
                 </Txt>
               </PressableScale>
             </View>
@@ -343,7 +653,11 @@ export default function NotificationsScreen() {
                         active={status === 'taken'}
                         onPress={() => handleTaken(item)}
                       />
-                      <ActionPill label="Snooze" icon={<Clock size={14} color="#0B2559" />} onPress={() => handleSnooze(item)} />
+                      <ActionPill
+                        label="Snooze"
+                        icon={<Clock size={14} color="#0B2559" />}
+                        onPress={() => handleSnooze(item)}
+                      />
                       <ActionPill
                         label={status === 'skipped' ? 'Undo skip' : 'Skip'}
                         icon={<SkipForward size={14} color={status === 'skipped' ? '#FFFFFF' : '#0B2559'} />}
@@ -400,7 +714,9 @@ export default function NotificationsScreen() {
               accessibilityState={{ disabled: !title.trim() || !time }}
               disabled={!title.trim() || !time}
               onPress={handleAddCustom}
-              className={`min-h-[48px] items-center justify-center rounded-full bg-ink dark:bg-brand-400 ${!title.trim() || !time ? 'opacity-40' : ''}`}
+              className={`min-h-[48px] items-center justify-center rounded-full bg-ink dark:bg-brand-400 ${
+                !title.trim() || !time ? 'opacity-40' : ''
+              }`}
             >
               <Text className="font-sans-bold text-[15px] text-white">Add reminder</Text>
             </Pressable>
@@ -470,10 +786,14 @@ function ActionPill({
         tapFeedback();
         onPress();
       }}
-      className={`min-h-[44px] flex-1 flex-row items-center justify-center gap-1.5 rounded-full ${active ? 'bg-ink dark:bg-brand-400' : 'bg-brand-50 dark:bg-brand-500/10'}`}
+      className={`min-h-[44px] flex-1 flex-row items-center justify-center gap-1.5 rounded-full ${
+        active ? 'bg-ink dark:bg-brand-400' : 'bg-brand-50 dark:bg-brand-500/10'
+      }`}
     >
       {icon}
-      <Text className={`font-sans-semibold text-[12px] ${active ? 'text-white' : 'text-ink dark:text-slate-50'}`}>{label}</Text>
+      <Text className={`font-sans-semibold text-[12px] ${active ? 'text-white' : 'text-ink dark:text-slate-50'}`}>
+        {label}
+      </Text>
     </Pressable>
   );
 }

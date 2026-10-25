@@ -171,3 +171,46 @@ ALTER TABLE public.diary_notes ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow all access on diary_notes" ON public.diary_notes;
 CREATE POLICY "Allow all access on diary_notes"
 ON public.diary_notes FOR ALL USING (true);
+
+-- ==============================================================================
+-- 7. Push Notification Tokens Table (Spec §4.6 & §8.2)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.push_notification_tokens (
+  id TEXT PRIMARY KEY,
+  patient_id TEXT NOT NULL,
+  expo_push_token TEXT NOT NULL,
+  device_os TEXT,
+  device_name TEXT,
+  app_version TEXT,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+ALTER TABLE public.push_notification_tokens ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow all access on push_notification_tokens" ON public.push_notification_tokens;
+CREATE POLICY "Allow all access on push_notification_tokens"
+ON public.push_notification_tokens FOR ALL USING (true);
+
+-- ==============================================================================
+-- 8. Scheduled Reminders Server Sync Table (Spec §4.6 & §8.2)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.scheduled_reminders_sync (
+  id TEXT PRIMARY KEY,
+  patient_id TEXT NOT NULL,
+  reminder_type TEXT NOT NULL, -- 'medication' | 'missed_dose' | 'appointment' | 'health_day' | 'checkin'
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  scheduled_time TEXT NOT NULL,
+  recurrence TEXT DEFAULT 'daily',
+  status TEXT DEFAULT 'active',
+  metadata JSONB DEFAULT '{}'::jsonb,
+  synced_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+ALTER TABLE public.scheduled_reminders_sync ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow all access on scheduled_reminders_sync" ON public.scheduled_reminders_sync;
+CREATE POLICY "Allow all access on scheduled_reminders_sync"
+ON public.scheduled_reminders_sync FOR ALL USING (true);

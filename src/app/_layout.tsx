@@ -18,8 +18,9 @@ import { BiometricGate } from '@/components/security/BiometricGate';
 import { ToastProvider } from '@/components/ui/Toast';
 import { useSyncColorScheme } from '@/hooks/useColorSchemePreference';
 import { tokenCache } from '@/lib/clerkTokenCache';
+import { todayKey } from '@/lib/date';
 import { getNotifications } from '@/lib/notify';
-import { syncReminders } from '@/lib/reminders';
+import { snoozeReminder, syncReminders } from '@/lib/reminders';
 import { useAppStore } from '@/store/useAppStore';
 
 const clerkPublishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
@@ -36,18 +37,59 @@ export default function RootLayout() {
     syncReminders().catch(() => {});
   }, []);
 
-  // Listen for notification taps to route directly to the target feature.
+  // Listen for notification taps and interactive category actions (Spec §4.6 & §8.2)
   useEffect(() => {
     const N = getNotifications();
     if (!N) return;
     const sub = N.addNotificationResponseReceivedListener((response) => {
-      const data = response.notification.request.content.data as { type?: string; dayId?: string };
+      const actionId = response.actionIdentifier;
+      const data = response.notification.request.content.data as {
+        type?: string;
+        dayId?: string;
+        reminderId?: string;
+        medicationName?: string;
+        linkedNoteId?: string;
+        noteId?: string;
+      };
+
+      // Interactive Action 1: Mark taken directly from notification banner/lockscreen
+      if (actionId === 'take_dose' && data?.reminderId) {
+        useAppStore.getState().toggleTaken(data.reminderId, todayKey());
+        return;
+      }
+
+      // Interactive Action 2: Snooze 15 minutes
+      if (actionId === 'snooze_dose') {
+        const title = data?.medicationName ? `${data.medicationName} dose` : 'Medication dose';
+        snoozeReminder(title, 15).catch(() => {});
+        return;
+      }
+
+      // Interactive Action 3: View linked doctor consultation notes
+      if (actionId === 'view_notes' || data?.type === 'diary_reminder') {
+        router.push('/diary');
+        return;
+      }
+
+      // Interactive Action 4: View calendar appointment
+      if (actionId === 'view_calendar' || data?.type === 'appointment') {
+        router.push('/calendar');
+        return;
+      }
+
+      // Banner taps:
       if (data?.type === 'health_day' && data?.dayId) {
         router.push(`/calendar/${data.dayId}` as any);
-      } else if (data?.type === 'appointment') {
-        router.push('/calendar');
-      } else if (data?.type === 'checkin') {
+        return;
+      }
+
+      if (data?.type === 'checkin') {
         router.push('/diary');
+        return;
+      }
+
+      if (data?.type === 'medication_dose' || data?.type === 'missed_dose') {
+        router.push('/(tabs)/more/notifications');
       }
     });
     return () => sub.remove();
