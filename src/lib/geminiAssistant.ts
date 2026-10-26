@@ -1,7 +1,7 @@
 import dayjs from 'dayjs';
 
 import type { AssistantCard, AssistantMessage } from '@/data/assistant';
-import { hba1cSeries } from '@/data/timeline';
+import { deriveHba1cSeries } from '@/data/timeline';
 import { useAppStore } from '@/store/useAppStore';
 
 const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? '';
@@ -35,9 +35,10 @@ function buildClinicalContext(): string {
     ? medications.map((m) => `${m.name} ${m.strength} (${m.frequency})`).join(', ')
     : 'Metformin 850mg (twice daily), Amlodipine 5mg (daily morning), Atorvastatin 20mg (nightly)';
 
-  const latestHba1c = hba1cSeries[hba1cSeries.length - 1];
+  const hba1cPoints = deriveHba1cSeries(records);
+  const latestHba1c = hba1cPoints[hba1cPoints.length - 1];
   const hba1cContext = latestHba1c
-    ? `Latest HbA1c is ${latestHba1c.value}% on ${dayjs(latestHba1c.date).format('D MMM YYYY')}. Previous values: ${hba1cSeries
+    ? `Latest HbA1c is ${latestHba1c.value}% on ${dayjs(latestHba1c.date).format('D MMM YYYY')}. Previous values: ${hba1cPoints
         .slice(0, -1)
         .map((p) => `${p.value}% (${dayjs(p.date).format('MMM YYYY')})`)
         .join(' -> ')}.`

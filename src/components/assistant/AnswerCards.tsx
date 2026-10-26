@@ -14,7 +14,7 @@ import { elevation, fonts, radii, springs } from '@/design/tokens';
 import { useTokens } from '@/design/useTokens';
 import type { AssistantCard } from '@/data/assistant';
 import { todaysReminders } from '@/data/medications';
-import { hba1cSeries } from '@/data/timeline';
+import { deriveHba1cSeries } from '@/data/timeline';
 import { useEmergencyCard } from '@/hooks/useEmergencyCard';
 import { formatTime12, todayKey } from '@/lib/date';
 import { milestoneFeedback } from '@/lib/feedback';
@@ -133,15 +133,18 @@ function MedicationsCard() {
 
 function Hba1cCard() {
   const t = useTokens();
-  const pts = hba1cSeries;
+  const records = useAppStore((s) => s.records);
+  const pts = useMemo(() => deriveHba1cSeries(records), [records]);
   const latest = pts[pts.length - 1];
-  const prev = pts[pts.length - 2];
+  const prev = pts.length > 1 ? pts[pts.length - 2] : undefined;
+  if (!latest) return null;
   const delta = prev ? +(latest.value - prev.value).toFixed(1) : 0;
   const W = 120;
   const H = 44;
   const min = Math.min(...pts.map((p) => p.value)) - 0.3;
   const max = Math.max(...pts.map((p) => p.value)) + 0.3;
-  const xy = pts.map((p, i) => [(i / (pts.length - 1)) * (W - 8) + 4, H - 4 - ((p.value - min) / (max - min)) * (H - 8)] as const);
+  const divisor = pts.length > 1 ? pts.length - 1 : 1;
+  const xy = pts.map((p, i) => [(i / divisor) * (W - 8) + 4, H - 4 - ((p.value - min) / (max - min)) * (H - 8)] as const);
   const Trend = delta <= 0 ? TrendingDown : TrendingUp;
 
   return (

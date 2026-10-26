@@ -1,7 +1,8 @@
 import dayjs from 'dayjs';
 
 import { assistantFallback, quickCommands, type AssistantCard, type AssistantMessage } from '@/data/assistant';
-import { hba1cSeries } from '@/data/timeline';
+import { deriveHba1cSeries } from '@/data/timeline';
+import { useAppStore } from '@/store/useAppStore';
 import { askGeminiAssistant } from '@/lib/geminiAssistant';
 
 /**
@@ -27,7 +28,9 @@ export function answer(input: string, ctx: { recordCount: number }): { text: str
     case 4:
       return { text: 'This is what a first responder would see on your emergency card.', card: 'emergency' };
     case 5: {
-      const latest = hba1cSeries[hba1cSeries.length - 1];
+      const records = useAppStore.getState().records;
+      const pts = deriveHba1cSeries(records);
+      const latest = pts[pts.length - 1];
       return {
         text: latest
           ? `Your latest HbA1c was ${latest.value}% on ${dayjs(latest.date).format('D MMMM YYYY')}. Your clinician can tell you what this means for you.`
