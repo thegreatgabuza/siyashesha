@@ -16,8 +16,8 @@ Scan the QR code shown in the terminal with the **Expo Go** app (iOS or Android)
 Siyashesha on your phone. No backend, account or API key is required — all data is seeded
 locally and persists on-device between sessions via `AsyncStorage`.
 
-To sign in, enter any South African mobile number and any 6-digit code at the OTP step —
-every code is accepted.
+To sign in, enter your email address to receive a secure 6-digit one-time code via Clerk,
+or tap **1-Tap Demo Sign In** to immediately open the pre-seeded clinical passport for Jessica Tebatso.
 
 ## What's inside
 
@@ -32,6 +32,8 @@ every code is accepted.
   South African clinical history (Lancet labs, a public clinic, a private GP and a specialist).
 - **Health Awareness Days** content (`src/data/healthDays.ts`) and illustrations
   (`assets/health-days/`) sourced from `reference/health-day-icons-src`.
+- **POPIA & HIPAA Data Rights & Erasure**: Machine-readable JSON archive (DSAR) export with SHA-256 digital seal, certified clinical summary PDF, and biometric-gated permanent account erasure destroying local files, enclave keys, and Supabase cloud records.
+- **Multilingual Voice Dictation**: Speech-to-text journaling in My Diary supporting English, isiZulu, and Afrikaans with Gemini AI audio transcription and Web Speech API fallback.
 
 ## Project structure
 
@@ -54,8 +56,7 @@ reference/        Source spec, screenshots and original assets (not shipped in t
 Every screen reads from and writes to `useAppStore` rather than touching `src/data/*.ts`
 directly, so swapping the local seed data and AsyncStorage persistence for real API calls means
 replacing the store's actions (`addRecord`, `createShare`, `updatePatientProfile`, etc.) without
-having to change any screen. OCR/NER ingestion, AI translation and OTP delivery are stubbed as
-described in the spec and are the natural next integration points.
+having to change any screen. Authentication is already connected to Clerk email OTP with 1-tap demo access, while full cloud sync and dynamic AI translation are natural extensions.
 
 ## Useful commands
 

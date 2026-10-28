@@ -30,12 +30,18 @@ const MAX_BAR_WIDTH = 520;
 // so this prop shape is kept minimal and local to what the component uses.
 interface TabBarProps {
   state: { index: number; routes: { key: string; name: string }[] };
-  navigation: {
+  navigation?: {
     emit: (event: { type: string; target: string; canPreventDefault: boolean }) => {
       defaultPrevented: boolean;
     };
     navigate: (name: string) => void;
   };
+  emitter?: {
+    emit: (event: { type: string; target: string; canPreventDefault: boolean }) => {
+      defaultPrevented: boolean;
+    };
+  };
+  navigateToTab?: (name: string) => void;
 }
 
 /**
@@ -43,7 +49,7 @@ interface TabBarProps {
  * settle back to icons. Labels only appear on the roomy active pill, so long translations
  * never get squeezed. Hidden while the keyboard is open.
  */
-export function TabBar({ state, navigation }: TabBarProps) {
+export function TabBar({ state, navigation, emitter, navigateToTab }: TabBarProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { t } = useI18n();
@@ -95,8 +101,15 @@ export function TabBar({ state, navigation }: TabBarProps) {
                 isFocused={isFocused}
                 onPress={() => {
                   tapFeedback();
-                  const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-                  if ((!isFocused || focusedName !== tab.name) && !event.defaultPrevented) navigation.navigate(route.name);
+                  const emitFn = navigation?.emit ?? emitter?.emit;
+                  const event = emitFn?.({ type: 'tabPress', target: route.key, canPreventDefault: true }) ?? { defaultPrevented: false };
+                  if ((!isFocused || focusedName !== tab.name) && !event.defaultPrevented) {
+                    if (navigateToTab) {
+                      navigateToTab(route.key);
+                    } else if (navigation) {
+                      navigation.navigate(route.name);
+                    }
+                  }
                 }}
               />
             );

@@ -314,6 +314,8 @@ export async function syncPatientProfile(profile: PatientProfile): Promise<boole
   }
 }
 
+export { syncPatientProfile as syncPatientProfileToDatabase };
+
 /**
  * Syncs active medications to Supabase.
  */
@@ -428,5 +430,38 @@ export async function syncRemindersToBackend(
   } catch (err) {
     console.warn('[Supabase DB] Unexpected error syncing reminders:', err);
     return false;
+  }
+}
+
+/**
+ * Permanently removes all records, files, reminders, and profile data from Supabase
+ * in compliance with POPIA Section 24 and HIPAA Right to Erasure.
+ */
+export async function eraseAllCloudData(): Promise<{ success: boolean; error?: string }> {
+  if (!isSupabaseConfigured) return { success: true };
+
+  try {
+    // Delete files in storage bucket
+    const { data: records } = await supabase.from('medical_records').select('storage_path');
+    if (records && records.length > 0) {
+      const paths = records.map((r: any) => r.storage_path).filter(Boolean);
+      if (paths.length > 0) {
+        await supabase.storage.from(BUCKET_NAME).remove(paths).catch(() => {});
+      }
+    }
+
+    // Delete rows across tables
+    await supabase.from('medical_records').delete().neq('id', '___noop___');
+    await supabase.from('medications').delete().neq('id', '___noop___');
+    await supabase.from('appointments').delete().neq('id', '___noop___');
+    await supabase.from('diary_notes').delete().neq('id', '___noop___');
+    await supabase.from('scheduled_reminders_sync').delete().neq('id', '___noop___');
+    await supabase.from('push_notification_tokens').delete().neq('token', '___noop___');
+    await supabase.from('patient_profiles').delete().neq('id', '___noop___');
+
+    return { success: true };
+  } catch (err: any) {
+    console.warn('[Supabase DB] Failed to erase cloud data:', err);
+    return { success: false, error: err?.message };
   }
 }

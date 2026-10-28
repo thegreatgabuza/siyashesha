@@ -39,7 +39,17 @@
           "faceIDPermission": "Allow Siyashesha to use Face ID to lock your health passport."
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow Siyashesha to use your microphone for voice dictation in My Diary."
+        }
+      ],
+      "expo-asset",
+      "expo-image",
+      "expo-status-bar",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,

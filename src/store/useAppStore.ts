@@ -16,6 +16,9 @@ import { medicalRecords, type MedicalRecord } from '@/data/records';
 import { sharingHistorySeed, type SharedLink, type ShareDuration } from '@/data/sharing';
 import type { LanguageCode } from '@/i18n/translations';
 import { pastDateKeys } from '@/lib/date';
+import { clearAllStoredFiles } from '@/lib/documents';
+import { clearEnclaveKeys } from '@/lib/security/enclaveSecurity';
+import { eraseAllCloudData } from '@/lib/supabase';
 
 function makeId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
@@ -89,11 +92,9 @@ export interface NotificationSettings {
 interface AppState {
   // Auth
   isSignedIn: boolean;
-  pendingPhone: string;
   pendingEmail: string;
   clerkFlow: 'sign_in' | 'sign_up' | 'demo';
   clerkSessionId?: string;
-  signIn: (phoneOrEmail: string) => void;
   signInWithEmail: (email: string, flow?: 'sign_in' | 'sign_up' | 'demo') => void;
   setClerkSessionId: (id: string) => void;
   completeSignIn: (options?: { clerkSessionId?: string; email?: string }) => void;
@@ -202,23 +203,19 @@ interface AppState {
   unlockApp: () => void;
   lockApp: () => void;
   finishOnboarding: () => void;
+
+  // POPIA §24 / HIPAA Data Subject Erasure
+  eraseAllPatientData: () => Promise<void>;
+  resetToDemoPatient: () => void;
 }
 
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
       isSignedIn: false,
-      pendingPhone: '',
       pendingEmail: '',
       clerkFlow: 'sign_in',
       clerkSessionId: undefined,
-      signIn: (phoneOrEmail) => {
-        if (phoneOrEmail.includes('@')) {
-          set({ pendingEmail: phoneOrEmail.trim().toLowerCase(), clerkFlow: 'sign_in' });
-        } else {
-          set({ pendingPhone: phoneOrEmail });
-        }
-      },
       signInWithEmail: (email, flow = 'sign_in') =>
         set({ pendingEmail: email.trim().toLowerCase(), clerkFlow: flow }),
       setClerkSessionId: (id) => set({ clerkSessionId: id }),
@@ -235,20 +232,28 @@ export const useAppStore = create<AppState>()(
             timestamp: new Date().toISOString(),
           };
           // Returning users with an account skip the guided setup.
+          const isDemo = !isClerk && (!email || email.includes('jessica') || email.includes('example'));
+          const shouldRestoreDemo = isDemo && s.records.length === 0;
           return {
             isSignedIn: true,
             hasCompletedOnboarding: true,
             clerkSessionId: options?.clerkSessionId ?? s.clerkSessionId,
             patientProfile: email
               ? { ...s.patientProfile, email }
+              : shouldRestoreDemo
+              ? patient
               : s.patientProfile,
+            records: shouldRestoreDemo ? medicalRecords : s.records,
+            medications: shouldRestoreDemo ? medicationsSeed : s.medications,
+            appointments: shouldRestoreDemo ? appointmentsSeed : s.appointments,
+            diaryNotes: shouldRestoreDemo ? diaryNotesSeed : s.diaryNotes,
+            sharedLinks: shouldRestoreDemo ? sharingHistorySeed : s.sharedLinks,
             auditEvents: [event, ...s.auditEvents],
           };
         }),
       signOut: () =>
         set({
           isSignedIn: false,
-          pendingPhone: '',
           pendingEmail: '',
           clerkSessionId: undefined,
           clerkFlow: 'sign_in',
@@ -630,6 +635,88 @@ export const useAppStore = create<AppState>()(
       patientProfile: patient,
       updatePatientProfile: (patch) =>
         set((s) => ({ patientProfile: { ...s.patientProfile, ...patch } })),
+
+      eraseAllPatientData: async () => {
+        // 1. Wipe remote Supabase database and storage
+        await eraseAllCloudData().catch(() => {});
+
+        // 2. Clear local disk files and documents
+        await clearAllStoredFiles().catch(() => {});
+
+        // 3. Clear hardware SecureStore cryptographic keys
+        await clearEnclaveKeys().catch(() => {});
+
+        // 4. Wipe local AsyncStorage
+        await AsyncStorage.clear().catch(() => {});
+
+        // 5. Reset store memory to empty baseline
+        set({
+          isSignedIn: false,
+          hasCompletedOnboarding: false,
+          pendingEmail: '',
+          clerkSessionId: undefined,
+          clerkFlow: 'sign_in',
+          biometricLock: false,
+          isAppLocked: false,
+          records: [],
+          medications: [],
+          userMedications: [],
+          takenLog: {},
+          skippedLog: {},
+          diaryNotes: [],
+          diaryDraft: null,
+          appointments: [],
+          sharedLinks: [],
+          auditEvents: [
+            {
+              id: makeId('audit'),
+              type: 'profile',
+              description: 'All personal health data erased under POPIA §24 / HIPAA Right to Erasure',
+              timestamp: new Date().toISOString(),
+            },
+          ],
+          patientProfile: {
+            firstName: '',
+            lastName: '',
+            preferredName: '',
+            dateOfBirth: '',
+            idNumber: '',
+            gender: '',
+            phone: '',
+            email: '',
+            address: '',
+            province: 'Gauteng',
+            bloodGroup: '',
+            allergies: [],
+            chronicConditions: [],
+            previousProcedures: [],
+            medicalDevices: [],
+            emergencyContact: {
+              name: '',
+              relationship: '',
+              phone: '',
+            },
+            memberSince: new Date().toISOString(),
+          },
+          emergencyVisibility: defaultEmergencyVisibility,
+        });
+      },
+
+      resetToDemoPatient: () => {
+        set({
+          records: medicalRecords,
+          medications: medicationsSeed,
+          userMedications: [],
+          takenLog: buildSeedAdherenceLog(),
+          skippedLog: {},
+          diaryNotes: diaryNotesSeed,
+          appointments: appointmentsSeed,
+          sharedLinks: sharingHistorySeed,
+          auditEvents: auditSeed,
+          patientProfile: patient,
+          emergencyVisibility: defaultEmergencyVisibility,
+        });
+      },
     }),
     {
       name: 'siyashesha-app-store',

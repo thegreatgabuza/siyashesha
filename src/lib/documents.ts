@@ -45,3 +45,19 @@ export async function removeOriginal(file?: OriginalFile): Promise<void> {
     await deleteRecordFromDatabase('', file.storagePath).catch(() => {});
   }
 }
+
+/**
+ * Permanently removes all locally stored medical documents and scans
+ * (invoked during POPIA §24 account erasure / reset).
+ */
+export async function clearAllStoredFiles(): Promise<void> {
+  try {
+    const dir = folder();
+    const info = await FileSystem.getInfoAsync(dir).catch(() => null);
+    if (info && info.exists) {
+      await FileSystem.deleteAsync(dir, { idempotent: true }).catch(() => {});
+    }
+  } catch (err) {
+    console.warn('[Documents] Failed to clear document folder:', err);
+  }
+}

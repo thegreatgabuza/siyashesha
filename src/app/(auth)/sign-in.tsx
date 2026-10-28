@@ -1,7 +1,7 @@
 import { useSignIn, useSignUp } from '@clerk/clerk-expo';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { ArrowRight, Mail, Phone, ShieldCheck, Sparkles } from 'lucide-react-native';
+import { ArrowRight, Mail, ShieldCheck, Sparkles } from 'lucide-react-native';
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -19,43 +19,24 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { useToast } from '@/components/ui/Toast';
 import { useAppStore } from '@/store/useAppStore';
 
-type Method = 'email' | 'phone';
-
 export default function SignInScreen() {
   const insets = useSafeAreaInsets();
   const toast = useToast();
   const signInWithEmail = useAppStore((s) => s.signInWithEmail);
-  const signInWithPhone = useAppStore((s) => s.signIn);
   const completeSignIn = useAppStore((s) => s.completeSignIn);
 
   const { isLoaded: isSignInLoaded, signIn } = useSignIn();
   const { isLoaded: isSignUpLoaded, signUp } = useSignUp();
 
-  const [method, setMethod] = useState<Method>('email');
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('71 442 0198');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const cleanEmail = email.trim().toLowerCase();
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail);
-  const digits = phone.replace(/\D/g, '');
-  const phoneValid = digits.length >= 9;
-  const isValid = method === 'email' ? emailValid : phoneValid;
 
   const handleContinue = async () => {
-    if (!isValid) {
-      toast.show(
-        method === 'email'
-          ? 'Enter a valid email address'
-          : 'Enter a valid South African mobile number',
-        'warning'
-      );
-      return;
-    }
-
-    if (method === 'phone') {
-      signInWithPhone(`+27 ${phone.trim()}`);
-      router.push('/otp');
+    if (!emailValid) {
+      toast.show('Enter a valid email address', 'warning');
       return;
     }
 
@@ -168,46 +149,20 @@ export default function SignInScreen() {
             Your health. Your records. Wherever you go.
           </Text>
 
-          {/* Auth Method Selector */}
-          <View className="mb-3 mt-8 flex-row gap-2" accessibilityRole="radiogroup">
-            <Pressable
-              accessibilityRole="radio"
-              accessibilityState={{ selected: method === 'email' }}
-              accessibilityLabel="Sign in with Email"
-              onPress={() => setMethod('email')}
-              className={`min-h-[42px] flex-1 flex-row items-center justify-center gap-2 rounded-2xl ${
-                method === 'email' ? 'bg-ink shadow-sm' : 'bg-white/70'
-              }`}
-            >
-              <Mail size={16} color={method === 'email' ? '#FFFFFF' : '#64748B'} />
-              <Text className={`font-sans-semibold text-[13px] ${method === 'email' ? 'text-white' : 'text-ink-muted'}`}>
+          {/* Email Input Field */}
+          <View className="mt-8">
+            <View className="mb-2 flex-row items-center gap-2">
+              <Mail size={16} color="#0B2559" />
+              <Text className="font-sans-semibold text-[13px] text-ink">
                 Email Address
               </Text>
-            </Pressable>
+            </View>
 
-            <Pressable
-              accessibilityRole="radio"
-              accessibilityState={{ selected: method === 'phone' }}
-              accessibilityLabel="Sign in with Mobile Number"
-              onPress={() => setMethod('phone')}
-              className={`min-h-[42px] flex-1 flex-row items-center justify-center gap-2 rounded-2xl ${
-                method === 'phone' ? 'bg-ink shadow-sm' : 'bg-white/70'
-              }`}
-            >
-              <Phone size={16} color={method === 'phone' ? '#FFFFFF' : '#64748B'} />
-              <Text className={`font-sans-semibold text-[13px] ${method === 'phone' ? 'text-white' : 'text-ink-muted'}`}>
-                Mobile Number
-              </Text>
-            </Pressable>
-          </View>
-
-          {/* Input Field */}
-          {method === 'email' ? (
             <View className="rounded-2xl border border-white/60 bg-white/80 px-4 py-1.5 shadow-sm">
               <TextInput
                 value={email}
                 onChangeText={setEmail}
-                placeholder="tebatso@example.com"
+                placeholder="tebatso@example.co.za"
                 placeholderTextColor="#8C98B8"
                 keyboardType="email-address"
                 autoCapitalize="none"
@@ -218,38 +173,22 @@ export default function SignInScreen() {
                 accessibilityLabel="Email address"
               />
             </View>
-          ) : (
-            <View className="flex-row items-center gap-2 rounded-2xl border border-white/60 bg-white/80 px-4 py-1.5 shadow-sm">
-              <Text className="font-sans-semibold text-[15px] text-ink">+27</Text>
-              <TextInput
-                value={phone}
-                onChangeText={setPhone}
-                placeholder="71 442 0198"
-                placeholderTextColor="#8C98B8"
-                keyboardType="phone-pad"
-                editable={!isSubmitting}
-                className="min-h-[48px] flex-1 font-sans text-[16px] text-ink"
-                accessibilityLabel="South African mobile number"
-              />
-            </View>
-          )}
+          </View>
 
           {/* Security badge note */}
-          <View className="mt-2.5 flex-row items-center gap-2">
+          <View className="mt-3 flex-row items-center gap-2">
             <ShieldCheck size={14} color="#059669" />
             <Text className="flex-1 font-sans text-[12px] text-ink-muted">
-              {method === 'email'
-                ? 'Secured by Clerk: We will email you a secure 6-digit one-time code.'
-                : 'Demo mobile sign in: No SMS network required.'}
+              Secured by Clerk: We will email you a secure 6-digit one-time code.
             </Text>
           </View>
 
           {/* Continue Button */}
           <View className="mt-6">
             <PrimaryButton
-              label={isSubmitting ? 'Sending code...' : 'Continue with Code'}
+              label={isSubmitting ? 'Sending code...' : 'Continue with Email'}
               onPress={handleContinue}
-              disabled={!isValid || isSubmitting}
+              disabled={!emailValid || isSubmitting}
             />
           </View>
 

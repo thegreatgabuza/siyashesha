@@ -27,7 +27,10 @@ export function JournalSwitch({ active }: { active: 'calendar' | 'diary' }) {
   const go = (target: 'calendar' | 'diary') => {
     if (target === active) return;
     setPos(target === 'calendar' ? 0 : 1);
-    setTimeout(() => router.replace(target === 'calendar' ? '/calendar' : '/diary'), reduced ? 0 : 140);
+    setTimeout(() => {
+      router.replace(target === 'calendar' ? '/calendar' : '/diary');
+      setPos(active === 'calendar' ? 0 : 1);
+    }, reduced ? 0 : 140);
   };
 
   return (

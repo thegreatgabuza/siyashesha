@@ -14,6 +14,7 @@ import {
 } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import {
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -73,7 +74,7 @@ export default function DiaryEditorScreen() {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [voiceModalVisible, setVoiceModalVisible] = useState(false);
 
-  const bodyRef = useRef<TextInput>(null);
+  const bodyRef = useRef<React.ComponentRef<typeof TextInput>>(null);
   const draftTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -157,7 +158,7 @@ export default function DiaryEditorScreen() {
     toast.show('Dictated text added to your note', 'success');
   };
 
-  const handleAttachVoiceNote = (name: string, duration: string) => {
+  const handleAttachVoiceNote = (name: string, duration: string, uri?: string) => {
     setAttachments((prev) => [
       ...prev,
       {
@@ -165,6 +166,7 @@ export default function DiaryEditorScreen() {
         kind: 'voice',
         name,
         duration,
+        uri,
       },
     ]);
     toast.show('Voice note attached', 'success');
@@ -220,14 +222,18 @@ export default function DiaryEditorScreen() {
           </Text>
           <PressableScale
             accessibilityLabel="Dictate note using microphone"
-            onPress={() => setVoiceModalVisible(true)}
+            onPress={() => { Keyboard.dismiss(); setVoiceModalVisible(true); }}
             style={{
               flexDirection: 'row',
               alignItems: 'center',
               gap: 5,
               backgroundColor: 'rgba(220, 31, 38, 0.1)',
-              paddingHorizontal: 12,
-              paddingVertical: 5,
+
+              paddingHorizontal: 14,
+              paddingVertical: 7,
+              minHeight: 34,
+              borderWidth: 1,
+              borderColor: 'rgba(220, 31, 38, 0.25)',
               borderRadius: 100,
             }}
           >
@@ -250,7 +256,7 @@ export default function DiaryEditorScreen() {
           accessibilityLabel="Note text"
         />
         <Text className="mb-5 font-sans text-[11px] text-ink-muted dark:text-slate-500">
-          Tip: tap the microphone key on your keyboard to dictate this note.
+          Tip: tap Dictate Note above to speak your note out loud.
         </Text>
 
         <Text className="mb-2 font-sans-semibold text-[13px] text-ink-muted dark:text-slate-400">
@@ -273,7 +279,7 @@ export default function DiaryEditorScreen() {
         <View className="mb-2 flex-row flex-wrap gap-2">
           <AttachButton label="Add photo" icon={<ImageIcon size={16} color={accent} />} onPress={addPhoto} />
           <AttachButton label="Add document" icon={<FileText size={16} color={accent} />} onPress={addDocument} />
-          <AttachButton label="Record voice note" icon={<Mic size={16} color="#DC1F26" />} onPress={() => setVoiceModalVisible(true)} />
+          <AttachButton label="Record voice note" icon={<Mic size={16} color="#DC1F26" />} onPress={() => { Keyboard.dismiss(); setVoiceModalVisible(true); }} />
         </View>
         {attachments.length > 0 ? (
           <View className="mb-5 gap-2">

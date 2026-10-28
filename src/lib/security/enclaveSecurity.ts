@@ -261,3 +261,24 @@ export async function decryptPayloadWithEnclave(ciphertextBase64: string): Promi
 
   return new TextDecoder().decode(decrypted);
 }
+
+/**
+ * Permanently destroys the Enclave cryptographic key and all derived salts from
+ * device keychain/SecureStore (used during account deletion / right to be forgotten).
+ */
+export async function clearEnclaveKeys(): Promise<void> {
+  try {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem(ENCLAVE_KEY_STORAGE);
+        window.localStorage.removeItem(ENCLAVE_KEY_SALT);
+      }
+      return;
+    }
+
+    await SecureStore.deleteItemAsync(ENCLAVE_KEY_STORAGE).catch(() => {});
+    await SecureStore.deleteItemAsync(ENCLAVE_KEY_SALT).catch(() => {});
+  } catch (err) {
+    console.warn('[EnclaveSecurity] Failed to erase enclave key:', err);
+  }
+}

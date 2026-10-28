@@ -131,7 +131,7 @@ export default function DiaryDetailScreen() {
                       <Text className="font-sans text-[13px] text-ink-soft dark:text-slate-200">{att.name}</Text>
                       {att.duration ? (
                         <Text className="font-sans text-[11px] text-ink-muted dark:text-slate-400">
-                          Recorded Voice Note · ${att.duration}
+                          Recorded Voice Note · {att.duration}
                         </Text>
                       ) : null}
                     </View>

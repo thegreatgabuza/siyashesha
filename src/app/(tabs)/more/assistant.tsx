@@ -64,7 +64,7 @@ export default function AssistantScreen() {
   // Only replies created in this session stream in; history renders at once.
   const [fresh, setFresh] = useState<ReadonlySet<string>>(() => new Set());
   const [cardsShown, setCardsShown] = useState<Record<string, boolean>>({});
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const handledQ = useRef<string | undefined>(undefined);
 
   const scrollToEnd = () => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: !reduced }), 60);

@@ -10,7 +10,7 @@ import {
 } from 'lucide-react-native';
 import { useMemo, useRef, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
-import { Swipeable } from 'react-native-gesture-handler';
+import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { useAboveTabBar } from '@/hooks/useTabBarInset';
 
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -35,7 +35,7 @@ export default function DiaryScreen() {
   const restoreDiaryNote = useAppStore((s) => s.restoreDiaryNote);
   const togglePin = useAppStore((s) => s.toggleDiaryPin);
 
-  const searchInput = useRef<TextInput>(null);
+  const searchInput = useRef<React.ComponentRef<typeof TextInput>>(null);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<DiaryCategory | 'All'>('All');
   const [lastDeleted, setLastDeleted] = useState<{ note: DiaryNote; index: number } | null>(null);
@@ -259,7 +259,7 @@ function DiaryRow({
 }) {
   const { accent, accentSoft } = useAccent();
   return (
-    <Swipeable
+    <ReanimatedSwipeable
       renderRightActions={() => (
         <Pressable
           accessibilityRole="button"
@@ -271,52 +271,50 @@ function DiaryRow({
         </Pressable>
       )}
     >
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Open note ${note.title}`}
-        onPress={() => router.push(`/diary/${note.id}`)}
-        className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-canvasdark-card dark:bg-canvasdark-card"
-      >
-        <View className="flex-row items-start justify-between gap-3">
-          <View className="flex-1">
-            <View className="flex-row flex-wrap items-center gap-2">
-              {note.category ? (
-                <View className="rounded-full bg-brand-100 px-2.5 py-0.5 dark:bg-brand-500/20">
-                  <Text className="font-sans-medium text-[10px] text-brand-600 dark:text-brand-300">
-                    {note.category}
-                  </Text>
-                </View>
-              ) : null}
-              <Text className="font-sans text-[11px] text-ink-muted dark:text-slate-400">
-                {dayjs(note.entryDate).format('D MMM YYYY')}
-              </Text>
-            </View>
-            <Text className="mt-1.5 font-sans-semibold text-[15px] text-ink dark:text-slate-50" numberOfLines={1}>
-              {note.title}
-            </Text>
-            <Text className="mt-0.5 font-sans text-[13px] text-ink-muted dark:text-slate-400" numberOfLines={2}>
-              {note.body}
-            </Text>
-            {note.attachments.length > 0 ? (
-              <View className="mt-2 flex-row items-center gap-1.5">
-                <Paperclip size={12} color="#5B6478" />
-                <Text className="font-sans text-[11px] text-ink-muted dark:text-slate-400">
-                  {note.attachments.length} attachment{note.attachments.length > 1 ? 's' : ''}
+      <View className="flex-row items-start justify-between gap-3 rounded-3xl border border-slate-200 bg-white p-4 dark:border-canvasdark-card dark:bg-canvasdark-card">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Open note ${note.title}`}
+          onPress={() => router.push(`/diary/${note.id}`)}
+          className="flex-1"
+        >
+          <View className="flex-row flex-wrap items-center gap-2">
+            {note.category ? (
+              <View className="rounded-full bg-brand-100 px-2.5 py-0.5 dark:bg-brand-500/20">
+                <Text className="font-sans-medium text-[10px] text-brand-600 dark:text-brand-300">
+                  {note.category}
                 </Text>
               </View>
             ) : null}
+            <Text className="font-sans text-[11px] text-ink-muted dark:text-slate-400">
+              {dayjs(note.entryDate).format('D MMM YYYY')}
+            </Text>
           </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={note.pinned ? 'Unpin note' : 'Pin note'}
-            onPress={onTogglePin}
-            hitSlop={8}
-            className="h-11 w-11 items-center justify-center rounded-full"
-          >
-            <Pin size={18} color={note.pinned ? accent : accentSoft} fill={note.pinned ? accent : 'none'} />
-          </Pressable>
-        </View>
-      </Pressable>
-    </Swipeable>
+          <Text className="mt-1.5 font-sans-semibold text-[15px] text-ink dark:text-slate-50" numberOfLines={1}>
+            {note.title}
+          </Text>
+          <Text className="mt-0.5 font-sans text-[13px] text-ink-muted dark:text-slate-400" numberOfLines={2}>
+            {note.body}
+          </Text>
+          {note.attachments.length > 0 ? (
+            <View className="mt-2 flex-row items-center gap-1.5">
+              <Paperclip size={12} color="#5B6478" />
+              <Text className="font-sans text-[11px] text-ink-muted dark:text-slate-400">
+                {note.attachments.length} attachment{note.attachments.length > 1 ? 's' : ''}
+              </Text>
+            </View>
+          ) : null}
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={note.pinned ? 'Unpin note' : 'Pin note'}
+          onPress={onTogglePin}
+          hitSlop={8}
+          className="h-11 w-11 items-center justify-center rounded-full"
+        >
+          <Pin size={18} color={note.pinned ? accent : accentSoft} fill={note.pinned ? accent : 'none'} />
+        </Pressable>
+      </View>
+    </ReanimatedSwipeable>
   );
 }

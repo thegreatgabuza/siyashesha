@@ -45,7 +45,15 @@ export function isSpeechRecognitionSupported(): boolean {
   if (Platform.OS === 'web') {
     return typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition);
   }
-  return false;
+  return true; // Native iOS & Android support via expo-audio + Gemini Speech AI
+}
+
+export function isWebSpeechSupported(): boolean {
+  return Platform.OS === 'web' && typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+}
+
+export function isNativeRecordingSupported(): boolean {
+  return Platform.OS !== 'web';
 }
 
 export interface VoiceDictationOptions {

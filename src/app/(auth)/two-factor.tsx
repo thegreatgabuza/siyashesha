@@ -26,7 +26,7 @@ export default function TwoFactorScreen() {
             <Text className="mt-5 font-sans-bold text-[24px] leading-[30px] text-white">Secure your account</Text>
             <Text className="mt-2 font-sans text-[13px] leading-[20px] text-white/70">
               Two-factor authentication adds a second check every time you sign in, so your medical records and
-              emergency profile stay protected even if your phone number is compromised.
+              emergency profile stay protected even if your email or device credentials are compromised.
             </Text>
           </View>
 

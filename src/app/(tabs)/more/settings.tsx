@@ -1,12 +1,15 @@
 import { useClerk } from '@clerk/clerk-expo';
 import { router } from 'expo-router';
 import {
+  Archive,
   ChevronRight,
+  Download,
   Globe,
   Lock,
   LogOut,
   Moon,
   ShieldCheck,
+  Trash2,
 } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Alert, Platform, Pressable, Switch, Text, TextInput, View } from 'react-native';
@@ -18,6 +21,8 @@ import { SectionHeader } from '@/components/ui/SectionHeader';
 import { useToast } from '@/components/ui/Toast';
 import { languageNames } from '@/i18n/translations';
 import { useAppStore, type ThemePreference } from '@/store/useAppStore';
+import { AccountDeletionModal } from '@/components/security/AccountDeletionModal';
+import { DsarExportModal } from '@/components/security/DsarExportModal';
 import { useAccent } from '@/hooks/useAccent';
 import { ensureNotificationPermission, syncReminders } from '@/lib/reminders';
 import {
@@ -47,6 +52,8 @@ export default function SettingsScreen() {
   const { signOut: clerkSignOut } = useClerk();
 
   const [capabilities, setCapabilities] = useState<BiometricCapabilities | null>(null);
+  const [dsarVisible, setDsarVisible] = useState(false);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
 
   useEffect(() => {
     getBiometricCapabilities().then(setCapabilities);
@@ -277,6 +284,65 @@ export default function SettingsScreen() {
           ))}
         </View>
 
+        <SectionLabel text="POPIA & HIPAA Data Rights" />
+        <View className="mb-2 gap-2 rounded-2xl border border-slate-200 bg-white p-4 dark:border-canvasdark-card dark:bg-canvasdark-card">
+          <View className="mb-1 flex-row items-center gap-2">
+            <ShieldCheck size={16} color="#0D7C66" />
+            <Text className="font-sans-bold text-[14px] text-ink dark:text-slate-50">
+              Patient Data Rights & Erasure
+            </Text>
+          </View>
+          <Text className="font-sans text-[12px] leading-[17px] text-ink-muted dark:text-slate-400">
+            Under South Africa&apos;s POPIA Act Section 23/24 and HIPAA rules, you have the right to download a complete archive of your health records, or permanently erase your data.
+          </Text>
+
+          {/* Download DSAR Archive Button */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Download Health Data Archive under POPIA Section 23"
+            onPress={() => setDsarVisible(true)}
+            className="mt-2 flex-row items-center justify-between rounded-xl bg-slate-50 p-3.5 dark:bg-canvasdark"
+          >
+            <View className="flex-1 flex-row items-center gap-3 pr-2">
+              <View className="h-9 w-9 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-500/20">
+                <Archive size={17} color={accent} />
+              </View>
+              <View className="flex-1">
+                <Text className="font-sans-semibold text-[13px] text-ink dark:text-slate-50">
+                  Export Health Archive (DSAR)
+                </Text>
+                <Text className="font-sans text-[11px] text-ink-muted dark:text-slate-400">
+                  Full machine-readable JSON & certified records archive
+                </Text>
+              </View>
+            </View>
+            <Download size={16} color={accent} />
+          </Pressable>
+
+          {/* Delete Account & Erase Data Button */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Erase Health Data and Delete Account under POPIA Section 24"
+            onPress={() => setDeleteModalVisible(true)}
+            className="mt-1 flex-row items-center justify-between rounded-xl bg-emergency-50/50 p-3.5 dark:bg-emergency-500/10"
+          >
+            <View className="flex-1 flex-row items-center gap-3 pr-2">
+              <View className="h-9 w-9 items-center justify-center rounded-xl bg-emergency-100 dark:bg-emergency-500/20">
+                <Trash2 size={17} color="#DC1F26" />
+              </View>
+              <View className="flex-1">
+                <Text className="font-sans-semibold text-[13px] text-emergency-500">
+                  Erase Data & Delete Account
+                </Text>
+                <Text className="font-sans text-[11px] text-emergency-500/70">
+                  POPIA §24 Right to Erasure · Permanent & irreversible
+                </Text>
+              </View>
+            </View>
+            <ChevronRight size={16} color="#DC1F26" />
+          </Pressable>
+        </View>
+
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Sign out"
@@ -303,6 +369,14 @@ export default function SettingsScreen() {
           <Text className="font-sans-semibold text-[14px] text-emergency-500">Sign out</Text>
         </Pressable>
       </ScreenScroll>
+
+      {/* POPIA / HIPAA Modals */}
+      <DsarExportModal visible={dsarVisible} onClose={() => setDsarVisible(false)} />
+      <AccountDeletionModal
+        visible={deleteModalVisible}
+        onClose={() => setDeleteModalVisible(false)}
+        onOpenDsarExport={() => setDsarVisible(true)}
+      />
     </View>
   );
 }

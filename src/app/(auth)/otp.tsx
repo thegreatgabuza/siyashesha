@@ -27,7 +27,6 @@ export default function OtpScreen() {
   const toast = useToast();
 
   const pendingEmail = useAppStore((s) => s.pendingEmail);
-  const pendingPhone = useAppStore((s) => s.pendingPhone);
   const clerkFlow = useAppStore((s) => s.clerkFlow);
   const completeSignIn = useAppStore((s) => s.completeSignIn);
 
@@ -38,11 +37,10 @@ export default function OtpScreen() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [resendTimer, setResendTimer] = useState(RESEND_COOLDOWN);
   const [isResending, setIsResending] = useState(false);
-  const inputs = useRef<(TextInput | null)[]>([]);
+  const inputs = useRef<(React.ComponentRef<typeof TextInput> | null)[]>([]);
 
   const code = digits.join('');
   const isComplete = code.length === LENGTH;
-  const isEmailMode = Boolean(pendingEmail);
 
   // Resend countdown timer
   useEffect(() => {
@@ -92,67 +90,64 @@ export default function OtpScreen() {
     setIsVerifying(true);
 
     try {
-      if (isEmailMode) {
-        // Clerk Email Verification
-        if (clerkFlow === 'sign_in') {
-          if (!isSignInLoaded || !signIn) {
-            throw new Error('Authentication is still loading. Please wait a moment.');
-          }
-
-          const result = await signIn.attemptFirstFactor({
-            strategy: 'email_code',
-            code,
-          });
-
-          if (result.status === 'complete') {
-            if (setSignInActive && result.createdSessionId) {
-              await setSignInActive({ session: result.createdSessionId });
-            }
-            completeSignIn({
-              clerkSessionId: result.createdSessionId || undefined,
-              email: pendingEmail,
-            });
-            toast.show('Signed in successfully!', 'success');
-            router.replace('/(tabs)');
-            return;
-          } else if (result.status === 'needs_second_factor') {
-            router.push('/two-factor');
-            return;
-          } else {
-            throw new Error(`Unexpected sign-in status: ${result.status}`);
-          }
-        } else if (clerkFlow === 'sign_up') {
-          if (!isSignUpLoaded || !signUp) {
-            throw new Error('Authentication is still loading. Please wait a moment.');
-          }
-
-          const result = await signUp.attemptEmailAddressVerification({
-            code,
-          });
-
-          if (result.status === 'complete') {
-            if (setSignUpActive && result.createdSessionId) {
-              await setSignUpActive({ session: result.createdSessionId });
-            }
-            completeSignIn({
-              clerkSessionId: result.createdSessionId || undefined,
-              email: pendingEmail,
-            });
-            toast.show('Account verified & signed in!', 'success');
-            router.replace('/(tabs)');
-            return;
-          } else {
-            throw new Error(`Verification status: ${result.status}`);
-          }
+      if (clerkFlow === 'sign_in') {
+        if (!isSignInLoaded || !signIn) {
+          throw new Error('Authentication is still loading. Please wait a moment.');
         }
-      }
 
-      // Demo or Phone fallback
-      completeSignIn({
-        email: pendingEmail || undefined,
-      });
-      toast.show('Signed in successfully', 'success');
-      router.replace('/(tabs)');
+        const result = await signIn.attemptFirstFactor({
+          strategy: 'email_code',
+          code,
+        });
+
+        if (result.status === 'complete') {
+          if (setSignInActive && result.createdSessionId) {
+            await setSignInActive({ session: result.createdSessionId });
+          }
+          completeSignIn({
+            clerkSessionId: result.createdSessionId || undefined,
+            email: pendingEmail,
+          });
+          toast.show('Signed in successfully!', 'success');
+          router.replace('/(tabs)');
+          return;
+        } else if (result.status === 'needs_second_factor') {
+          router.push('/two-factor');
+          return;
+        } else {
+          throw new Error(`Unexpected sign-in status: ${result.status}`);
+        }
+      } else if (clerkFlow === 'sign_up') {
+        if (!isSignUpLoaded || !signUp) {
+          throw new Error('Authentication is still loading. Please wait a moment.');
+        }
+
+        const result = await signUp.attemptEmailAddressVerification({
+          code,
+        });
+
+        if (result.status === 'complete') {
+          if (setSignUpActive && result.createdSessionId) {
+            await setSignUpActive({ session: result.createdSessionId });
+          }
+          completeSignIn({
+            clerkSessionId: result.createdSessionId || undefined,
+            email: pendingEmail,
+          });
+          toast.show('Account verified & signed in!', 'success');
+          router.replace('/(tabs)');
+          return;
+        } else {
+          throw new Error(`Verification status: ${result.status}`);
+        }
+      } else {
+        // Demo fallback
+        completeSignIn({
+          email: pendingEmail || 'jessica.tebatso@example.co.za',
+        });
+        toast.show('Signed in successfully', 'success');
+        router.replace('/(tabs)');
+      }
     } catch (err: any) {
       console.error('[Clerk OTP Verification] Error:', err);
       const msg =
@@ -174,25 +169,23 @@ export default function OtpScreen() {
     setIsResending(true);
 
     try {
-      if (isEmailMode) {
-        if (clerkFlow === 'sign_in' && signIn) {
-          const emailCodeFactor = signIn.supportedFirstFactors?.find(
-            (factor): factor is typeof factor & { emailAddressId: string } =>
-              factor.strategy === 'email_code' && 'emailAddressId' in factor
-          );
-          if (emailCodeFactor) {
-            await signIn.prepareFirstFactor({
-              strategy: 'email_code',
-              emailAddressId: emailCodeFactor.emailAddressId,
-            });
-          }
-        } else if (clerkFlow === 'sign_up' && signUp) {
-          await signUp.prepareEmailAddressVerification({
+      if (clerkFlow === 'sign_in' && signIn) {
+        const emailCodeFactor = signIn.supportedFirstFactors?.find(
+          (factor): factor is typeof factor & { emailAddressId: string } =>
+            factor.strategy === 'email_code' && 'emailAddressId' in factor
+        );
+        if (emailCodeFactor) {
+          await signIn.prepareFirstFactor({
             strategy: 'email_code',
+            emailAddressId: emailCodeFactor.emailAddressId,
           });
         }
+      } else if (clerkFlow === 'sign_up' && signUp) {
+        await signUp.prepareEmailAddressVerification({
+          strategy: 'email_code',
+        });
       }
-      toast.show(`New code sent to ${pendingEmail || pendingPhone}`, 'info');
+      toast.show(`New code sent to ${pendingEmail || 'your email'}`, 'info');
       setResendTimer(RESEND_COOLDOWN);
     } catch (err: any) {
       const msg =
@@ -206,7 +199,7 @@ export default function OtpScreen() {
     }
   };
 
-  const destinationLabel = isEmailMode ? pendingEmail : pendingPhone || 'your device';
+  const destinationLabel = pendingEmail || 'your email';
 
   return (
     <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

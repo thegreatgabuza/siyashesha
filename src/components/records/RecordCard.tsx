@@ -1,6 +1,6 @@
 import { ChevronRight, Share2, Trash2 } from 'lucide-react-native';
 import { Pressable, Text, View } from 'react-native';
-import { Swipeable } from 'react-native-gesture-handler';
+import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 
 import { PressableScale } from '@/components/ui/PressableScale';
 import { RecordsTokens } from '@/constants/recordsTokens';
@@ -27,7 +27,7 @@ export function RecordCard({
   const provider = [record.doctor, record.facility].filter(Boolean).join(' · ');
 
   return (
-    <Swipeable
+    <ReanimatedSwipeable
       overshootRight={false}
       renderRightActions={() => (
         <View className="ml-2 flex-row gap-2">
@@ -100,6 +100,6 @@ export function RecordCard({
 
         <ChevronRight size={18} color={RecordsTokens.textMuted} />
       </PressableScale>
-    </Swipeable>
+    </ReanimatedSwipeable>
   );
 }
