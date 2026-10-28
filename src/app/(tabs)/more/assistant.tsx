@@ -1,14 +1,23 @@
 import dayjs from 'dayjs';
 import { useLocalSearchParams } from 'expo-router';
-import { ArrowUp, ChevronLeft, ChevronRight, Lock, Sparkles, ShieldCheck } from 'lucide-react-native';
+import { ArrowUp, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react-native';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from 'react-native';
-import Animated, { FadeIn, FadeInDown, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
+import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from 'react-native';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AnswerCard } from '@/components/assistant/AnswerCards';
 import { StreamingText } from '@/components/assistant/StreamingText';
-import { Glass } from '@/components/ui/Glass';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Txt } from '@/components/ui/Txt';
 import { elevation, fonts, radii, springs } from '@/design/tokens';
@@ -32,8 +41,7 @@ function dayLabel(key: string) {
 }
 
 /**
- * Siyashesha Assistant. Powered by Google Gemini 3.8 Flash with full clinical context,
- * clinical safety guardrails, rich cards, and automatic on-device offline fallback.
+ * Siyashesha Assistant with full clinical context, rich cards, and automatic on-device offline fallback.
  */
 export default function AssistantScreen() {
   const t = useTokens();
@@ -61,6 +69,8 @@ export default function AssistantScreen() {
 
   const [input, setInput] = useState('');
   const [thinking, setThinking] = useState(false);
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
   // Only replies created in this session stream in; history renders at once.
   const [fresh, setFresh] = useState<ReadonlySet<string>>(() => new Set());
   const [cardsShown, setCardsShown] = useState<Record<string, boolean>>({});
@@ -68,6 +78,23 @@ export default function AssistantScreen() {
   const handledQ = useRef<string | undefined>(undefined);
 
   const scrollToEnd = () => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: !reduced }), 60);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvent, () => {
+      setKeyboardOpen(true);
+      scrollToEnd();
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKeyboardOpen(false);
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const send = async (raw: string) => {
     const value = raw.trim();
@@ -119,25 +146,42 @@ export default function AssistantScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.q]);
 
+  const canSend = input.trim().length > 0 && !thinking;
+
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: t.canvas }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      {/* Header with model badge and day pager */}
-      <View style={{ paddingTop: insets.top + 8, paddingHorizontal: 16, paddingBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: t.interactive, alignItems: 'center', justifyContent: 'center' }}>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: t.canvas }}
+      behavior="padding"
+    >
+      {/* Header with day pager */}
+      <View
+        style={{
+          paddingTop: insets.top + 8,
+          paddingHorizontal: 16,
+          paddingBottom: 10,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 12,
+          borderBottomWidth: 1,
+          borderBottomColor: t.hairline,
+        }}
+      >
+        <View
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            backgroundColor: t.interactive,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
           <Sparkles size={18} color={t.scheme === 'dark' ? '#0B1024' : '#FFFFFF'} />
         </View>
         <View style={{ flex: 1 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Txt variant="bodyStrong">Siyashesha AI</Txt>
-            <View style={{ backgroundColor: t.interactiveSoft, paddingHorizontal: 6, paddingVertical: 2, borderRadius: radii.pill, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <ShieldCheck size={11} color={t.interactive} />
-              <Txt variant="footnote" color={t.interactive} style={{ fontFamily: fonts.semibold, fontSize: 10 }}>
-                Gemini 3.8 Flash
-              </Txt>
-            </View>
-          </View>
+          <Txt variant="bodyStrong">Siyashesha Assistant</Txt>
           <Txt variant="footnote" tone="muted" style={{ fontSize: 12 }}>
-            {thinking ? 'Gemini is thinking…' : 'Clinical safety guardrails active'}
+            {thinking ? 'Thinking…' : 'Your personal health companion'}
           </Txt>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -146,7 +190,14 @@ export default function AssistantScreen() {
             disabled={activeIndex === 0}
             onPress={() => setDayIndex(activeIndex - 1)}
             haptic="selection"
-            style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', opacity: activeIndex === 0 ? 0.35 : 1 }}
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: activeIndex === 0 ? 0.35 : 1,
+            }}
           >
             <ChevronLeft size={20} color={t.text} />
           </PressableScale>
@@ -158,7 +209,14 @@ export default function AssistantScreen() {
             disabled={activeIndex === days.length - 1}
             onPress={() => setDayIndex(activeIndex + 1)}
             haptic="selection"
-            style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', opacity: activeIndex === days.length - 1 ? 0.35 : 1 }}
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: activeIndex === days.length - 1 ? 0.35 : 1,
+            }}
           >
             <ChevronRight size={20} color={t.text} />
           </PressableScale>
@@ -169,9 +227,15 @@ export default function AssistantScreen() {
       <ScrollView
         ref={scrollRef}
         key={activeDay}
+        style={{ flex: 1 }}
         onContentSizeChange={scrollToEnd}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: aboveTabBar + 72, gap: 20 }}
+        contentContainerStyle={{
+          paddingHorizontal: 20,
+          paddingTop: 14,
+          paddingBottom: 20,
+          gap: 20,
+        }}
         showsVerticalScrollIndicator={false}
       >
         {/* Greeting and numbered shortcuts */}
@@ -184,14 +248,37 @@ export default function AssistantScreen() {
               </Txt>
               <View style={{ gap: 8 }}>
                 {quickCommands.map((c, i) => (
-                  <Animated.View key={c.number} entering={reduced ? undefined : FadeInDown.delay(80 + i * 45).springify().damping(springs.gentle.damping)}>
+                  <Animated.View
+                    key={c.number}
+                    entering={reduced ? undefined : FadeInDown.delay(80 + i * 45).springify().damping(springs.gentle.damping)}
+                  >
                     <PressableScale
                       accessibilityLabel={`${c.number}. ${c.label}`}
                       onPress={() => send(String(c.number))}
                       scaleTo={0.98}
-                      style={[{ minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 14, borderRadius: radii.md, backgroundColor: t.surface }, elevation[1]]}
+                      style={[
+                        {
+                          minHeight: 52,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 14,
+                          paddingHorizontal: 14,
+                          borderRadius: radii.md,
+                          backgroundColor: t.surface,
+                        },
+                        elevation[1],
+                      ]}
                     >
-                      <View style={{ width: 28, height: 28, borderRadius: 9, backgroundColor: t.interactiveSoft, alignItems: 'center', justifyContent: 'center' }}>
+                      <View
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: 9,
+                          backgroundColor: t.interactiveSoft,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
                         <Txt variant="footnote" color={t.interactive} style={{ fontFamily: fonts.bold }}>
                           {c.number}
                         </Txt>
@@ -229,13 +316,27 @@ export default function AssistantScreen() {
               <Txt variant="body" color={t.scheme === 'dark' ? '#0B1024' : '#FFFFFF'}>
                 {m.text}
               </Txt>
-              <Txt variant="footnote" color={t.scheme === 'dark' ? '#0B1024' : '#FFFFFF'} style={{ opacity: 0.75, textAlign: 'right', marginTop: 4, fontSize: 11 }}>
+              <Txt
+                variant="footnote"
+                color={t.scheme === 'dark' ? '#0B1024' : '#FFFFFF'}
+                style={{ opacity: 0.75, textAlign: 'right', marginTop: 4, fontSize: 11 }}
+              >
                 {dayjs(m.timestamp).format('h:mm A')}
               </Txt>
             </Animated.View>
           ) : (
             <View key={m.id} style={{ flexDirection: 'row', gap: 10 }}>
-              <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: t.interactiveSoft, alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>
+              <View
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: 13,
+                  backgroundColor: t.interactiveSoft,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginTop: 1,
+                }}
+              >
                 <Sparkles size={13} color={t.interactive} />
               </View>
               <View style={{ flex: 1 }}>
@@ -260,44 +361,82 @@ export default function AssistantScreen() {
             No conversation on this day.
           </Txt>
         ) : null}
-
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingTop: 4 }}>
-          <Lock size={12} color={t.textMuted} />
-          <Txt variant="footnote" tone="muted" style={{ fontSize: 11, textAlign: 'center', flexShrink: 1 }}>
-            Powered by Gemini 3.8 Flash & Local Vault · Guardrails active · Educational guidance only
-          </Txt>
-        </View>
       </ScrollView>
 
-      {/* Composer, floating above the tab bar */}
-      <View style={{ position: 'absolute', left: 16, right: 16, bottom: aboveTabBar }} pointerEvents="box-none">
-        <Glass
+      {/* Composer docked in flex flow so it rises cleanly above the keyboard while typing */}
+      <View
+        style={{
+          paddingHorizontal: 16,
+          paddingTop: 8,
+          paddingBottom: keyboardOpen ? 10 : aboveTabBar,
+          backgroundColor: t.canvas,
+          borderTopWidth: keyboardOpen ? 1 : 0,
+          borderTopColor: t.hairline,
+        }}
+      >
+        <View
           style={[
-            { minHeight: 56, borderRadius: 28, flexDirection: 'row', alignItems: 'center', paddingLeft: 18, paddingRight: 6, borderWidth: 1, borderColor: t.hairline },
+            {
+              minHeight: 54,
+              borderRadius: 28,
+              flexDirection: 'row',
+              alignItems: 'flex-end',
+              paddingLeft: 18,
+              paddingRight: 6,
+              paddingVertical: 5,
+              backgroundColor: t.surface,
+              borderWidth: 1.5,
+              borderColor: isFocused || canSend ? t.interactive : t.border,
+            },
             elevation[2],
           ]}
         >
           <TextInput
             value={input}
             onChangeText={setInput}
-            placeholder={isToday ? 'Ask clinical assistant, or type a number' : 'Go to today to ask'}
+            onFocus={() => {
+              setIsFocused(true);
+              scrollToEnd();
+            }}
+            onBlur={() => setIsFocused(false)}
+            placeholder={isToday ? 'Ask a question or type a number…' : 'Go to today to ask'}
             editable={isToday}
             placeholderTextColor={t.textMuted}
+            multiline
+            blurOnSubmit={false}
             returnKeyType="send"
             onSubmitEditing={() => send(input)}
-            accessibilityLabel="Message Siyashesha Clinical AI"
-            style={{ flex: 1, minHeight: 48, fontFamily: fonts.regular, fontSize: 16, color: t.text }}
+            accessibilityLabel="Message Siyashesha Assistant"
+            style={{
+              flex: 1,
+              minHeight: 40,
+              maxHeight: 110,
+              paddingTop: Platform.OS === 'ios' ? 10 : 8,
+              paddingBottom: Platform.OS === 'ios' ? 10 : 8,
+              paddingRight: 8,
+              fontFamily: fonts.regular,
+              fontSize: 16,
+              lineHeight: 22,
+              color: t.text,
+            }}
           />
           <PressableScale
             accessibilityLabel="Send message"
-            disabled={!input.trim() || thinking}
+            disabled={!canSend}
             onPress={() => send(input)}
             scaleTo={0.9}
-            style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: input.trim() && !thinking ? t.interactive : t.border }}
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: canSend ? t.interactive : t.border,
+            }}
           >
             <ArrowUp size={20} color={t.scheme === 'dark' ? '#0B1024' : '#FFFFFF'} />
           </PressableScale>
-        </Glass>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -308,7 +447,16 @@ function Thinking() {
   const t = useTokens();
   return (
     <View accessibilityLabel="Siyashesha is thinking" style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
-      <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: t.interactiveSoft, alignItems: 'center', justifyContent: 'center' }}>
+      <View
+        style={{
+          width: 26,
+          height: 26,
+          borderRadius: 13,
+          backgroundColor: t.interactiveSoft,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
         <Sparkles size={13} color={t.interactive} />
       </View>
       <View style={{ flexDirection: 'row', gap: 5 }}>
