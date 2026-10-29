@@ -1,18 +1,22 @@
 import { useClerk } from '@clerk/clerk-expo';
 import { router } from 'expo-router';
+import { safeBack } from '@/lib/navigation';
 import {
   Archive,
+  BookOpen,
   ChevronRight,
   Download,
+  FileText,
   Globe,
   Lock,
   LogOut,
   Moon,
   ShieldCheck,
+  Sparkles,
   Trash2,
 } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { Alert, Platform, Pressable, Switch, Text, TextInput, View } from 'react-native';
+import { Alert, Platform, Pressable, Switch, Text, View } from 'react-native';
 
 import { ScreenScroll } from '@/components/ui/ScreenScroll';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
@@ -22,7 +26,10 @@ import { useToast } from '@/components/ui/Toast';
 import { languageNames } from '@/i18n/translations';
 import { useAppStore, type ThemePreference } from '@/store/useAppStore';
 import { AccountDeletionModal } from '@/components/security/AccountDeletionModal';
+import { AiConsentModal } from '@/components/security/AiConsentModal';
+import { ClinicalCitationsModal } from '@/components/security/ClinicalCitationsModal';
 import { DsarExportModal } from '@/components/security/DsarExportModal';
+import { LegalDocumentModal, type LegalDocKind } from '@/components/security/LegalDocumentModal';
 import { useAccent } from '@/hooks/useAccent';
 import { ensureNotificationPermission, syncReminders } from '@/lib/reminders';
 import {
@@ -39,6 +46,8 @@ export default function SettingsScreen() {
   const setMfaEnabled = useAppStore((s) => s.setMfaEnabled);
   const sharingRequiresPin = useAppStore((s) => s.sharingRequiresPin);
   const setSharingRequiresPin = useAppStore((s) => s.setSharingRequiresPin);
+  const aiConsentGranted = useAppStore((s) => s.aiConsentGranted);
+  const setAiConsentGranted = useAppStore((s) => s.setAiConsentGranted);
   const notifications = useAppStore((s) => s.notifications);
   const setNotification = useAppStore((s) => s.setNotification);
   const themePreference = useAppStore((s) => s.themePreference);
@@ -54,6 +63,9 @@ export default function SettingsScreen() {
   const [capabilities, setCapabilities] = useState<BiometricCapabilities | null>(null);
   const [dsarVisible, setDsarVisible] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [aiConsentModalVisible, setAiConsentModalVisible] = useState(false);
+  const [citationsVisible, setCitationsVisible] = useState(false);
+  const [legalDoc, setLegalDoc] = useState<LegalDocKind>(null);
 
   useEffect(() => {
     getBiometricCapabilities().then(setCapabilities);
@@ -92,13 +104,9 @@ export default function SettingsScreen() {
   const notificationsOn = notificationValues.filter(Boolean).length;
   const notificationTotal = notificationValues.length;
 
-  const [currentPw, setCurrentPw] = useState('');
-  const [newPw, setNewPw] = useState('');
-  const [confirmPw, setConfirmPw] = useState('');
-
   return (
     <View className="flex-1 bg-slate-50 dark:bg-canvasdark">
-      <ScreenHeader title="Settings" onBack={() => router.back()} />
+      <ScreenHeader title="Settings" onBack={() => safeBack('/(tabs)/more')} />
       <ScreenScroll className="flex-1 px-5">
         <View className="mt-2 rounded-[32px] bg-ink p-5 dark:bg-canvasdark-card" style={heroShadow}>
           <Text className="font-sans-semibold text-[13px] text-white/70">Account protection</Text>
@@ -152,25 +160,21 @@ export default function SettingsScreen() {
             </Text>
           </Pressable>
         ) : null}
-        <View className="mt-2 gap-2 rounded-2xl border border-slate-200 bg-white p-4 dark:border-canvasdark-card dark:bg-canvasdark-card">
-          <Text className="mb-1 font-sans-semibold text-[13px] text-ink dark:text-slate-50">
-            Change password
-          </Text>
-          <SecretInput placeholder="Current password" value={currentPw} onChangeText={setCurrentPw} />
-          <SecretInput placeholder="New password" value={newPw} onChangeText={setNewPw} />
-          <SecretInput placeholder="Confirm new password" value={confirmPw} onChangeText={setConfirmPw} />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Password change is not available yet"
-            accessibilityState={{ disabled: true }}
-            disabled
-            className="mt-1 min-h-[40px] items-center justify-center rounded-full bg-slate-200 dark:bg-canvasdark"
-          >
-            <Text className="font-sans-semibold text-[13px] text-ink-muted dark:text-slate-400">
-              Passwordless auth managed via Clerk email OTP
-            </Text>
-          </Pressable>
-        </View>
+
+        <ToggleRow
+          icon={<Sparkles size={16} color={accent} />}
+          label="Cloud AI Assistant & OCR (Google Gemini)"
+          caption="Explicit permission to process questions & scans with Google Gemini AI"
+          value={aiConsentGranted}
+          onValueChange={(value) => {
+            if (value) {
+              setAiConsentModalVisible(true);
+            } else {
+              setAiConsentGranted(false);
+              toast.show('Switched to 100% On-Device Offline Mode', 'info');
+            }
+          }}
+        />
 
         <SectionLabel text="Sharing security" />
         <ToggleRow
@@ -322,7 +326,7 @@ export default function SettingsScreen() {
           {/* Delete Account & Erase Data Button */}
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Erase Health Data and Delete Account under POPIA Section 24"
+            accessibilityLabel="Delete Account and Erase Health Data under POPIA Section 24"
             onPress={() => setDeleteModalVisible(true)}
             className="mt-1 flex-row items-center justify-between rounded-xl bg-emergency-50/50 p-3.5 dark:bg-emergency-500/10"
           >
@@ -332,14 +336,62 @@ export default function SettingsScreen() {
               </View>
               <View className="flex-1">
                 <Text className="font-sans-semibold text-[13px] text-emergency-500">
-                  Erase Data & Delete Account
+                  Delete Account & Erase Data
                 </Text>
                 <Text className="font-sans text-[11px] text-emergency-500/70">
-                  POPIA §24 Right to Erasure · Permanent & irreversible
+                  POPIA §24 & Apple Guideline 5.1.1(v) · Permanent & irreversible
                 </Text>
               </View>
             </View>
             <ChevronRight size={16} color="#DC1F26" />
+          </Pressable>
+        </View>
+
+        <SectionLabel text="Legal, Privacy & Medical Citations" />
+        <View className="mb-2 gap-2">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Medical Disclaimer and Clinical Citations"
+            onPress={() => setCitationsVisible(true)}
+            className="flex-row items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3.5 dark:border-canvasdark-card dark:bg-canvasdark-card"
+          >
+            <View className="flex-row items-center gap-2.5">
+              <BookOpen size={16} color={accent} />
+              <Text className="font-sans-medium text-[14px] text-ink dark:text-slate-50">
+                Clinical Disclaimer & Medical Sources
+              </Text>
+            </View>
+            <ChevronRight size={16} color={accentSoft} />
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Terms of Use and End User License Agreement"
+            onPress={() => setLegalDoc('terms')}
+            className="flex-row items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3.5 dark:border-canvasdark-card dark:bg-canvasdark-card"
+          >
+            <View className="flex-row items-center gap-2.5">
+              <FileText size={16} color="#5B6478" />
+              <Text className="font-sans-medium text-[14px] text-ink dark:text-slate-50">
+                Terms of Use (EULA)
+              </Text>
+            </View>
+            <ChevronRight size={16} color={accentSoft} />
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Privacy Policy and POPIA Notice"
+            onPress={() => setLegalDoc('privacy')}
+            className="flex-row items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3.5 dark:border-canvasdark-card dark:bg-canvasdark-card"
+          >
+            <View className="flex-row items-center gap-2.5">
+              <Lock size={16} color="#5B6478" />
+              <Text className="font-sans-medium text-[14px] text-ink dark:text-slate-50">
+                Privacy Policy (POPIA & Data Notice)
+              </Text>
+            </View>
+            <ChevronRight size={16} color={accentSoft} />
           </Pressable>
         </View>
 
@@ -370,13 +422,29 @@ export default function SettingsScreen() {
         </Pressable>
       </ScreenScroll>
 
-      {/* POPIA / HIPAA Modals */}
+      {/* POPIA / HIPAA & Apple Compliance Modals */}
       <DsarExportModal visible={dsarVisible} onClose={() => setDsarVisible(false)} />
       <AccountDeletionModal
         visible={deleteModalVisible}
         onClose={() => setDeleteModalVisible(false)}
         onOpenDsarExport={() => setDsarVisible(true)}
       />
+      <AiConsentModal
+        visible={aiConsentModalVisible}
+        onAllowCloudAi={() => {
+          setAiConsentGranted(true);
+          setAiConsentModalVisible(false);
+          toast.show('Cloud AI (Google Gemini) enabled', 'success');
+        }}
+        onUseOnDeviceOnly={() => {
+          setAiConsentGranted(false);
+          setAiConsentModalVisible(false);
+          toast.show('On-Device Offline Mode active', 'info');
+        }}
+        onClose={() => setAiConsentModalVisible(false)}
+      />
+      <ClinicalCitationsModal visible={citationsVisible} onClose={() => setCitationsVisible(false)} />
+      <LegalDocumentModal visibleDoc={legalDoc} onClose={() => setLegalDoc(null)} />
     </View>
   );
 }
@@ -417,16 +485,5 @@ function ToggleRow({
       <Switch
                 thumbColor="#FFFFFF" value={value} onValueChange={onValueChange} trackColor={{ true: accent, false: '#E3E8F0' }} />
     </View>
-  );
-}
-
-function SecretInput(props: React.ComponentProps<typeof TextInput>) {
-  return (
-    <TextInput
-      {...props}
-      secureTextEntry
-      placeholderTextColor="#8C98B8"
-      className="mb-2 min-h-[40px] rounded-xl border border-slate-200 bg-slate-50 px-3 font-sans text-[13px] text-ink dark:border-canvasdark dark:bg-canvasdark dark:text-slate-50"
-    />
   );
 }

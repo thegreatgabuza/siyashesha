@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { safeBack } from '@/lib/navigation';
 import { Archive, ShieldCheck, Trash2 } from 'lucide-react-native';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from 'react-native';
@@ -45,7 +45,7 @@ export default function ProfileScreen() {
       ...patch,
     }).catch(() => {});
     toast.show('Profile updated & synced', 'success');
-    router.back();
+    safeBack('/(tabs)/more');
   };
 
   return (
@@ -53,7 +53,7 @@ export default function ProfileScreen() {
       className="flex-1 bg-slate-50 dark:bg-canvasdark"
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScreenHeader title="Profile" onBack={() => router.back()} />
+      <ScreenHeader title="Profile" onBack={() => safeBack('/(tabs)/more')} />
       <ScreenScroll className="flex-1 px-5">
         <View className="mt-2 rounded-[32px] bg-ink p-5 dark:bg-canvasdark-card" style={heroShadow}>
           <View className="flex-row items-center gap-4">

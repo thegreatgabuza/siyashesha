@@ -1,4 +1,4 @@
-import DateTimePicker from '@react-native-community/datetimepicker';
+import { PlatformDatePicker } from '@/components/ui/PlatformDatePicker';
 import dayjs from 'dayjs';
 import {
   Bell,
@@ -541,28 +541,30 @@ function MedicationForm({
               ))}
             </View>
 
-            {showTimePicker && (
-              <DateTimePicker
-                value={
-                  timePickerIndex !== null && times[timePickerIndex]
-                    ? dayjs(`2000-01-01T${times[timePickerIndex]}`).toDate()
-                    : new Date()
+            <PlatformDatePicker
+              visible={showTimePicker}
+              value={
+                timePickerIndex !== null && times[timePickerIndex]
+                  ? dayjs(`2000-01-01T${times[timePickerIndex]}`).toDate()
+                  : new Date()
+              }
+              mode="time"
+              title="Select Dose Time"
+              onClose={() => {
+                setShowTimePicker(false);
+                setTimePickerIndex(null);
+              }}
+              onChange={(selectedDate) => {
+                setShowTimePicker(false);
+                if (selectedDate && timePickerIndex !== null) {
+                  const formatted = dayjs(selectedDate).format('HH:mm');
+                  const nextTimes = [...times];
+                  nextTimes[timePickerIndex] = formatted;
+                  setTimes(nextTimes.sort());
                 }
-                mode="time"
-                is24Hour
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={(_, selectedDate) => {
-                  setShowTimePicker(false);
-                  if (selectedDate && timePickerIndex !== null) {
-                    const formatted = dayjs(selectedDate).format('HH:mm');
-                    const nextTimes = [...times];
-                    nextTimes[timePickerIndex] = formatted;
-                    setTimes(nextTimes.sort());
-                  }
-                  setTimePickerIndex(null);
-                }}
-              />
-            )}
+                setTimePickerIndex(null);
+              }}
+            />
           </View>
 
           {/* Directions & Instructions */}
@@ -683,19 +685,19 @@ function MedicationForm({
               </Txt>
             </Pressable>
 
-            {showDatePicker && (
-              <DateTimePicker
-                value={dayjs(startDate).toDate()}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={(_, selectedDate) => {
-                  setShowDatePicker(false);
-                  if (selectedDate) {
-                    setStartDate(dayjs(selectedDate).format('YYYY-MM-DD'));
-                  }
-                }}
-              />
-            )}
+            <PlatformDatePicker
+              visible={showDatePicker}
+              value={dayjs(startDate).toDate()}
+              mode="date"
+              title="Select Start Date"
+              onClose={() => setShowDatePicker(false)}
+              onChange={(selectedDate) => {
+                setShowDatePicker(false);
+                if (selectedDate) {
+                  setStartDate(dayjs(selectedDate).format('YYYY-MM-DD'));
+                }
+              }}
+            />
           </View>
 
           {/* Discontinuation Note (if past) */}

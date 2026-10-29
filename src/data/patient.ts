@@ -8,6 +8,7 @@ export interface PatientProfile {
   firstName: string;
   lastName: string;
   preferredName: string;
+  avatarUrl?: string;
   dateOfBirth: string; // ISO
   idNumber: string;
   gender: string;
@@ -21,6 +22,7 @@ export interface PatientProfile {
   previousProcedures: string[];
   medicalDevices: string[];
   emergencyContact: EmergencyContact;
+  emergencyContacts?: EmergencyContact[];
   memberSince: string; // ISO
 }
 
@@ -45,5 +47,17 @@ export const patient: PatientProfile = {
     relationship: 'Husband',
     phone: '+27 82 555 0142',
   },
+  emergencyContacts: [
+    {
+      name: 'Sipho Tebatso',
+      relationship: 'Husband',
+      phone: '+27 82 555 0142',
+    },
+    {
+      name: 'Nomsa Tebatso',
+      relationship: 'Sister',
+      phone: '+27 73 891 4020',
+    },
+  ],
   memberSince: '2024-02-11',
 };

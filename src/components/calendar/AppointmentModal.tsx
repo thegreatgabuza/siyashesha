@@ -1,4 +1,4 @@
-import DateTimePicker from '@react-native-community/datetimepicker';
+import { PlatformDatePicker } from '@/components/ui/PlatformDatePicker';
 import dayjs from 'dayjs';
 import {
   Bell,
@@ -215,7 +215,7 @@ function AppointmentSheet({
 
   return (
     <KeyboardAvoidingView
-      behavior="padding"
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(15, 23, 42, 0.55)' }}
     >
       <Pressable
@@ -633,30 +633,30 @@ function AppointmentSheet({
           </View>
 
           {/* Date picker dialog */}
-          {showDatePicker && (
-            <DateTimePicker
-              value={dayjs(date).toDate()}
-              mode="date"
-              display="default"
-              onChange={(_, selected) => {
-                setShowDatePicker(false);
-                if (selected) setDate(dayjs(selected).format('YYYY-MM-DD'));
-              }}
-            />
-          )}
+          <PlatformDatePicker
+            visible={showDatePicker}
+            value={dayjs(date).toDate()}
+            mode="date"
+            title="Select Appointment Date"
+            onClose={() => setShowDatePicker(false)}
+            onChange={(selected) => {
+              setShowDatePicker(false);
+              if (selected) setDate(dayjs(selected).format('YYYY-MM-DD'));
+            }}
+          />
 
           {/* Time picker dialog */}
-          {showTimePicker && (
-            <DateTimePicker
-              value={dayjs(`2000-01-01T${time === '00:00' ? '09:00' : time}`).toDate()}
-              mode="time"
-              display="default"
-              onChange={(_, selected) => {
-                setShowTimePicker(false);
-                if (selected) setTime(dayjs(selected).format('HH:mm'));
-              }}
-            />
-          )}
+          <PlatformDatePicker
+            visible={showTimePicker}
+            value={dayjs(`2000-01-01T${time === '00:00' ? '09:00' : time}`).toDate()}
+            mode="time"
+            title="Select Appointment Time"
+            onClose={() => setShowTimePicker(false)}
+            onChange={(selected) => {
+              setShowTimePicker(false);
+              if (selected) setTime(dayjs(selected).format('HH:mm'));
+            }}
+          />
 
           {/* Healthcare Facility */}
           <View>

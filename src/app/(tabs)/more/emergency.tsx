@@ -1,5 +1,6 @@
 import dayjs from 'dayjs';
 import { router } from 'expo-router';
+import { safeBack } from '@/lib/navigation';
 import { AlertCircle, CheckCircle2, ChevronRight, Download, Phone, ShieldAlert } from 'lucide-react-native';
 import { Linking, Switch, useWindowDimensions, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
@@ -36,11 +37,6 @@ export default function EmergencyProfileScreen() {
   const { patient, values, readiness } = ice;
   const qrSize = Math.min(width - 120, 220);
 
-  const call = () => {
-    impactFeedback('medium');
-    Linking.openURL(`tel:${ice.contact.phone.replace(/\s/g, '')}`);
-  };
-
   const handleExport = async () => {
     try {
       await exportMedicalSummaryPdf(
@@ -64,7 +60,7 @@ export default function EmergencyProfileScreen() {
 
   return (
     <Screen headerOwnsTopInset scroll={false}>
-      <ScreenHeader title="Emergency card" subtitle="In case of emergency (ICE)" onBack={() => router.back()} />
+      <ScreenHeader title="Emergency card" subtitle="In case of emergency (ICE)" onBack={() => safeBack('/(tabs)/more')} />
       <ScreenScroll className="flex-1 px-5" contentContainerStyle={{ gap: 16, paddingTop: 4 }}>
         {/* Status */}
         <PressableScale
@@ -170,35 +166,72 @@ export default function EmergencyProfileScreen() {
               </Txt>
             </View>
 
-            <View style={{ gap: 2 }}>
+            <View style={{ gap: 8 }}>
               <Txt variant="label" color={navy[400]}>
-                Emergency contact
+                {(ice.contacts ?? []).length > 1
+                  ? `Emergency contacts (${ice.contacts.length})`
+                  : 'Emergency contact'}
               </Txt>
-              <Txt variant="bodyStrong" color={navy[700]}>
-                {ice.hasContact ? `${ice.contact.name}${ice.contact.relationship && ice.contact.relationship !== 'Not recorded' ? ` (${ice.contact.relationship})` : ''}` : 'Unknown'}
-              </Txt>
-              {ice.hasContact ? (
-                <Txt variant="body" color={navy[700]} style={{ fontVariant: ['tabular-nums'] }}>
-                  {ice.contact.phone}
+              {(ice.contacts ?? []).length > 0 ? (
+                (ice.contacts ?? []).map((c, idx) => (
+                  <View
+                    key={`${c.name}-${idx}`}
+                    style={{
+                      padding: 12,
+                      borderRadius: radii.md,
+                      backgroundColor: navy[50],
+                      gap: 2,
+                    }}
+                  >
+                    <Txt variant="bodyStrong" color={navy[700]}>
+                      {c.name}
+                      {c.relationship && c.relationship !== 'Not recorded' ? ` (${c.relationship})` : ''}
+                    </Txt>
+                    {c.phone ? (
+                      <Txt variant="body" color={navy[700]} style={{ fontVariant: ['tabular-nums'] }}>
+                        {c.phone}
+                      </Txt>
+                    ) : null}
+                  </View>
+                ))
+              ) : (
+                <Txt variant="bodyStrong" color={navy[700]}>
+                  Unknown
                 </Txt>
-              ) : null}
+              )}
             </View>
           </View>
         </View>
 
         {/* Actions */}
-        {ice.hasContact ? (
-          <PressableScale
-            accessibilityLabel={`Call emergency contact ${ice.contact.name}`}
-            onPress={call}
-            style={{ minHeight: 56, borderRadius: radii.pill, backgroundColor: red[500], flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 20 }}
-          >
-            <Phone size={20} color="#FFFFFF" />
-            <Txt variant="bodyStrong" tone="onNavy">
-              Call {ice.contact.name}
-            </Txt>
-          </PressableScale>
-        ) : null}
+        {(ice.contacts ?? []).map((c, idx) =>
+          c.phone ? (
+            <PressableScale
+              key={`call-${c.name}-${idx}`}
+              accessibilityLabel={`Call emergency contact ${c.name}`}
+              onPress={() => {
+                impactFeedback('medium');
+                Linking.openURL(`tel:${c.phone.replace(/\s/g, '')}`);
+              }}
+              style={{
+                minHeight: 56,
+                borderRadius: radii.pill,
+                backgroundColor: idx === 0 ? red[500] : navy[700],
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 10,
+                paddingHorizontal: 20,
+              }}
+            >
+              <Phone size={20} color="#FFFFFF" />
+              <Txt variant="bodyStrong" tone="onNavy">
+                Call {c.name}
+                {c.relationship && c.relationship !== 'Not recorded' ? ` (${c.relationship})` : ''}
+              </Txt>
+            </PressableScale>
+          ) : null
+        )}
         <PressableScale
           accessibilityLabel="Export the emergency card as a PDF"
           haptic="selection"

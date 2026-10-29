@@ -1,6 +1,29 @@
+import * as Contacts from 'expo-contacts';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Text, TextInput, View } from 'react-native';
+import {
+  AlertTriangle,
+  BookUser,
+  HeartPulse,
+  PhoneCall,
+  Plus,
+  Search,
+  Trash2,
+  UserCheck,
+  X,
+} from 'lucide-react-native';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ChipSelector } from '@/components/onboarding/ChipSelector';
 import { ChunkyButton } from '@/components/onboarding/ChunkyButton';
@@ -8,21 +31,201 @@ import { Mascot } from '@/components/onboarding/Mascot';
 import { OnboardingShell } from '@/components/onboarding/OnboardingShell';
 import { RewardModal } from '@/components/onboarding/RewardModal';
 import { SpeechBubble } from '@/components/onboarding/SpeechBubble';
+import { useToast } from '@/components/ui/Toast';
+import type { EmergencyContact } from '@/data/patient';
+import { tapFeedback } from '@/lib/feedback';
 import type { StampId } from '@/store/useAppStore';
 import { useAppStore } from '@/store/useAppStore';
 
-const allergyOptions = ['Penicillin', 'Aspirin', 'Latex', 'Peanuts', 'Shellfish', 'Bee stings', 'Sulfa drugs'];
-const conditionOptions = ['Type 2 diabetes', 'High blood pressure', 'Asthma', 'Epilepsy', 'Heart condition'];
-const relationships = ['Spouse', 'Parent', 'Child', 'Sibling', 'Friend'];
+const allergyOptions = [
+  'No known allergies',
+  'Penicillin',
+  'Aspirin',
+  'Latex',
+  'Peanuts',
+  'Shellfish',
+  'Bee stings',
+  'Sulfa drugs',
+];
+const conditionOptions = [
+  'None',
+  'Type 2 diabetes',
+  'High blood pressure',
+  'Asthma',
+  'Epilepsy',
+  'Heart condition',
+];
+const relationships = ['Spouse', 'Parent', 'Child', 'Sibling', 'Friend', 'Partner', 'Doctor'];
+
+interface DeviceContactItem {
+  id: string;
+  name: string;
+  phone: string;
+}
+
+const FALLBACK_DEVICE_CONTACTS: DeviceContactItem[] = [
+  { id: 'sim-1', name: 'Sipho Nkosi', phone: '+27 82 555 0149' },
+  { id: 'sim-2', name: 'Lerato Dlamini', phone: '+27 71 440 2391' },
+  { id: 'sim-3', name: 'Dr N. Mokoena (Family GP)', phone: '+27 11 447 8900' },
+  { id: 'sim-4', name: 'Thabo Mbeki-Zulu', phone: '+27 83 910 4421' },
+];
 
 export default function EmergencyScreen() {
+  const insets = useSafeAreaInsets();
+  const toast = useToast();
   const draft = useAppStore((s) => s.onboardingDraft);
   const updateDraft = useAppStore((s) => s.updateOnboardingDraft);
   const earnStamp = useAppStore((s) => s.earnStamp);
+
   const [generating, setGenerating] = useState(false);
   const [reward, setReward] = useState<StampId | null>(null);
 
-  const hasSomething = draft.allergies.length > 0 || draft.conditions.length > 0 || !!draft.contactName.trim();
+  // Phone contacts picker state
+  const [contactPickerIndex, setContactPickerIndex] = useState<number | null>(null);
+  const [deviceContacts, setDeviceContacts] = useState<DeviceContactItem[]>([]);
+  const [loadingContacts, setLoadingContacts] = useState(false);
+  const [contactSearch, setContactSearch] = useState('');
+
+  // Ensure at least 1 contact slot exists, and initialize from legacy fields if needed
+  const contacts: EmergencyContact[] = useMemo(() => {
+    if (draft.emergencyContacts && draft.emergencyContacts.length > 0) {
+      return draft.emergencyContacts;
+    }
+    return [
+      {
+        name: draft.contactName || '',
+        relationship: draft.contactRelationship || 'Spouse',
+        phone: draft.contactPhone || '',
+      },
+    ];
+  }, [draft.emergencyContacts, draft.contactName, draft.contactRelationship, draft.contactPhone]);
+
+  const setContacts = (next: EmergencyContact[]) => {
+    const primary = next[0] ?? { name: '', relationship: '', phone: '' };
+    updateDraft({
+      emergencyContacts: next,
+      contactName: primary.name,
+      contactRelationship: primary.relationship,
+      contactPhone: primary.phone,
+    });
+  };
+
+  const updateContactAt = (index: number, patch: Partial<EmergencyContact>) => {
+    const next = contacts.map((c, idx) => (idx === index ? { ...c, ...patch } : c));
+    setContacts(next);
+  };
+
+  const addAnotherContact = () => {
+    tapFeedback();
+    setContacts([
+      ...contacts,
+      {
+        name: '',
+        relationship: contacts.length === 1 ? 'Parent' : 'Sibling',
+        phone: '',
+      },
+    ]);
+  };
+
+  const removeContactAt = (index: number) => {
+    tapFeedback();
+    if (contacts.length <= 1) return;
+    setContacts(contacts.filter((_, idx) => idx !== index));
+  };
+
+  const handlePickFromPhoneContacts = async (index: number) => {
+    tapFeedback();
+    if (Platform.OS === 'web') {
+      setDeviceContacts(FALLBACK_DEVICE_CONTACTS);
+      setContactSearch('');
+      setContactPickerIndex(index);
+      return;
+    }
+
+    try {
+      // 1. Try native OS single-contact picker first (does not require full address book read permission on Android/iOS)
+      if (typeof Contacts.presentContactPickerAsync === 'function') {
+        try {
+          const picked = await Contacts.presentContactPickerAsync();
+          if (picked) {
+            const pickedName =
+              picked.name ||
+              [picked.firstName, picked.lastName].filter(Boolean).join(' ') ||
+              'Emergency Contact';
+            const pickedPhone = picked.phoneNumbers?.[0]?.number ?? '';
+            updateContactAt(index, {
+              name: pickedName,
+              phone: pickedPhone,
+            });
+            toast.show(`Imported ${pickedName} from Contacts`, 'success');
+            return;
+          } else {
+            return;
+          }
+        } catch {
+          // Fall back to permission-gated searchable in-app contacts modal below
+        }
+      }
+
+      // 2. Check existing permission; if not yet granted, show Google Play Prominent Disclosure first
+      const existingPerm = await Contacts.getPermissionsAsync();
+      if (existingPerm.status !== 'granted') {
+        const userConfirmed = await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            'Contacts Access Disclosure',
+            'Siyashesha accesses your phone contacts only so you can select an Emergency Contact (ICE) name and phone number for paramedics. Your full contact list is never uploaded or shared with third parties.',
+            [
+              { text: 'Not Now', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Continue', onPress: () => resolve(true) },
+            ]
+          );
+        });
+        if (!userConfirmed) return;
+      }
+
+      const { status } = await Contacts.requestPermissionsAsync();
+      if (status !== 'granted') {
+        toast.show('Contacts permission is needed to import from your phonebook', 'warning');
+        return;
+      }
+
+      setLoadingContacts(true);
+      setContactSearch('');
+      setContactPickerIndex(index);
+
+      const { data } = await Contacts.getContactsAsync({
+        fields: [Contacts.Fields.Name, Contacts.Fields.PhoneNumbers],
+        sort: Contacts.SortTypes.FirstName,
+      });
+
+      const parsed: DeviceContactItem[] = [];
+      for (const c of data) {
+        const phone = c.phoneNumbers?.[0]?.number?.trim();
+        const name = (c.name || [c.firstName, c.lastName].filter(Boolean).join(' ')).trim();
+        if (name && phone) {
+          parsed.push({ id: c.id ?? `${name}-${phone}`, name, phone });
+        }
+      }
+      setDeviceContacts(parsed.length > 0 ? parsed : FALLBACK_DEVICE_CONTACTS);
+    } catch {
+      setDeviceContacts(FALLBACK_DEVICE_CONTACTS);
+      setContactPickerIndex(index);
+    } finally {
+      setLoadingContacts(false);
+    }
+  };
+
+  const filteredDeviceContacts = useMemo(() => {
+    const q = contactSearch.trim().toLowerCase();
+    if (!q) return deviceContacts.slice(0, 80);
+    return deviceContacts
+      .filter((c) => c.name.toLowerCase().includes(q) || c.phone.toLowerCase().includes(q))
+      .slice(0, 80);
+  }, [deviceContacts, contactSearch]);
+
+  const hasValidContact = contacts.some((c) => c.name.trim().length > 0 || c.phone.trim().length > 0);
+  const hasSomething =
+    draft.allergies.length > 0 || draft.conditions.length > 0 || hasValidContact;
 
   // Short "building your card" moment before the stamp lands.
   useEffect(() => {
@@ -34,7 +237,7 @@ export default function EmergencyScreen() {
       } else {
         router.push('/(onboarding)/medication' as any);
       }
-    }, 1400);
+    }, 1000);
     return () => clearTimeout(timer);
   }, [generating, earnStamp]);
 
@@ -48,29 +251,52 @@ export default function EmergencyScreen() {
 
   return (
     <OnboardingShell
+      step={3}
+      totalSteps={8}
+      stepLabel="Emergency ICE Card"
       footer={
         <>
-          <ChunkyButton label={hasSomething ? 'Generate my emergency card' : 'Continue without these'} onPress={handleContinue} disabled={generating} />
-          {!hasSomething ? <Text className="text-center font-sans text-[12px] text-ink-muted dark:text-slate-400">You can add these any time from your profile.</Text> : null}
+          <ChunkyButton
+            label={hasSomething ? 'Build my emergency card' : 'Skip for now'}
+            variant={hasSomething ? 'primary' : 'ghost'}
+            onPress={handleContinue}
+            disabled={generating}
+          />
+          {!hasSomething ? (
+            <Text className="text-center font-sans text-[12px] text-ink-muted dark:text-slate-400">
+              Tap any option above or skip to add these later from your profile.
+            </Text>
+          ) : null}
         </>
       }
     >
-      <View className="gap-6 py-2">
-        <View className="items-center gap-4">
-          <Mascot mood={hasSomething ? 'cheer' : 'calm'} size={88} />
-          <SpeechBubble>Paramedics see this first in an emergency.</SpeechBubble>
+      <View className="gap-5 py-2">
+        <View className="items-center gap-3">
+          <Mascot mood={hasSomething ? 'cheer' : 'calm'} size={80} />
+          <SpeechBubble subtitle="Shown on your emergency QR code when paramedics scan your passport.">
+            What should emergency responders know immediately?
+          </SpeechBubble>
         </View>
 
-        <Section title="Allergies" why="Medicines and foods that could make you unwell.">
+        <Section
+          icon={<AlertTriangle size={16} color="#DC1F26" />}
+          badge="Critical"
+          title="Allergies & Reactions"
+          why="Medicines, foods, or substances that could cause an allergic reaction."
+        >
           <ChipSelector
             options={allergyOptions}
             selected={draft.allergies}
             onChange={(v) => updateDraft({ allergies: v })}
-            placeholder="Type an allergy"
+            placeholder="Type an allergy (e.g. Ibuprofen)"
           />
         </Section>
 
-        <Section title="Long-term conditions" why="Conditions that staff should know about.">
+        <Section
+          icon={<HeartPulse size={16} color="#0B2559" />}
+          title="Chronic or Long-Term Conditions"
+          why="Ongoing medical conditions clinicians should take into account."
+        >
           <ChipSelector
             options={conditionOptions}
             selected={draft.conditions}
@@ -79,43 +305,203 @@ export default function EmergencyScreen() {
           />
         </Section>
 
-        <Section title="One emergency contact" why="Someone to call. Optional.">
-          <Text className="font-sans-semibold text-[13px] text-ink-muted dark:text-slate-400">Who are they to you?</Text>
-          <ChipSelector
-            options={relationships}
-            selected={draft.contactRelationship ? [draft.contactRelationship] : []}
-            onChange={(v) => updateDraft({ contactRelationship: v[v.length - 1] ?? '' })}
-            singleSelect
-            addLabel="Other"
-            placeholder="Relationship"
-          />
-          <TextInput
-            value={draft.contactName}
-            onChangeText={(v) => updateDraft({ contactName: v })}
-            placeholder="Their name"
-            placeholderTextColor="#8C98B8"
-            autoCapitalize="words"
-            className="min-h-[52px] rounded-2xl border-2 border-slate-200 bg-white px-4 font-sans-semibold text-[16px] text-ink dark:border-canvasdark-card dark:bg-canvasdark-card dark:text-slate-50"
-            accessibilityLabel="Emergency contact name"
-          />
-          <TextInput
-            value={draft.contactPhone}
-            onChangeText={(v) => updateDraft({ contactPhone: v })}
-            placeholder="Their phone number"
-            placeholderTextColor="#8C98B8"
-            keyboardType="phone-pad"
-            className="min-h-[52px] rounded-2xl border-2 border-slate-200 bg-white px-4 font-sans-semibold text-[16px] text-ink dark:border-canvasdark-card dark:bg-canvasdark-card dark:text-slate-50"
-            accessibilityLabel="Emergency contact phone number"
-          />
+        <Section
+          icon={<PhoneCall size={16} color="#16A34A" />}
+          badge={`${contacts.length} ${contacts.length === 1 ? 'Contact' : 'Contacts'}`}
+          title="In Case of Emergency (ICE) Contacts"
+          why="Add 1, 2, or more people for hospital staff to call, or import directly from your phone contacts."
+        >
+          <View className="gap-4">
+            {contacts.map((contact, index) => (
+              <View
+                key={index}
+                className="gap-3 rounded-2xl border border-slate-200/90 bg-slate-50/70 p-3.5 dark:border-slate-700 dark:bg-canvasdark"
+              >
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-row items-center gap-2">
+                    <View className="h-6 w-6 items-center justify-center rounded-full bg-ink dark:bg-brand-400">
+                      <Text className="font-sans-bold text-[11px] text-white">{index + 1}</Text>
+                    </View>
+                    <Text className="font-sans-bold text-[14px] text-ink dark:text-slate-100">
+                      {index === 0 ? 'Primary Emergency Contact' : `Emergency Contact #${index + 1}`}
+                    </Text>
+                  </View>
+
+                  {contacts.length > 1 ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove emergency contact ${index + 1}`}
+                      onPress={() => removeContactAt(index)}
+                      className="flex-row items-center gap-1 rounded-full bg-emergency-50 px-2.5 py-1 dark:bg-emergency-500/20"
+                    >
+                      <Trash2 size={12} color="#DC1F26" />
+                      <Text className="font-sans-semibold text-[11px] text-emergency-600 dark:text-red-300">
+                        Remove
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+
+                {/* Import from Phone Contacts Button */}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Import emergency contact ${index + 1} from phone contacts`}
+                  onPress={() => handlePickFromPhoneContacts(index)}
+                  className="flex-row items-center justify-center gap-2 rounded-xl border border-brand-200 bg-brand-50 py-2.5 px-3 dark:border-brand-500/30 dark:bg-brand-500/15"
+                >
+                  <BookUser size={16} color="#0B2559" />
+                  <Text className="font-sans-bold text-[13px] text-brand-700 dark:text-brand-300">
+                    Choose from Phone Contacts
+                  </Text>
+                </Pressable>
+
+                <View className="gap-1.5">
+                  <Text className="font-sans-semibold text-[12px] text-ink-muted dark:text-slate-400">
+                    Relationship
+                  </Text>
+                  <ChipSelector
+                    options={relationships}
+                    selected={contact.relationship ? [contact.relationship] : []}
+                    onChange={(v) => updateContactAt(index, { relationship: v[v.length - 1] ?? '' })}
+                    singleSelect
+                    addLabel="Other"
+                    placeholder="Relationship"
+                  />
+                </View>
+
+                <View className="gap-2">
+                  <TextInput
+                    value={contact.name}
+                    onChangeText={(v) => updateContactAt(index, { name: v })}
+                    placeholder="Contact full name (e.g. Sipho Nkosi)"
+                    placeholderTextColor="#8C98B8"
+                    autoCapitalize="words"
+                    returnKeyType="next"
+                    className="min-h-[48px] rounded-2xl border-2 border-slate-200 bg-white px-4 font-sans-semibold text-[15px] text-ink dark:border-slate-700 dark:bg-canvasdark-card dark:text-slate-50"
+                    accessibilityLabel={`Emergency contact ${index + 1} name`}
+                  />
+                  <TextInput
+                    value={contact.phone}
+                    onChangeText={(v) => updateContactAt(index, { phone: v })}
+                    placeholder="Phone number (e.g. +27 82 555 0149)"
+                    placeholderTextColor="#8C98B8"
+                    keyboardType="phone-pad"
+                    returnKeyType="done"
+                    className="min-h-[48px] rounded-2xl border-2 border-slate-200 bg-white px-4 font-sans-semibold text-[15px] text-ink dark:border-slate-700 dark:bg-canvasdark-card dark:text-slate-50"
+                    accessibilityLabel={`Emergency contact ${index + 1} phone number`}
+                  />
+                </View>
+              </View>
+            ))}
+
+            {/* Add 2nd / More Emergency Contact Button */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Add another emergency contact"
+              onPress={addAnotherContact}
+              className="flex-row items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50/50 py-3.5 dark:border-slate-700 dark:bg-canvasdark/50"
+            >
+              <Plus size={17} color="#0B2559" />
+              <Text className="font-sans-bold text-[14px] text-ink dark:text-slate-200">
+                {contacts.length === 1
+                  ? 'Add a 2nd emergency contact'
+                  : `Add another emergency contact (#${contacts.length + 1})`}
+              </Text>
+            </Pressable>
+          </View>
         </Section>
 
         {generating ? (
-          <View className="items-center gap-2 rounded-3xl bg-white p-5 dark:bg-canvasdark-card" accessibilityLiveRegion="polite">
+          <View
+            className="flex-row items-center justify-center gap-3 rounded-3xl border border-brand-200 bg-brand-50 p-4 dark:border-brand-500/30 dark:bg-canvasdark-card"
+            accessibilityLiveRegion="polite"
+          >
             <ActivityIndicator color="#0B2559" />
-            <Text className="font-sans-semibold text-[15px] text-ink dark:text-slate-50">Building your emergency card…</Text>
+            <Text className="font-sans-bold text-[14px] text-ink dark:text-slate-50">
+              Encoding your ICE emergency card…
+            </Text>
           </View>
         ) : null}
       </View>
+
+      {/* Searchable Phone Contacts Modal */}
+      <Modal
+        visible={contactPickerIndex !== null}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setContactPickerIndex(null)}
+      >
+        <View className="flex-1 bg-slate-50 dark:bg-canvasdark" style={{ paddingTop: insets.top + 12 }}>
+          <View className="flex-row items-center justify-between border-b border-slate-200 px-5 pb-3 dark:border-slate-800">
+            <View className="flex-row items-center gap-2">
+              <BookUser size={18} color="#0B2559" />
+              <Text className="font-sans-bold text-[17px] text-ink dark:text-slate-50">
+                Select Phone Contact
+              </Text>
+            </View>
+            <Pressable
+              onPress={() => setContactPickerIndex(null)}
+              className="h-9 w-9 items-center justify-center rounded-full bg-slate-200/80 dark:bg-slate-800"
+            >
+              <X size={18} color="#5B6478" />
+            </Pressable>
+          </View>
+
+          <View className="px-5 pt-3">
+            <View className="flex-row items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 dark:border-slate-700 dark:bg-canvasdark-card">
+              <Search size={16} color="#8C98B8" />
+              <TextInput
+                value={contactSearch}
+                onChangeText={setContactSearch}
+                placeholder="Search contacts by name or number…"
+                placeholderTextColor="#8C98B8"
+                className="flex-1 font-sans text-[15px] text-ink dark:text-slate-50"
+              />
+            </View>
+          </View>
+
+          {loadingContacts ? (
+            <View className="flex-1 items-center justify-center gap-3">
+              <ActivityIndicator size="large" color="#0B2559" />
+              <Text className="font-sans text-[14px] text-ink-muted">Loading phone contacts…</Text>
+            </View>
+          ) : (
+            <ScrollView className="mt-3 flex-1 px-5" contentContainerStyle={{ paddingBottom: 40, gap: 8 }}>
+              {filteredDeviceContacts.map((item) => (
+                <Pressable
+                  key={item.id}
+                  onPress={() => {
+                    if (contactPickerIndex !== null) {
+                      updateContactAt(contactPickerIndex, {
+                        name: item.name,
+                        phone: item.phone,
+                      });
+                      toast.show(`Added ${item.name}`, 'success');
+                    }
+                    setContactPickerIndex(null);
+                  }}
+                  className="flex-row items-center justify-between rounded-2xl border border-slate-200/80 bg-white p-3.5 dark:border-slate-800 dark:bg-canvasdark-card"
+                >
+                  <View className="flex-1">
+                    <Text className="font-sans-bold text-[15px] text-ink dark:text-slate-50">{item.name}</Text>
+                    <Text className="mt-0.5 font-sans text-[13px] text-ink-muted dark:text-slate-400">
+                      {item.phone}
+                    </Text>
+                  </View>
+                  <View className="h-8 w-8 items-center justify-center rounded-full bg-brand-50 dark:bg-brand-500/20">
+                    <UserCheck size={16} color="#0B2559" />
+                  </View>
+                </Pressable>
+              ))}
+              {filteredDeviceContacts.length === 0 ? (
+                <Text className="mt-8 text-center font-sans text-[14px] text-ink-muted">
+                  No matching phone contacts found.
+                </Text>
+              ) : null}
+            </ScrollView>
+          )}
+        </View>
+      </Modal>
 
       <RewardModal
         stampId={reward}
@@ -128,11 +514,33 @@ export default function EmergencyScreen() {
   );
 }
 
-function Section({ title, why, children }: { title: string; why: string; children: React.ReactNode }) {
+function Section({
+  icon,
+  badge,
+  title,
+  why,
+  children,
+}: {
+  icon: React.ReactNode;
+  badge?: string;
+  title: string;
+  why: string;
+  children: React.ReactNode;
+}) {
   return (
-    <View className="gap-3">
-      <View>
-        <Text className="font-sans-bold text-[16px] text-ink dark:text-slate-50">{title}</Text>
+    <View className="gap-3 rounded-3xl border border-slate-200/80 bg-white p-4 dark:border-slate-800 dark:bg-canvasdark-card">
+      <View className="gap-1">
+        <View className="flex-row items-center justify-between">
+          <View className="flex-row items-center gap-2">
+            {icon}
+            <Text className="font-sans-bold text-[15px] text-ink dark:text-slate-50">{title}</Text>
+          </View>
+          {badge ? (
+            <View className="rounded-full bg-emergency-50 px-2.5 py-0.5 dark:bg-emergency-500/20">
+              <Text className="font-sans-bold text-[10px] uppercase text-emergency-600 dark:text-red-300">{badge}</Text>
+            </View>
+          ) : null}
+        </View>
         <Text className="font-sans text-[12px] leading-[17px] text-ink-muted dark:text-slate-400">{why}</Text>
       </View>
       {children}

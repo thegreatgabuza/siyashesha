@@ -1,6 +1,6 @@
 import dayjs from 'dayjs';
 import { useLocalSearchParams } from 'expo-router';
-import { ArrowUp, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react-native';
+import { ArrowUp, BookOpen, ChevronLeft, ChevronRight, ShieldCheck, Sparkles } from 'lucide-react-native';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from 'react-native';
 import Animated, {
@@ -18,6 +18,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AnswerCard } from '@/components/assistant/AnswerCards';
 import { StreamingText } from '@/components/assistant/StreamingText';
+import { AiConsentModal } from '@/components/security/AiConsentModal';
+import { ClinicalCitationsModal } from '@/components/security/ClinicalCitationsModal';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Txt } from '@/components/ui/Txt';
 import { elevation, fonts, radii, springs } from '@/design/tokens';
@@ -53,6 +55,13 @@ export default function AssistantScreen() {
   const recordCount = useAppStore((s) => s.records.length);
   const threads = useAppStore((s) => s.assistantThreads);
   const addMessage = useAppStore((s) => s.addAssistantMessage);
+  const aiConsentGranted = useAppStore((s) => s.aiConsentGranted);
+  const setAiConsentGranted = useAppStore((s) => s.setAiConsentGranted);
+
+  const [citationsOpen, setCitationsOpen] = useState(false);
+  const [aiConsentModalOpen, setAiConsentModalOpen] = useState(false);
+  const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
+  const [declinedCloudAiThisSession, setDeclinedCloudAiThisSession] = useState(false);
 
   const today = todayKey();
   const days = useMemo(() => {
@@ -96,9 +105,7 @@ export default function AssistantScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const send = async (raw: string) => {
-    const value = raw.trim();
-    if (!value || thinking) return;
+  const executeSend = async (value: string) => {
     tapFeedback();
     setDayIndex(null);
     const userMsg: AssistantMessage = { id: makeId(), sender: 'user', text: value, timestamp: new Date().toISOString() };
@@ -137,6 +144,21 @@ export default function AssistantScreen() {
     }
   };
 
+  const send = async (raw: string) => {
+    const value = raw.trim();
+    if (!value || thinking) return;
+
+    // Numbered shortcuts 1-5 run 100% on-device with zero external AI calls
+    const isQuickNumber = /^[1-5]$/.test(value);
+    if (!isQuickNumber && !aiConsentGranted && !declinedCloudAiThisSession) {
+      setPendingPrompt(value);
+      setAiConsentModalOpen(true);
+      return;
+    }
+
+    await executeSend(value);
+  };
+
   // A question handed over from Home's Ask bar.
   useEffect(() => {
     if (params.q && handledQ.current !== params.q) {
@@ -151,7 +173,7 @@ export default function AssistantScreen() {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: t.canvas }}
-      behavior="padding"
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       {/* Header with day pager */}
       <View
@@ -221,6 +243,62 @@ export default function AssistantScreen() {
             <ChevronRight size={20} color={t.text} />
           </PressableScale>
         </View>
+      </View>
+
+      {/* Apple Guideline 1.4.1 & 5.1.2(i) Medical Disclaimer, Sources & AI Privacy Bar */}
+      <View
+        style={{
+          paddingHorizontal: 16,
+          paddingVertical: 8,
+          backgroundColor: t.surfaceMuted,
+          borderBottomWidth: 1,
+          borderBottomColor: t.hairline,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
+        }}
+      >
+        <PressableScale
+          accessibilityRole="button"
+          accessibilityLabel="View Clinical Disclaimer and Medical Citations"
+          onPress={() => setCitationsOpen(true)}
+          style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}
+        >
+          <BookOpen size={13} color={t.interactive} />
+          <Txt variant="footnote" tone="muted" numberOfLines={1} style={{ flex: 1, fontSize: 11 }}>
+            Informational only · Consult a doctor before medical decisions ·{' '}
+            <Txt variant="footnote" color={t.interactive} style={{ fontFamily: fonts.semibold, fontSize: 11 }}>
+              Sources
+            </Txt>
+          </Txt>
+        </PressableScale>
+
+        <PressableScale
+          accessibilityRole="button"
+          accessibilityLabel={aiConsentGranted ? 'Cloud AI active. Tap to manage privacy' : 'On-device mode active. Tap to enable Cloud AI'}
+          onPress={() => setAiConsentModalOpen(true)}
+          style={{
+            paddingHorizontal: 8,
+            paddingVertical: 3,
+            borderRadius: radii.pill,
+            backgroundColor: aiConsentGranted ? 'rgba(2, 132, 199, 0.12)' : t.surface,
+            borderWidth: 1,
+            borderColor: t.border,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 4,
+          }}
+        >
+          <ShieldCheck size={11} color={aiConsentGranted ? '#0284C7' : t.textMuted} />
+          <Txt
+            variant="footnote"
+            color={aiConsentGranted ? '#0284C7' : t.textMuted}
+            style={{ fontFamily: fonts.semibold, fontSize: 10 }}
+          >
+            {aiConsentGranted ? 'Gemini AI' : 'On-Device'}
+          </Txt>
+        </PressableScale>
       </View>
 
       {/* Messages */}
@@ -349,6 +427,17 @@ export default function AssistantScreen() {
                   }}
                 />
                 {m.card && (cardsShown[m.id] || !fresh.has(m.id)) ? <AnswerCard card={m.card} /> : null}
+                <PressableScale
+                  accessibilityRole="button"
+                  accessibilityLabel="View clinical citations and medical disclaimer"
+                  onPress={() => setCitationsOpen(true)}
+                  style={{ marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start' }}
+                >
+                  <BookOpen size={11} color={t.textMuted} />
+                  <Txt variant="footnote" tone="muted" style={{ fontSize: 11, textDecorationLine: 'underline' }}>
+                    Sources: SA NDoH STG/EML, SAHPRA & WHO · Not medical advice
+                  </Txt>
+                </PressableScale>
               </View>
             </View>
           )
@@ -438,6 +527,35 @@ export default function AssistantScreen() {
           </PressableScale>
         </View>
       </View>
+
+      <ClinicalCitationsModal visible={citationsOpen} onClose={() => setCitationsOpen(false)} />
+      <AiConsentModal
+        visible={aiConsentModalOpen}
+        featureTitle="Siyashesha Clinical Assistant"
+        onAllowCloudAi={() => {
+          setAiConsentGranted(true);
+          setAiConsentModalOpen(false);
+          if (pendingPrompt) {
+            const toSend = pendingPrompt;
+            setPendingPrompt(null);
+            void executeSend(toSend);
+          }
+        }}
+        onUseOnDeviceOnly={() => {
+          setAiConsentGranted(false);
+          setDeclinedCloudAiThisSession(true);
+          setAiConsentModalOpen(false);
+          if (pendingPrompt) {
+            const toSend = pendingPrompt;
+            setPendingPrompt(null);
+            void executeSend(toSend);
+          }
+        }}
+        onClose={() => {
+          setAiConsentModalOpen(false);
+          setPendingPrompt(null);
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }

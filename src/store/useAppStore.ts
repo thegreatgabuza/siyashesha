@@ -11,14 +11,14 @@ import {
   type EmergencyFieldKey,
 } from '@/data/emergencyProfile';
 import { activeMedications, medicationsSeed, todaysReminders, type Medication } from '@/data/medications';
-import { patient, type PatientProfile } from '@/data/patient';
+import { patient, type EmergencyContact, type PatientProfile } from '@/data/patient';
 import { medicalRecords, type MedicalRecord } from '@/data/records';
 import { sharingHistorySeed, type SharedLink, type ShareDuration } from '@/data/sharing';
 import type { LanguageCode } from '@/i18n/translations';
 import { pastDateKeys } from '@/lib/date';
 import { clearAllStoredFiles } from '@/lib/documents';
 import { clearEnclaveKeys } from '@/lib/security/enclaveSecurity';
-import { eraseAllCloudData } from '@/lib/supabase';
+import { eraseAllCloudData, setSupabaseAuthContext } from '@/lib/supabase';
 
 function makeId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
@@ -42,11 +42,16 @@ export type ThemePreference = 'system' | 'light' | 'dark';
 
 export type StampId = 'profile' | 'emergency' | 'medication' | 'record' | 'biometric';
 
+export type SubscriptionPlanId = 'free' | 'monthly_premium' | 'annual_premium' | 'lifetime_premium';
+
+export type MedicationTimeSlot = 'Morning' | 'Afternoon' | 'Evening' | 'Night';
+
 export interface UserMedication {
   id: string;
   name: string;
   dose: string;
-  time: 'Morning' | 'Afternoon' | 'Evening' | 'Night';
+  time: MedicationTimeSlot;
+  times?: MedicationTimeSlot[];
 }
 
 export interface CustomReminder {
@@ -66,6 +71,7 @@ export interface OnboardingDraft {
   contactName: string;
   contactRelationship: string;
   contactPhone: string;
+  emergencyContacts: EmergencyContact[];
 }
 
 export const emptyOnboardingDraft: OnboardingDraft = {
@@ -79,6 +85,7 @@ export const emptyOnboardingDraft: OnboardingDraft = {
   contactName: '',
   contactRelationship: '',
   contactPhone: '',
+  emergencyContacts: [{ name: '', relationship: 'Spouse', phone: '' }],
 };
 
 export interface NotificationSettings {
@@ -109,6 +116,8 @@ interface AppState {
   setMfaEnabled: (v: boolean) => void;
   sharingRequiresPin: boolean;
   setSharingRequiresPin: (v: boolean) => void;
+  aiConsentGranted: boolean;
+  setAiConsentGranted: (v: boolean) => void;
   notifications: NotificationSettings;
   setNotification: (key: keyof NotificationSettings, value: boolean) => void;
   pushToken?: string;
@@ -184,10 +193,16 @@ interface AppState {
   // Onboarding / misc
   hasCompletedOnboarding: boolean;
   completeOnboarding: () => void;
+  restartOnboarding: () => void;
 
   // Patient profile
   patientProfile: PatientProfile;
   updatePatientProfile: (patch: Partial<PatientProfile>) => void;
+
+  // Subscription & Billing
+  subscriptionPlan: SubscriptionPlanId;
+  subscriptionTrialEndsAt?: string;
+  setSubscriptionPlan: (plan: SubscriptionPlanId, options?: { startTrial?: boolean }) => void;
 
   // Guided onboarding
   onboardingDraft: OnboardingDraft;
@@ -196,13 +211,14 @@ interface AppState {
   earnStamp: (id: StampId) => boolean;
   userMedications: UserMedication[];
   addUserMedication: (med: Omit<UserMedication, 'id'>) => void;
+  removeUserMedication: (id: string) => void;
   biometricLock: boolean;
   setBiometricLock: (v: boolean) => void;
   isAppLocked: boolean;
   setAppLocked: (locked: boolean) => void;
   unlockApp: () => void;
   lockApp: () => void;
-  finishOnboarding: () => void;
+  finishOnboarding: (options?: { plan?: SubscriptionPlanId; startTrial?: boolean }) => void;
 
   // POPIA §24 / HIPAA Data Subject Erasure
   eraseAllPatientData: () => Promise<void>;
@@ -251,13 +267,15 @@ export const useAppStore = create<AppState>()(
             auditEvents: [event, ...s.auditEvents],
           };
         }),
-      signOut: () =>
+      signOut: () => {
+        setSupabaseAuthContext({ userId: null, getToken: null });
         set({
           isSignedIn: false,
           pendingEmail: '',
           clerkSessionId: undefined,
           clerkFlow: 'sign_in',
-        }),
+        });
+      },
 
       themePreference: 'system',
       setThemePreference: (t) => set({ themePreference: t }),
@@ -279,6 +297,22 @@ export const useAppStore = create<AppState>()(
       setMfaEnabled: (v) => set({ mfaEnabled: v }),
       sharingRequiresPin: true,
       setSharingRequiresPin: (v) => set({ sharingRequiresPin: v }),
+      aiConsentGranted: false,
+      setAiConsentGranted: (v) =>
+        set((s) => ({
+          aiConsentGranted: v,
+          auditEvents: [
+            {
+              id: makeId('audit'),
+              type: 'profile',
+              description: v
+                ? 'Granted consent for Google Gemini AI clinical assistance & OCR'
+                : 'Revoked consent for Google Gemini AI (On-Device mode only)',
+              timestamp: new Date().toISOString(),
+            },
+            ...s.auditEvents,
+          ],
+        })),
       pushToken: undefined,
       lastPushSyncAt: undefined,
       setPushToken: (token) => set({ pushToken: token }),
@@ -553,6 +587,35 @@ export const useAppStore = create<AppState>()(
 
       hasCompletedOnboarding: false,
       completeOnboarding: () => set({ hasCompletedOnboarding: true }),
+      restartOnboarding: () =>
+        set({
+          hasCompletedOnboarding: false,
+          isSignedIn: false,
+          stamps: [],
+          onboardingDraft: emptyOnboardingDraft,
+        }),
+
+      subscriptionPlan: 'monthly_premium',
+      subscriptionTrialEndsAt: undefined,
+      setSubscriptionPlan: (plan, options) =>
+        set((s) => {
+          const trialEnd = options?.startTrial
+            ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+            : undefined;
+          const event: AuditEvent = {
+            id: makeId('audit'),
+            type: 'profile',
+            description: options?.startTrial
+              ? `Started 7-day free trial for ${plan}`
+              : `Updated subscription plan to ${plan}`,
+            timestamp: new Date().toISOString(),
+          };
+          return {
+            subscriptionPlan: plan,
+            subscriptionTrialEndsAt: trialEnd,
+            auditEvents: [event, ...s.auditEvents],
+          };
+        }),
 
       onboardingDraft: emptyOnboardingDraft,
       updateOnboardingDraft: (patch) => set((s) => ({ onboardingDraft: { ...s.onboardingDraft, ...patch } })),
@@ -569,6 +632,8 @@ export const useAppStore = create<AppState>()(
       userMedications: [],
       addUserMedication: (med) =>
         set((s) => ({ userMedications: [...s.userMedications, { ...med, id: makeId('med') }] })),
+      removeUserMedication: (id) =>
+        set((s) => ({ userMedications: s.userMedications.filter((m) => m.id !== id) })),
       biometricLock: false,
       isAppLocked: false,
       setBiometricLock: (v) =>
@@ -603,30 +668,100 @@ export const useAppStore = create<AppState>()(
         })),
       lockApp: () =>
         set((s) => (s.biometricLock ? { isAppLocked: true } : {})),
-      finishOnboarding: () =>
+      finishOnboarding: (options) =>
         set((s) => {
           const d = s.onboardingDraft;
+          const chosenPlan = options?.plan ?? s.subscriptionPlan;
+          const trialEnd = options?.startTrial
+            ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+            : s.subscriptionTrialEndsAt;
           const event: AuditEvent = {
             id: makeId('audit'),
             type: 'login',
-            description: 'Passport created during guided setup',
+            description: `Passport created during guided setup (${chosenPlan})`,
             timestamp: new Date().toISOString(),
           };
+          const validContacts = (d.emergencyContacts ?? [])
+            .filter((c) => c.name.trim() || c.phone.trim())
+            .map((c) => ({
+              name: c.name.trim() || 'Emergency Contact',
+              relationship: c.relationship.trim() || 'Emergency contact',
+              phone: c.phone.trim(),
+            }));
+          if (validContacts.length === 0 && (d.contactName.trim() || d.contactPhone.trim())) {
+            validContacts.push({
+              name: d.contactName.trim() || 'Emergency Contact',
+              relationship: d.contactRelationship.trim() || 'Emergency contact',
+              phone: d.contactPhone.trim(),
+            });
+          }
+
           const patch: Partial<PatientProfile> = {
             firstName: d.firstName || s.patientProfile.firstName,
             lastName: d.lastName || s.patientProfile.lastName,
             preferredName: d.firstName || s.patientProfile.preferredName,
             dateOfBirth: d.dateOfBirth || s.patientProfile.dateOfBirth,
             bloodGroup: d.bloodGroup || s.patientProfile.bloodGroup,
-            allergies: d.allergies.map((substance) => ({ substance, reaction: 'Not recorded' })),
-            chronicConditions: d.conditions,
-            emergencyContact: d.contactName
-              ? { name: d.contactName, relationship: d.contactRelationship || 'Not recorded', phone: d.contactPhone }
-              : s.patientProfile.emergencyContact,
+            allergies:
+              d.allergies.length > 0
+                ? d.allergies.map((substance) => ({ substance, reaction: 'Reported during onboarding' }))
+                : s.patientProfile.allergies,
+            chronicConditions: d.conditions.length > 0 ? d.conditions : s.patientProfile.chronicConditions,
+            emergencyContact: validContacts[0] ?? s.patientProfile.emergencyContact,
+            emergencyContacts:
+              validContacts.length > 0
+                ? validContacts
+                : s.patientProfile.emergencyContacts ?? [s.patientProfile.emergencyContact],
           };
+
+          const timeMap: Record<MedicationTimeSlot, string> = {
+            Morning: '08:00',
+            Afternoon: '13:00',
+            Evening: '18:00',
+            Night: '21:00',
+          };
+          const onboardingMeds: Medication[] = s.userMedications
+            .filter((um) => !s.medications.some((m) => m.name.toLowerCase() === um.name.toLowerCase()))
+            .map((um) => {
+              const slots = um.times && um.times.length > 0 ? um.times : [um.time];
+              const mappedTimes = slots.map((slot) => timeMap[slot] ?? '08:00');
+              const freqLabel =
+                slots.length === 1
+                  ? `Once daily (${slots[0].toLowerCase()})`
+                  : slots.length === 2
+                  ? `Twice daily (${slots.join(' & ').toLowerCase()})`
+                  : slots.length === 3
+                  ? `3 times daily (${slots.join(', ').toLowerCase()})`
+                  : `4 times daily (${slots.join(', ').toLowerCase()})`;
+              return {
+                id: um.id,
+                name: um.name,
+                strength: um.dose || 'As directed',
+                indication: 'Daily medication',
+                route: 'Oral',
+                frequency: freqLabel,
+                directions: `Take in the ${slots.map((sl) => sl.toLowerCase()).join(', ')}`,
+                prescriber: 'Self-reported',
+                facility: 'Health Passport Setup',
+                provenance: 'Patient Onboarding',
+                times: mappedTimes,
+                status: 'active',
+                startDate: new Date().toISOString().slice(0, 10),
+              };
+            });
+
+          const nextMedReminders = { ...s.medicationReminderEnabled };
+          for (const med of onboardingMeds) {
+            nextMedReminders[med.id] = true;
+          }
+
           return {
             hasCompletedOnboarding: true,
             isSignedIn: true,
+            subscriptionPlan: chosenPlan,
+            subscriptionTrialEndsAt: trialEnd,
+            medications: onboardingMeds.length > 0 ? [...onboardingMeds, ...s.medications] : s.medications,
+            medicationReminderEnabled: nextMedReminders,
             patientProfile: { ...s.patientProfile, ...patch },
             auditEvents: [event, ...s.auditEvents],
           };
@@ -639,6 +774,7 @@ export const useAppStore = create<AppState>()(
       eraseAllPatientData: async () => {
         // 1. Wipe remote Supabase database and storage
         await eraseAllCloudData().catch(() => {});
+        setSupabaseAuthContext({ userId: null, getToken: null });
 
         // 2. Clear local disk files and documents
         await clearAllStoredFiles().catch(() => {});
@@ -658,6 +794,7 @@ export const useAppStore = create<AppState>()(
           clerkFlow: 'sign_in',
           biometricLock: false,
           isAppLocked: false,
+          aiConsentGranted: false,
           records: [],
           medications: [],
           userMedications: [],

@@ -1,7 +1,8 @@
 import dayjs from 'dayjs';
-import { router } from 'expo-router';
+import { safeBack } from '@/lib/navigation';
 import {
   Archive,
+  BookOpen,
   Clock,
   Edit2,
   Flame,
@@ -13,6 +14,7 @@ import { useMemo, useState } from 'react';
 import { Switch, View } from 'react-native';
 
 import { MedicationModal } from '@/components/medications/MedicationModal';
+import { ClinicalCitationsModal } from '@/components/security/ClinicalCitationsModal';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Pill } from '@/components/ui/Pill';
 import { PressableScale } from '@/components/ui/PressableScale';
@@ -47,6 +49,7 @@ export default function MedicationsScreen() {
   const [tab, setTab] = useState<'active' | 'past'>('active');
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedMedication, setSelectedMedication] = useState<Medication | undefined>();
+  const [citationsOpen, setCitationsOpen] = useState(false);
 
   const activeList = useMemo(() => medications.filter((m) => m.status === 'active'), [medications]);
   const pastList = useMemo(() => medications.filter((m) => m.status === 'past'), [medications]);
@@ -96,7 +99,7 @@ export default function MedicationsScreen() {
     <Screen headerOwnsTopInset scroll={false}>
       <ScreenHeader
         title="Medications"
-        onBack={() => router.back()}
+        onBack={() => safeBack('/(tabs)/more')}
         right={
           <PressableScale
             accessibilityLabel="Add medication"
@@ -522,6 +525,34 @@ export default function MedicationsScreen() {
             )}
           </View>
         )}
+
+        {/* Apple Guideline 1.4.1 Medical Disclaimer & Clinical Citations Footer */}
+        <PressableScale
+          accessibilityRole="button"
+          accessibilityLabel="View Clinical Disclaimer and Medical Citations"
+          onPress={() => setCitationsOpen(true)}
+          style={{
+            marginTop: 20,
+            padding: 14,
+            borderRadius: radii.lg,
+            backgroundColor: t.surface,
+            borderWidth: 1,
+            borderColor: t.border,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 10,
+          }}
+        >
+          <BookOpen size={16} color={t.accent} />
+          <View style={{ flex: 1 }}>
+            <Txt variant="footnote" style={{ fontFamily: fonts.semibold }}>
+              Medical Disclaimer & Clinical References (SA NDoH STG/EML, SAHPRA & WHO)
+            </Txt>
+            <Txt variant="footnote" tone="muted" style={{ fontSize: 11, marginTop: 2 }}>
+              Always consult your prescribing doctor or clinic sister before changing any dose or medication schedule. Tap to view clinical sources.
+            </Txt>
+          </View>
+        </PressableScale>
       </ScreenScroll>
 
       {/* Medication Creation & Editing Modal */}
@@ -533,6 +564,7 @@ export default function MedicationsScreen() {
         onToggleStatus={handleToggleStatus}
         existingMedication={selectedMedication}
       />
+      <ClinicalCitationsModal visible={citationsOpen} onClose={() => setCitationsOpen(false)} />
     </Screen>
   );
 }

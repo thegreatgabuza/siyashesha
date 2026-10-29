@@ -1,5 +1,6 @@
 import dayjs from 'dayjs';
 import { router, useLocalSearchParams } from 'expo-router';
+import { safeBack } from '@/lib/navigation';
 import { CheckCircle2, Download, FileText, Languages, Pencil, Share2, Trash2 } from 'lucide-react-native';
 import * as Sharing from 'expo-sharing';
 import { useState } from 'react';
@@ -40,7 +41,7 @@ export default function RecordDetailScreen() {
   if (!record) {
     return (
       <Screen headerOwnsTopInset scroll={false}>
-        <ScreenHeader title="Record" onBack={() => router.back()} />
+        <ScreenHeader title="Record" onBack={() => safeBack('/(tabs)/records')} />
         <Text className="px-5 font-sans text-ink-muted dark:text-slate-400">This record could not be found.</Text>
       </Screen>
     );
@@ -74,7 +75,7 @@ export default function RecordDetailScreen() {
           deleteRecord(record.id);
           deleteRecordFromDatabase(record.id).catch(() => {});
           toast.show('Record deleted', 'info');
-          router.back();
+          safeBack('/(tabs)/records');
         },
       },
     ]);
@@ -84,7 +85,7 @@ export default function RecordDetailScreen() {
     <Screen headerOwnsTopInset scroll={false}>
       <ScreenHeader
         title={record.category}
-        onBack={() => router.back()}
+        onBack={() => safeBack('/(tabs)/records')}
         right={
           <View className="flex-row gap-2">
             <IconButton accessibilityLabel="Download record PDF" onPress={handleDownload}>

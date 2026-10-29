@@ -118,6 +118,7 @@ export function PassportCard({ recordCount }: { recordCount: number }) {
 
   const p = ice.patient;
   const idTail = p.idNumber ? p.idNumber.slice(-4) : '';
+  const contacts = ice.contacts ?? [];
 
   return (
     <View style={{ alignItems: 'center' }}>
@@ -192,8 +193,15 @@ export function PassportCard({ recordCount }: { recordCount: number }) {
                 </View>
                 <IceLine label="Blood group" value={ice.bloodGroup} critical={!ice.bloodGroupKnown} />
                 <IceLine label="Allergies" value={ice.allergyList.join(', ') || 'No allergies recorded'} critical={ice.allergyList.length > 0} lines={2} />
-                <IceLine label="Contact" value={ice.hasContact ? `${ice.contact.name}
-${ice.contact.phone}` : 'Unknown'} lines={2} />
+                <IceLine
+                  label={contacts.length > 1 ? `Contacts (${contacts.length})` : 'Contact'}
+                  value={
+                    contacts.length > 0
+                      ? contacts.map((c) => `${c.name} · ${c.phone}`).join('\n')
+                      : 'Unknown'
+                  }
+                  lines={2}
+                />
               </View>
               <View style={{ alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                 <View style={{ padding: 6, borderRadius: 12, borderWidth: 1, borderColor: navy[100] }}>
@@ -212,43 +220,68 @@ ${ice.contact.phone}` : 'Unknown'} lines={2} />
       </GestureDetector>
 
       {/* One-tap paths that never depend on the flip */}
-      <View style={{ flexDirection: 'row', gap: 10, marginTop: 14, width: cardW }}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Open emergency ICE card and QR code"
-          onPress={() => router.push('/more/emergency')}
-          style={({ pressed }) => [styles.action, { backgroundColor: red[500], opacity: pressed ? 0.88 : 1 }]}
-        >
-          <ShieldAlert size={18} color="#FFFFFF" />
-          <Txt variant="callout" tone="onNavy" style={{ fontFamily: fonts.semibold, flexShrink: 1 }}>
-            ICE card & QR
-          </Txt>
-        </Pressable>
-        {ice.hasContact ? (
+      <View style={{ gap: 8, marginTop: 14, width: cardW }}>
+        <View style={{ flexDirection: 'row', gap: 10 }}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`Call emergency contact ${ice.contact.name}`}
-            onPress={() => Linking.openURL(`tel:${ice.contact.phone.replace(/\s/g, '')}`)}
-            style={({ pressed }) => [styles.action, styles.actionGhost, { backgroundColor: t.surface, borderColor: t.border, opacity: pressed ? 0.7 : 1 }]}
+            accessibilityLabel="Open emergency ICE card and QR code"
+            onPress={() => router.push('/more/emergency')}
+            style={({ pressed }) => [styles.action, { backgroundColor: red[500], opacity: pressed ? 0.88 : 1 }]}
           >
-            <Phone size={17} color={t.interactive} />
-            <Txt variant="callout" style={{ fontFamily: fonts.semibold, flexShrink: 1 }} numberOfLines={1}>
-              Call {ice.contact.name.split(' ')[0]}
+            <ShieldAlert size={18} color="#FFFFFF" />
+            <Txt variant="callout" tone="onNavy" style={{ fontFamily: fonts.semibold, flexShrink: 1 }}>
+              ICE card & QR
             </Txt>
           </Pressable>
-        ) : (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Add an emergency contact"
-            onPress={() => router.push('/more/profile')}
-            style={({ pressed }) => [styles.action, styles.actionGhost, { backgroundColor: t.surface, borderColor: t.border, opacity: pressed ? 0.7 : 1 }]}
-          >
-            <Txt variant="callout" style={{ fontFamily: fonts.semibold }}>
-              Add contact
-            </Txt>
-            <ChevronRight size={16} color={t.interactive} />
-          </Pressable>
-        )}
+          {contacts.length === 1 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Call emergency contact ${contacts[0].name}`}
+              onPress={() => Linking.openURL(`tel:${contacts[0].phone.replace(/\s/g, '')}`)}
+              style={({ pressed }) => [styles.action, styles.actionGhost, { backgroundColor: t.surface, borderColor: t.border, opacity: pressed ? 0.7 : 1 }]}
+            >
+              <Phone size={17} color={t.interactive} />
+              <Txt variant="callout" style={{ fontFamily: fonts.semibold, flexShrink: 1 }} numberOfLines={1}>
+                Call {contacts[0].name.split(' ')[0]}
+              </Txt>
+            </Pressable>
+          ) : contacts.length === 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Add an emergency contact"
+              onPress={() => router.push('/more/profile')}
+              style={({ pressed }) => [styles.action, styles.actionGhost, { backgroundColor: t.surface, borderColor: t.border, opacity: pressed ? 0.7 : 1 }]}
+            >
+              <Txt variant="callout" style={{ fontFamily: fonts.semibold }}>
+                Add contact
+              </Txt>
+              <ChevronRight size={16} color={t.interactive} />
+            </Pressable>
+          ) : null}
+        </View>
+
+        {contacts.length > 1 ? (
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            {contacts.slice(0, 2).map((c, idx) => (
+              <Pressable
+                key={`${c.name}-${idx}`}
+                accessibilityRole="button"
+                accessibilityLabel={`Call emergency contact ${c.name}`}
+                onPress={() => Linking.openURL(`tel:${c.phone.replace(/\s/g, '')}`)}
+                style={({ pressed }) => [
+                  styles.action,
+                  styles.actionGhost,
+                  { backgroundColor: t.surface, borderColor: t.border, opacity: pressed ? 0.7 : 1 },
+                ]}
+              >
+                <Phone size={16} color={t.interactive} />
+                <Txt variant="callout" style={{ fontFamily: fonts.semibold, flexShrink: 1 }} numberOfLines={1}>
+                  Call {c.name.split(' ')[0]}
+                </Txt>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
       </View>
     </View>
   );
@@ -287,7 +320,7 @@ function IceLine({ label, value, critical, lines = 1 }: { label: string; value: 
       <Txt variant="label" color={navy[300]} style={{ fontSize: 9, letterSpacing: 1.2 }}>
         {label}
       </Txt>
-      <Txt variant="callout" numberOfLines={lines} color={critical ? red[600] : navy[700]} style={{ fontFamily: fonts.bold, fontSize: 14, lineHeight: 18 }}>
+      <Txt variant="callout" numberOfLines={lines} color={critical ? red[600] : navy[700]} style={{ fontFamily: fonts.bold, fontSize: 13, lineHeight: 17 }}>
         {value}
       </Txt>
     </View>

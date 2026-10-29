@@ -1,8 +1,9 @@
-import DateTimePicker from '@react-native-community/datetimepicker';
+import { PlatformDatePicker } from '@/components/ui/PlatformDatePicker';
 import dayjs from 'dayjs';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
+import { safeBack } from '@/lib/navigation';
 import {
   Calendar as CalendarIcon,
   FileText,
@@ -108,7 +109,7 @@ export default function DiaryEditorScreen() {
         linkedAppointmentId,
       });
       toast.show('Note updated', 'success');
-      router.back();
+      safeBack('/(tabs)/diary');
     } else {
       const id = addDiaryNote({
         title: title.trim(),
@@ -179,7 +180,7 @@ export default function DiaryEditorScreen() {
     >
       <ScreenHeader
         title={isEditing ? 'Edit note' : 'Add a note'}
-        onBack={() => router.back()}
+        onBack={() => safeBack('/(tabs)/diary')}
         right={
           <PrimaryButtonSmall label="Save" onPress={handleSave} />
         }
@@ -205,16 +206,17 @@ export default function DiaryEditorScreen() {
             {dayjs(entryDate).format('D MMMM YYYY')}
           </Text>
         </Pressable>
-        {showDatePicker ? (
-          <DateTimePicker
-            value={dayjs(entryDate).toDate()}
-            mode="date"
-            onChange={(_, date) => {
-              setShowDatePicker(false);
-              if (date) setEntryDate(dayjs(date).format('YYYY-MM-DD'));
-            }}
-          />
-        ) : null}
+        <PlatformDatePicker
+          visible={showDatePicker}
+          value={dayjs(entryDate).toDate()}
+          mode="date"
+          title="Select Entry Date"
+          onClose={() => setShowDatePicker(false)}
+          onChange={(date) => {
+            setShowDatePicker(false);
+            if (date) setEntryDate(dayjs(date).format('YYYY-MM-DD'));
+          }}
+        />
 
         <View className="mb-2 flex-row items-center justify-between">
           <Text className="font-sans-semibold text-[13px] text-ink-muted dark:text-slate-400">
@@ -337,16 +339,17 @@ export default function DiaryEditorScreen() {
             trackColor={{ true: accent, false: '#E3E8F0' }}
           />
         </View>
-        {showTimePicker ? (
-          <DateTimePicker
-            value={reminderAt ? dayjs(reminderAt).toDate() : new Date()}
-            mode="time"
-            onChange={(_, date) => {
-              setShowTimePicker(false);
-              if (date) setReminderAt(dayjs(date).toISOString());
-            }}
-          />
-        ) : null}
+        <PlatformDatePicker
+          visible={showTimePicker}
+          value={reminderAt ? dayjs(reminderAt).toDate() : new Date()}
+          mode="time"
+          title="Select Reminder Time"
+          onClose={() => setShowTimePicker(false)}
+          onChange={(date) => {
+            setShowTimePicker(false);
+            if (date) setReminderAt(dayjs(date).toISOString());
+          }}
+        />
 
         <Text className="mb-2 font-sans-semibold text-[13px] text-ink-muted dark:text-slate-400">
           Link to an appointment (optional)

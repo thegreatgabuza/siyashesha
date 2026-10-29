@@ -15,7 +15,8 @@ export interface GeminiResponse {
 }
 
 /**
- * Builds real-time clinical context for the active patient session.
+ * Builds minimized clinical context for the active patient session (never includes
+ * National ID numbers, residential addresses, or emergency contact phone numbers).
  */
 function buildClinicalContext(): string {
   const state = useAppStore.getState();
@@ -46,15 +47,13 @@ function buildClinicalContext(): string {
 
   return `
 PATIENT CLINICAL CONTEXT:
-- Name: ${profile.firstName} ${profile.lastName} (Preferred: ${profile.preferredName || profile.firstName})
-- Date of Birth: ${profile.dateOfBirth}
+- Name: ${profile.preferredName || profile.firstName || 'Patient'}
 - Blood Group: ${profile.bloodGroup || 'O positive'}
 - Allergies: ${allergyList}
 - Chronic Conditions: ${conditionList}
 - Active Prescriptions: ${medList}
 - HbA1c Trends: ${hba1cContext}
 - Medical Vault: ${records.length} records securely stored
-- Emergency Contact: ${profile.emergencyContact?.name || 'Sipho Tebatso'} (${profile.emergencyContact?.relationship || 'Husband'}, ${profile.emergencyContact?.phone || '+27 82 555 0142'})
 `;
 }
 
@@ -66,10 +65,10 @@ YOUR ROLE & TONE:
 - Speak directly to the patient by their preferred name.
 - South African Healthcare Context: Recognize local healthcare pathways (clinic clubs, community health centres / CHCs, repeat scripts, primary health care sister / doctor, emergency dispatch 112 from mobile or 10177 for ambulances).
 
-CLINICAL SAFETY GUARDRAILS (STRICT):
+CLINICAL SAFETY GUARDRAILS & APPLE GUIDELINE 1.4.1 CITATIONS (STRICT):
 1. TRIAGE EMERGENCIES IMMEDIATELY: If symptoms suggest acute emergency (e.g. crushing chest pain, pain radiating to left arm/jaw, acute severe shortness of breath, sudden facial droop/arm weakness/slurred speech, or anaphylactic lip/throat swelling), urge them to immediately call 112 (mobile) or 10177, or go to the nearest emergency department / casualty.
-2. NON-PRESCRIPTIVE: You are an educational digital passport assistant. Never prescribe new medications or change prescription doses. Always advise consulting their treating physician or clinic sister before altering therapy.
-3. EDUCATIONAL & EXPLANATORY: Explain test results (e.g., HbA1c trends), physiological mechanisms in accessible language, and medication timing (e.g., taking Metformin with meals to minimize gastrointestinal discomfort).
+2. NON-PRESCRIPTIVE & PHYSICIAN CONSULTATION REMINDER: You are an educational digital passport assistant, not a medical device. Never prescribe new medications or change prescription doses. Always remind the patient to seek a doctor's or clinic sister's advice in addition to using this app and before making any medical decisions.
+3. EDUCATIONAL & VERIFIABLE SOURCES: When explaining test results (e.g., HbA1c targets) or medications, reference authoritative clinical guidelines such as the South African National Department of Health Standard Treatment Guidelines & Essential Medicines List (SA NDoH STG/EML), SAHPRA, or World Health Organization (WHO) guidelines.
 
 INTERACTIVE CARD TAGS:
 At the very end of your response, on a dedicated line, append one matching card tag if the topic relates to:
@@ -93,11 +92,16 @@ function parseCardTag(replyText: string): { text: string; card?: AssistantCard }
 
 /**
  * Sends conversation to Google Gemini API with clinical context, multi-turn history, and fallback chain.
+ * Strictly requires explicit user AI consent (`aiConsentGranted`) per Apple Guideline 5.1.2(i).
  */
 export async function askGeminiAssistant(
   prompt: string,
   history: AssistantMessage[] = []
 ): Promise<GeminiResponse> {
+  if (!useAppStore.getState().aiConsentGranted) {
+    throw new Error('Cloud AI consent not granted; using on-device offline assistant.');
+  }
+
   const patientContext = buildClinicalContext();
   const systemPrompt = `${SYSTEM_INSTRUCTIONS}\n\n${patientContext}`;
 

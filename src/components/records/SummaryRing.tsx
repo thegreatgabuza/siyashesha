@@ -55,7 +55,7 @@ export function SummaryRing({
             : null}
         </Svg>
         <View className="absolute inset-0 items-center justify-center">
-          <Text style={{ color: RecordsTokens.text, fontSize: 28, fontWeight: '700' }}>{total}</Text>
+          <Text style={{ color: RecordsTokens.text, fontSize: 28, fontFamily: RecordsTokens.fonts.bold }}>{total}</Text>
           <Text style={{ color: RecordsTokens.textMuted, fontSize: RecordsTokens.type.tiny }}>records</Text>
         </View>
       </View>

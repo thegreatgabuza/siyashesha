@@ -1,8 +1,7 @@
-import DateTimePicker from '@react-native-community/datetimepicker';
 import dayjs from 'dayjs';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
-import { router } from 'expo-router';
+import { safeBack } from '@/lib/navigation';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -26,10 +25,12 @@ import {
 import { cloneElement, isValidElement, useState } from 'react';
 
 import { Pill } from '@/components/ui/Pill';
+import { PlatformDatePicker } from '@/components/ui/PlatformDatePicker';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { ScreenScroll } from '@/components/ui/ScreenScroll';
 import { useToast } from '@/components/ui/Toast';
+import { AiConsentModal } from '@/components/security/AiConsentModal';
 import { recordCategories, type MedicalRecord, type RecordCategory, type RecordField } from '@/data/records';
 import { useAccent } from '@/hooks/useAccent';
 import { saveOriginal } from '@/lib/documents';
@@ -43,8 +44,12 @@ export default function UploadRecordScreen() {
   const { accent } = useAccent();
   const toast = useToast();
   const addRecord = useAppStore((s) => s.addRecord);
+  const aiConsentGranted = useAppStore((s) => s.aiConsentGranted);
+  const setAiConsentGranted = useAppStore((s) => s.setAiConsentGranted);
 
   const [method, setMethod] = useState<Method>('upload');
+  const [aiConsentVisible, setAiConsentVisible] = useState(false);
+  const [pendingDocForOcr, setPendingDocForOcr] = useState<{ uri: string; name: string; mimeType: string } | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [picked, setPicked] = useState<{ uri: string; name: string; mimeType: string } | null>(null);
   const [title, setTitle] = useState('');
@@ -109,7 +114,12 @@ export default function UploadRecordScreen() {
           (asset.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream'),
       };
       setPicked(pickedDoc);
-      runOcrExtraction(pickedDoc.uri, pickedDoc.name, pickedDoc.mimeType);
+      if (!aiConsentGranted) {
+        setPendingDocForOcr(pickedDoc);
+        setAiConsentVisible(true);
+      } else {
+        runOcrExtraction(pickedDoc.uri, pickedDoc.name, pickedDoc.mimeType);
+      }
     }
   };
 
@@ -125,7 +135,12 @@ export default function UploadRecordScreen() {
       setFileName(scannedName);
       const pickedDoc = { uri: result.assets[0].uri, name: scannedName, mimeType: 'image/jpeg' };
       setPicked(pickedDoc);
-      runOcrExtraction(pickedDoc.uri, pickedDoc.name, pickedDoc.mimeType);
+      if (!aiConsentGranted) {
+        setPendingDocForOcr(pickedDoc);
+        setAiConsentVisible(true);
+      } else {
+        runOcrExtraction(pickedDoc.uri, pickedDoc.name, pickedDoc.mimeType);
+      }
     }
   };
 
@@ -173,7 +188,7 @@ export default function UploadRecordScreen() {
       return;
     }
     toast.show('Record added to your vault', 'success');
-    router.back();
+    safeBack('/(tabs)/records');
   };
 
   return (
@@ -181,7 +196,7 @@ export default function UploadRecordScreen() {
       className="flex-1 bg-slate-50 dark:bg-canvasdark"
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScreenHeader title="Add a medical record" onBack={() => router.back()} />
+      <ScreenHeader title="Add a medical record" onBack={() => safeBack('/(tabs)/records')} />
       <ScreenScroll className="flex-1 px-5">
         <View className="mb-5 flex-row gap-2">
           <MethodChip label="Upload File" icon={<FileUp size={16} />} active={method === 'upload'} onPress={() => setMethod('upload')} />
@@ -313,17 +328,15 @@ export default function UploadRecordScreen() {
             {dayjs(eventDate).format('D MMMM YYYY')}
           </Text>
         </Pressable>
-        {showDatePicker ? (
-          <DateTimePicker
-            value={dayjs(eventDate).toDate()}
-            mode="date"
-            maximumDate={new Date()}
-            onChange={(_, date) => {
-              setShowDatePicker(false);
-              if (date) setEventDate(dayjs(date).format('YYYY-MM-DD'));
-            }}
-          />
-        ) : null}
+        <PlatformDatePicker
+          visible={showDatePicker}
+          value={dayjs(eventDate).toDate()}
+          mode="date"
+          maximumDate={new Date()}
+          title="Record Event Date"
+          onChange={(date) => setEventDate(dayjs(date).format('YYYY-MM-DD'))}
+          onClose={() => setShowDatePicker(false)}
+        />
 
         <Label text="Facility" />
         <Input value={facility} onChangeText={setFacility} placeholder="e.g. Rosebank Family Practice" />
@@ -351,6 +364,33 @@ export default function UploadRecordScreen() {
 
         <PrimaryButton label="Save record" onPress={handleSave} />
       </ScreenScroll>
+
+      <AiConsentModal
+        visible={aiConsentVisible}
+        featureTitle="Medical Document OCR & Clinical Extraction"
+        onAllowCloudAi={() => {
+          setAiConsentGranted(true);
+          setAiConsentVisible(false);
+          if (pendingDocForOcr) {
+            const doc = pendingDocForOcr;
+            setPendingDocForOcr(null);
+            void runOcrExtraction(doc.uri, doc.name, doc.mimeType);
+          }
+        }}
+        onUseOnDeviceOnly={() => {
+          setAiConsentGranted(false);
+          setAiConsentVisible(false);
+          if (pendingDocForOcr) {
+            const doc = pendingDocForOcr;
+            setPendingDocForOcr(null);
+            void runOcrExtraction(doc.uri, doc.name, doc.mimeType);
+          }
+        }}
+        onClose={() => {
+          setAiConsentVisible(false);
+          setPendingDocForOcr(null);
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }

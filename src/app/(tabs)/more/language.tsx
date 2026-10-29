@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { safeBack } from '@/lib/navigation';
 import { Check } from 'lucide-react-native';
 import { Pressable, Text, View } from 'react-native';
 
@@ -20,7 +20,7 @@ export default function LanguageScreen() {
 
   return (
     <Screen headerOwnsTopInset scroll={false}>
-      <ScreenHeader title="Language" onBack={() => router.back()} />
+      <ScreenHeader title="Language" onBack={() => safeBack('/(tabs)/more')} />
       <ScreenScroll className="flex-1 px-5">
         <View className="mt-2 rounded-[32px] bg-ink p-5 dark:bg-canvasdark-card" style={heroShadow}>
           <View className="flex-row items-center justify-between">

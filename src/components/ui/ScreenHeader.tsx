@@ -1,8 +1,8 @@
-import { router } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 import { Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { safeBack } from '@/lib/navigation';
 import { IconButton } from './IconButton';
 
 export function ScreenHeader({
@@ -24,7 +24,7 @@ export function ScreenHeader({
     >
       <IconButton
         accessibilityLabel="Go back"
-        onPress={onBack ?? (() => router.back())}
+        onPress={onBack ?? (() => safeBack('/(tabs)'))}
       >
         <ChevronLeft size={22} color="#0B2559" />
       </IconButton>

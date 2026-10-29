@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { ShieldCheck } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import Animated, {
@@ -21,13 +22,17 @@ import { milestoneFeedback } from '@/lib/feedback';
 import { completionPercent, stampDefs } from '@/lib/passport';
 import { useAppStore } from '@/store/useAppStore';
 
-const COVER_WIDTH = 300;
+const COVER_WIDTH = 304;
 
 /** Passport reveal: the cover swings open, confetti falls, and the earned stamps appear. */
 export default function RevealScreen() {
   const reduced = useReducedMotion();
   const stamps = useAppStore((s) => s.stamps);
-  const firstName = useAppStore((s) => s.patientProfile.firstName);
+  const draft = useAppStore((s) => s.onboardingDraft);
+  const profileFirstName = useAppStore((s) => s.patientProfile.firstName);
+  const firstName = draft.firstName.trim() || profileFirstName;
+  const fullName = [draft.firstName.trim(), draft.lastName.trim()].filter(Boolean).join(' ') || firstName || 'Your Passport';
+
   const [animatedOpen, setAnimatedOpen] = useState(false);
   // With reduced motion the passport is shown open straight away.
   const opened = animatedOpen || !!reduced;
@@ -58,25 +63,47 @@ export default function RevealScreen() {
 
   return (
     <OnboardingShell
-      showBack={false}
-      footer={<ChunkyButton label="Continue" onPress={() => router.push('/(onboarding)/notifications' as any)} />}
+      step={8}
+      totalSteps={8}
+      stepLabel="Passport Ready"
+      footer={
+        <ChunkyButton
+          label="Continue to Final Step"
+          onPress={() => router.push('/(onboarding)/paywall' as any)}
+        />
+      }
     >
-      <View className="items-center gap-5 py-2">
-        <Mascot mood="cheer" size={96} />
-        <SpeechBubble>{firstName ? `Your passport is ready, ${firstName}.` : 'Your passport is ready.'}</SpeechBubble>
+      <View className="items-center gap-4 py-2">
+        <Mascot mood="cheer" size={84} />
+        <SpeechBubble subtitle="You can earn any remaining stamps anytime inside the app.">
+          {firstName ? `Congratulations, ${firstName}! Your Health Passport is built.` : 'Your Health Passport is built!'}
+        </SpeechBubble>
 
-        <View style={{ width: COVER_WIDTH, height: 380 }} className="overflow-hidden rounded-3xl">
+        <View
+          style={{ width: COVER_WIDTH, height: 390 }}
+          className="overflow-hidden rounded-3xl border border-slate-200/90 shadow-sm dark:border-slate-700"
+        >
           {/* Inside page, revealed as the cover opens */}
           <View className="absolute inset-0 justify-between rounded-3xl bg-white p-5 dark:bg-canvasdark-card">
             <View>
-              <Text className="font-sans-semibold text-[11px] uppercase tracking-[1.5px] text-ink-muted dark:text-slate-400">
-                Health Passport
-              </Text>
-              <Text className="mt-1 font-sans-bold text-[22px] text-ink dark:text-slate-50">
-                {firstName || 'Your passport'}
-              </Text>
-              <Text className="mt-1 font-sans text-[13px] text-ink-muted dark:text-slate-400">
-                {percent}% complete
+              <View className="flex-row items-center justify-between">
+                <View className="flex-row items-center gap-1.5">
+                  <ShieldCheck size={14} color="#16A34A" />
+                  <Text className="font-sans-bold text-[10px] uppercase tracking-[1.4px] text-success-600 dark:text-emerald-400">
+                    Verified Health Passport
+                  </Text>
+                </View>
+                {draft.bloodGroup ? (
+                  <View className="rounded-full bg-emergency-50 px-2.5 py-0.5 dark:bg-emergency-500/20">
+                    <Text className="font-sans-bold text-[11px] text-emergency-600 dark:text-red-300">
+                      Blood: {draft.bloodGroup}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+              <Text className="mt-1.5 font-sans-bold text-[21px] text-ink dark:text-slate-50">{fullName}</Text>
+              <Text className="mt-0.5 font-sans text-[12px] text-ink-muted dark:text-slate-400">
+                {stamps.length} of {stampDefs.length} readiness stamps earned ({percent}%)
               </Text>
             </View>
             <View className="flex-row flex-wrap justify-between gap-y-3">
@@ -89,18 +116,20 @@ export default function RevealScreen() {
           {/* Cover */}
           <Animated.View
             style={[coverStyle, { position: 'absolute', inset: 0, backfaceVisibility: 'hidden' }]}
-            className="items-center justify-center rounded-3xl bg-ink dark:bg-brand-400"
+            className="items-center justify-center rounded-3xl bg-ink dark:bg-brand-500"
             accessibilityLabel="Passport cover"
           >
-            <Mascot mood="welcome" size={120} />
-            <Text className="mt-3 font-display text-[30px] text-white">SIYASHESHA</Text>
-            <Text className="font-sans-semibold text-[10px] uppercase text-white/70" style={{ letterSpacing: 3 }}>
-              Health Passport
+            <Mascot mood="welcome" size={116} />
+            <Text className="mt-3 font-display text-[32px] text-white">SIYASHESHA</Text>
+            <Text className="font-sans-semibold text-[10px] uppercase text-white/75" style={{ letterSpacing: 3 }}>
+              Republic of South Africa · Health Vault
             </Text>
           </Animated.View>
         </View>
 
-        {!opened ? <Text className="font-sans text-[12px] text-ink-muted dark:text-slate-400">Opening…</Text> : null}
+        {!opened ? (
+          <Text className="font-sans text-[12px] text-ink-muted dark:text-slate-400">Opening your passport…</Text>
+        ) : null}
       </View>
 
       <Confetti active={opened} />

@@ -1,11 +1,12 @@
-import DateTimePicker from '@react-native-community/datetimepicker';
 import dayjs from 'dayjs';
-import { router, useLocalSearchParams } from 'expo-router';
+import { safeBack } from '@/lib/navigation';
+import { useLocalSearchParams } from 'expo-router';
 import { Calendar as CalendarIcon } from 'lucide-react-native';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from 'react-native';
 
 import { Pill } from '@/components/ui/Pill';
+import { PlatformDatePicker } from '@/components/ui/PlatformDatePicker';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenScroll } from '@/components/ui/ScreenScroll';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
@@ -32,7 +33,7 @@ export default function EditRecordScreen() {
   if (!record) {
     return (
       <View className="flex-1 bg-slate-50 dark:bg-canvasdark">
-        <ScreenHeader title="Edit record" onBack={() => router.back()} />
+        <ScreenHeader title="Edit record" onBack={() => safeBack('/(tabs)/records')} />
         <Text className="px-5 font-sans text-ink-muted dark:text-slate-400">This record could not be found.</Text>
       </View>
     );
@@ -63,12 +64,12 @@ export default function EditRecordScreen() {
       logAudit('edit', `Edited ${changed.join(', ')} of ${title.trim()}`);
     }
     toast.show('Record details saved', 'success');
-    router.back();
+    safeBack('/(tabs)/records');
   };
 
   return (
     <KeyboardAvoidingView className="flex-1 bg-slate-50 dark:bg-canvasdark" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScreenHeader title="Edit record" onBack={() => router.back()} />
+      <ScreenHeader title="Edit record" onBack={() => safeBack('/(tabs)/records')} />
       <ScreenScroll className="flex-1 px-5">
         <Label text="Title" />
         <Input value={title} onChangeText={setTitle} placeholder="e.g. HbA1c laboratory report" />
@@ -90,17 +91,15 @@ export default function EditRecordScreen() {
           <CalendarIcon size={16} color="#5B6478" />
           <Text className="font-sans text-[14px] text-ink dark:text-slate-50">{dayjs(eventDate).format('D MMMM YYYY')}</Text>
         </Pressable>
-        {showDatePicker ? (
-          <DateTimePicker
-            value={dayjs(eventDate).toDate()}
-            mode="date"
-            maximumDate={new Date()}
-            onChange={(_, date) => {
-              setShowDatePicker(false);
-              if (date) setEventDate(dayjs(date).format('YYYY-MM-DD'));
-            }}
-          />
-        ) : null}
+        <PlatformDatePicker
+          visible={showDatePicker}
+          value={dayjs(eventDate).toDate()}
+          mode="date"
+          maximumDate={new Date()}
+          title="Record Event Date"
+          onChange={(date) => setEventDate(dayjs(date).format('YYYY-MM-DD'))}
+          onClose={() => setShowDatePicker(false)}
+        />
 
         <Label text="Facility" />
         <Input value={facility} onChangeText={setFacility} placeholder="e.g. Rosebank Family Practice" />

@@ -1,5 +1,6 @@
 import dayjs from 'dayjs';
 import { router } from 'expo-router';
+import { safeBack } from '@/lib/navigation';
 import { Activity, Clock, Plus, TrendingDown, TrendingUp } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
@@ -76,7 +77,7 @@ export default function TimelineScreen() {
     <Screen headerOwnsTopInset scroll={false}>
       <ScreenHeader
         title="Health Timeline"
-        onBack={() => router.back()}
+        onBack={() => safeBack('/(tabs)/more')}
         right={
           <IconButton
             accessibilityLabel="Upload medical record"

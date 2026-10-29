@@ -1,3 +1,4 @@
+import { StatusBar } from 'expo-status-bar';
 import {
   Inter_400Regular,
   Inter_500Medium,
@@ -16,7 +17,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import '@/global.css';
 import { BiometricGate } from '@/components/security/BiometricGate';
 import { ToastProvider } from '@/components/ui/Toast';
-import { useSyncColorScheme } from '@/hooks/useColorSchemePreference';
+import { useEffectiveColorScheme, useSyncColorScheme } from '@/hooks/useColorSchemePreference';
 import { tokenCache } from '@/lib/clerkTokenCache';
 import { todayKey } from '@/lib/date';
 import { getNotifications } from '@/lib/notify';
@@ -30,6 +31,8 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   const isSignedIn = useAppStore((s) => s.isSignedIn);
   const hasCompletedOnboarding = useAppStore((s) => s.hasCompletedOnboarding);
+  const colorScheme = useEffectiveColorScheme();
+  const isDark = colorScheme === 'dark';
   useSyncColorScheme();
 
   // Keep scheduled reminders in step with the saved settings on every launch.
@@ -114,6 +117,7 @@ export default function RootLayout() {
   const content = (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
+        <StatusBar style={isDark ? 'light' : 'dark'} />
         <ToastProvider>
           <BiometricGate>
             <Stack screenOptions={{ headerShown: false }}>

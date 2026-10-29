@@ -167,7 +167,7 @@ export default function RecordsScreen() {
           {/* 0: header */}
           <View className="flex-row items-center justify-between pb-4">
             <View>
-              <Text style={{ color: RecordsTokens.text, fontSize: RecordsTokens.type.title, fontWeight: '700' }}>Medical Records</Text>
+              <Text style={{ color: RecordsTokens.text, fontSize: RecordsTokens.type.title, fontFamily: RecordsTokens.fonts.bold }}>Medical Records</Text>
               <Text style={{ color: RecordsTokens.textMuted, fontSize: RecordsTokens.type.meta }}>
                 {records.length} {records.length === 1 ? 'record' : 'records'}
               </Text>
@@ -194,7 +194,7 @@ export default function RecordsScreen() {
                 }}
               >
                 <FileDown size={18} color="#FFFFFF" />
-                <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '700' }}>Export</Text>
+                <Text style={{ color: '#FFFFFF', fontSize: 13, fontFamily: RecordsTokens.fonts.bold }}>Export</Text>
               </PressableScale>
               <Pressable
                 accessibilityRole="button"
@@ -301,7 +301,7 @@ export default function RecordsScreen() {
 
           {/* 3: sort line */}
           <View className="flex-row items-center justify-between pb-3 pt-2">
-            <Text style={{ color: RecordsTokens.text, fontSize: 16, fontWeight: '700' }}>
+            <Text style={{ color: RecordsTokens.text, fontSize: 16, fontFamily: RecordsTokens.fonts.bold }}>
               {filtersActive ? `Showing ${visible.length} of ${records.length}` : view === 'catalog' ? 'Catalog' : 'Recent records'}
             </Text>
             <Pressable
@@ -311,7 +311,7 @@ export default function RecordsScreen() {
               className="min-h-[44px] flex-row items-center gap-1 rounded-full px-3"
               style={{ backgroundColor: RecordsTokens.surface, ...RecordsTokens.shadow }}
             >
-              <Text style={{ color: RecordsTokens.text, fontSize: RecordsTokens.type.meta, fontWeight: '600' }}>{sortLabel}</Text>
+              <Text style={{ color: RecordsTokens.text, fontSize: RecordsTokens.type.meta, fontFamily: RecordsTokens.fonts.semibold }}>{sortLabel}</Text>
               <Text style={{ color: RecordsTokens.textMuted, fontSize: 10 }}>▼</Text>
             </Pressable>
           </View>
@@ -324,7 +324,7 @@ export default function RecordsScreen() {
               <View className="h-14 w-14 items-center justify-center rounded-full" style={{ backgroundColor: RecordsTokens.accentSoft }}>
                 <FileText size={26} color={RecordsTokens.accent} />
               </View>
-              <Text style={{ color: RecordsTokens.text, fontSize: 17, fontWeight: '700' }}>No medical records yet</Text>
+              <Text style={{ color: RecordsTokens.text, fontSize: 17, fontFamily: RecordsTokens.fonts.bold }}>No medical records yet</Text>
               <Text className="text-center" style={{ color: RecordsTokens.textMuted, fontSize: RecordsTokens.type.meta }}>
                 Upload a document, scan one, or add a record by hand.
               </Text>
@@ -335,12 +335,12 @@ export default function RecordsScreen() {
                 className="min-h-[44px] justify-center rounded-full px-6"
                 style={{ backgroundColor: RecordsTokens.accent }}
               >
-                <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 15 }}>Add a record</Text>
+                <Text style={{ color: '#FFFFFF', fontFamily: RecordsTokens.fonts.bold, fontSize: 15 }}>Add a record</Text>
               </Pressable>
             </View>
           ) : visible.length === 0 ? (
             <View className="items-center gap-3 p-8" style={{ backgroundColor: RecordsTokens.surface, borderRadius: RecordsTokens.radius.card, ...RecordsTokens.shadow }}>
-              <Text style={{ color: RecordsTokens.text, fontSize: 17, fontWeight: '700' }}>
+              <Text style={{ color: RecordsTokens.text, fontSize: 17, fontFamily: RecordsTokens.fonts.bold }}>
                 {search.trim() ? `No records match "${search.trim()}"` : `No ${category} records`}
               </Text>
               <Text className="text-center" style={{ color: RecordsTokens.textMuted, fontSize: RecordsTokens.type.meta }}>
@@ -356,7 +356,7 @@ export default function RecordsScreen() {
                 className="min-h-[44px] justify-center rounded-full px-6"
                 style={{ backgroundColor: RecordsTokens.accent }}
               >
-                <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 15 }}>
+                <Text style={{ color: '#FFFFFF', fontFamily: RecordsTokens.fonts.bold, fontSize: 15 }}>
                   {search.trim() ? 'Clear search' : 'Show all records'}
                 </Text>
               </Pressable>
@@ -370,7 +370,7 @@ export default function RecordsScreen() {
               {groups.map((group) => (
                 <View key={group.label || 'all'} className="gap-3 pb-4">
                   {group.label ? (
-                    <Text style={{ color: RecordsTokens.textMuted, fontSize: RecordsTokens.type.meta, fontWeight: '600' }}>
+                    <Text style={{ color: RecordsTokens.textMuted, fontSize: RecordsTokens.type.meta, fontFamily: RecordsTokens.fonts.semibold }}>
                       {group.label} · {group.records.length}
                     </Text>
                   ) : null}

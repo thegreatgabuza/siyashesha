@@ -7,14 +7,136 @@
     "icon": "./assets/images/icon.png",
     "scheme": "siyashesha",
     "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "za.co.siyashesha.healthpassport",
+      "buildNumber": "1",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "Siyashesha uses your camera so you can scan paper prescriptions, lab reports, and discharge summaries into your encrypted health passport.",
+        "NSPhotoLibraryUsageDescription": "Siyashesha accesses your photo library when you choose to upload an existing photo of a medical record, lab result, or prescription into your health vault.",
+        "NSPhotoLibraryAddUsageDescription": "Siyashesha saves exported health summaries and emergency QR cards to your photo library when requested.",
+        "NSContactsUsageDescription": "Siyashesha accesses your contacts only when you choose to import an emergency contact (ICE) name and phone number for paramedics and first responders.",
+        "NSMicrophoneUsageDescription": "Siyashesha uses your microphone only when you record voice dictation notes in your personal Health Diary.",
+        "NSFaceIDUsageDescription": "Siyashesha uses Face ID to lock and unlock your encrypted medical records and authorize sensitive actions such as clinician sharing."
+      },
+      "privacyManifests": {
+        "NSPrivacyTracking": false,
+        "NSPrivacyTrackingDomains": [],
+        "NSPrivacyCollectedDataTypes": [
+          {
+            "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeHealth",
+            "NSPrivacyCollectedDataTypeLinked": true,
+            "NSPrivacyCollectedDataTypeTracking": false,
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
+          },
+          {
+            "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeEmailAddress",
+            "NSPrivacyCollectedDataTypeLinked": true,
+            "NSPrivacyCollectedDataTypeTracking": false,
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
+          },
+          {
+            "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeName",
+            "NSPrivacyCollectedDataTypeLinked": true,
+            "NSPrivacyCollectedDataTypeTracking": false,
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
+          },
+          {
+            "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypePhoneNumber",
+            "NSPrivacyCollectedDataTypeLinked": true,
+            "NSPrivacyCollectedDataTypeTracking": false,
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
+          }
+        ],
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "CA92.1"
+            ]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryFileTimestamp",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "C617.1"
+            ]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategorySystemBootTime",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "35F9.1"
+            ]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryDiskSpace",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "E174.1"
+            ]
+          }
+        ]
+      },
+      "associatedDomains": [
+        "applinks:siyashesha.co.za"
+      ]
+    },
     "android": {
+      "package": "za.co.siyashesha.healthpassport",
+      "versionCode": 1,
+      "allowBackup": false,
       "adaptiveIcon": {
         "backgroundColor": "#F1EEFC",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_CONTACTS",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.VIBRATE",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.POST_NOTIFICATIONS"
+      ],
+      "blockedPermissions": [
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "siyashesha.co.za",
+              "pathPrefix": "/"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "web": {
       "output": "static",
@@ -36,24 +158,55 @@
       [
         "expo-local-authentication",
         {
-          "faceIDPermission": "Allow Siyashesha to use Face ID to lock your health passport."
+          "faceIDPermission": "Siyashesha uses Face ID to lock and unlock your encrypted medical records and authorize sensitive actions."
         }
       ],
       "expo-secure-store",
       [
         "expo-audio",
         {
-          "microphonePermission": "Allow Siyashesha to use your microphone for voice dictation in My Diary."
+          "microphonePermission": "Siyashesha uses your microphone only when you record voice dictation notes in your personal Health Diary."
         }
       ],
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Siyashesha accesses your contacts only when you choose to import an emergency contact (ICE) name and phone number."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Siyashesha uses your camera so you can scan paper prescriptions, lab reports, and discharge summaries into your encrypted health passport.",
+          "photosPermission": "Siyashesha accesses your photo library when you choose to upload an existing photo of a medical record or prescription."
+        }
+      ],
+      "expo-document-picker",
       "expo-asset",
       "expo-image",
       "expo-status-bar",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#0B2559"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "androidStatusBar": {
+      "barStyle": "dark-content",
+      "backgroundColor": "#00000000",
+      "translucent": true
+    },
+    "androidNavigationBar": {
+      "barStyle": "dark-content",
+      "backgroundColor": "#F8FAFC",
+      "visible": "leanback"
     }
   }
 }

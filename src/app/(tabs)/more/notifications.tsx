@@ -1,7 +1,8 @@
-import DateTimePicker from '@react-native-community/datetimepicker';
+import { PlatformDatePicker } from '@/components/ui/PlatformDatePicker';
 import dayjs from 'dayjs';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
+import { safeBack } from '@/lib/navigation';
 import {
   AlertTriangle,
   BellRing,
@@ -249,7 +250,7 @@ export default function NotificationsScreen() {
 
   return (
     <Screen headerOwnsTopInset scroll={false}>
-      <ScreenHeader title="Notifications" onBack={() => router.back()} />
+      <ScreenHeader title="Notifications" onBack={() => safeBack('/(tabs)/more')} />
       <ScreenScroll className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 64 }}>
         {/* Summary Card */}
         <View className="mt-2 rounded-[32px] bg-ink p-5 dark:bg-canvasdark-card" style={heroShadow}>
@@ -698,16 +699,17 @@ export default function NotificationsScreen() {
                 {time ? dayjs(`2000-01-01T${time}`).format('h:mm A') : 'Choose a time, every day'}
               </Text>
             </Pressable>
-            {showTimePicker ? (
-              <DateTimePicker
-                value={dayjs(`2000-01-01T${time ?? '08:00'}`).toDate()}
-                mode="time"
-                onChange={(_, date) => {
-                  setShowTimePicker(false);
-                  if (date) setTime(dayjs(date).format('HH:mm'));
-                }}
-              />
-            ) : null}
+            <PlatformDatePicker
+              visible={showTimePicker}
+              value={dayjs(`2000-01-01T${time ?? '08:00'}`).toDate()}
+              mode="time"
+              title="Select Reminder Time"
+              onClose={() => setShowTimePicker(false)}
+              onChange={(date) => {
+                setShowTimePicker(false);
+                if (date) setTime(dayjs(date).format('HH:mm'));
+              }}
+            />
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Add reminder"

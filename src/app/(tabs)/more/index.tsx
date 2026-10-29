@@ -11,12 +11,16 @@ import {
   Settings as SettingsIcon,
   Share2,
   ShieldAlert,
+  Trash2,
   UserRound,
   FileText,
   PhoneCall,
 } from 'lucide-react-native';
+import { useState } from 'react';
 import { Alert, Linking, View } from 'react-native';
 
+import { AccountDeletionModal } from '@/components/security/AccountDeletionModal';
+import { DsarExportModal } from '@/components/security/DsarExportModal';
 import { Avatar } from '@/components/ui/Avatar';
 import { BrandLockup } from '@/components/ui/BrandLockup';
 import { PressableScale } from '@/components/ui/PressableScale';
@@ -57,8 +61,20 @@ export default function MoreScreen() {
   const medications = useAppStore((s) => s.medications);
   const activeMedCount = (medications ?? activeMedications).filter((m) => m.status === 'active').length;
   const language = useAppStore((s) => s.language);
+  const subscriptionPlan = useAppStore((s) => s.subscriptionPlan);
   const signOut = useAppStore((s) => s.signOut);
   const { signOut: clerkSignOut } = useClerk();
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [dsarVisible, setDsarVisible] = useState(false);
+
+  const planSummary =
+    subscriptionPlan === 'annual_premium'
+      ? { subtitle: 'Annual Pro (R150/yr) · Active', badge: 'Annual Pro' }
+      : subscriptionPlan === 'monthly_premium'
+      ? { subtitle: 'Monthly Pro (R20/mo) · Active', badge: 'R20/mo' }
+      : subscriptionPlan === 'lifetime_premium'
+      ? { subtitle: 'Lifetime Founder Pass · Active', badge: 'Lifetime' }
+      : { subtitle: 'Free Basic Plan (R0) · Upgrade anytime', badge: 'Free' };
 
   const confirmSignOut = () => {
     Alert.alert(
@@ -109,12 +125,12 @@ export default function MoreScreen() {
         {
           id: 'billing',
           label: 'Subscription & Billing',
-          subtitle: 'Monthly Premium (R20/mo) · Renews 15 Nov',
+          subtitle: planSummary.subtitle,
           icon: CreditCard,
           route: '/more/billing',
           tint: '#0E7490',
-          badge: 'R20/mo',
-          badgeTone: 'success',
+          badge: planSummary.badge,
+          badgeTone: subscriptionPlan === 'free' ? 'muted' : 'success',
         },
         {
           id: 'emergency',
@@ -214,6 +230,15 @@ export default function MoreScreen() {
           icon: LogOut,
           onPress: confirmSignOut,
           tint: '#EF4444',
+          destructive: true,
+        },
+        {
+          id: 'delete_account',
+          label: 'Delete Account & Erase Data',
+          subtitle: 'Permanently delete your account & all health records',
+          icon: Trash2,
+          onPress: () => setDeleteModalVisible(true),
+          tint: '#DC1F26',
           destructive: true,
         },
       ],
@@ -385,6 +410,13 @@ export default function MoreScreen() {
           Protected by End-to-End Encryption & POPIA Compliance
         </Txt>
       </View>
+
+      <DsarExportModal visible={dsarVisible} onClose={() => setDsarVisible(false)} />
+      <AccountDeletionModal
+        visible={deleteModalVisible}
+        onClose={() => setDeleteModalVisible(false)}
+        onOpenDsarExport={() => setDsarVisible(true)}
+      />
     </Screen>
   );
 }

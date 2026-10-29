@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
+import * as Crypto from 'expo-crypto';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
 import type { MedicalRecord } from '@/data/records';
@@ -10,6 +12,8 @@ import type { Medication } from '@/data/medications';
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
 export const BUCKET_NAME = process.env.EXPO_PUBLIC_SUPABASE_STORAGE_BUCKET || 'medical-records';
+
+const DEVICE_USER_ID_KEY = 'siyashesha_tenant_user_id_v1';
 
 export const isSupabaseConfigured = Boolean(
   supabaseUrl &&
@@ -47,14 +51,115 @@ const ssrSafeStorage = {
   },
 };
 
-export const supabase = createClient(supabaseUrl || 'https://placeholder.supabase.co', supabaseAnonKey || 'placeholder', {
-  auth: {
-    storage: ssrSafeStorage,
-    autoRefreshToken: !isServer,
-    persistSession: !isServer,
-    detectSessionInUrl: false,
-  },
-});
+/**
+ * Active authenticated user context (Clerk user ID + session token provider).
+ * Falls back to a unique cryptographic per-install tenant UUID stored in SecureStore
+ * when the user is in offline/guided mode without an active Clerk session, ensuring
+ * two devices or users never share a global 'default_patient' ID.
+ */
+let activeAuthUserId: string | null = null;
+let activeTokenGetter: (() => Promise<string | null>) | null = null;
+let cachedDeviceUserId: string | null = null;
+
+export function setSupabaseAuthContext(params: {
+  userId?: string | null;
+  getToken?: (() => Promise<string | null>) | null;
+}): void {
+  activeAuthUserId = params.userId?.trim() || null;
+  activeTokenGetter = params.getToken ?? null;
+}
+
+/**
+ * Resolves the current isolated user ID for row-level security (`user_id`) and
+ * private storage folder paths (`<user_id>/records/...`).
+ */
+export async function getCurrentUserId(): Promise<string> {
+  if (activeAuthUserId) {
+    return activeAuthUserId;
+  }
+
+  if (cachedDeviceUserId) {
+    return cachedDeviceUserId;
+  }
+
+  if (isServer) {
+    return 'ssr-unauthenticated';
+  }
+
+  try {
+    if (Platform.OS !== 'web') {
+      const existing = await SecureStore.getItemAsync(DEVICE_USER_ID_KEY);
+      if (existing) {
+        cachedDeviceUserId = existing;
+        return existing;
+      }
+      const generated = `usr_${Crypto.randomUUID()}`;
+      await SecureStore.setItemAsync(DEVICE_USER_ID_KEY, generated);
+      cachedDeviceUserId = generated;
+      return generated;
+    } else {
+      const existing = await AsyncStorage.getItem(DEVICE_USER_ID_KEY);
+      if (existing) {
+        cachedDeviceUserId = existing;
+        return existing;
+      }
+      const generated = `usr_${Crypto.randomUUID()}`;
+      await AsyncStorage.setItem(DEVICE_USER_ID_KEY, generated);
+      cachedDeviceUserId = generated;
+      return generated;
+    }
+  } catch {
+    const fallback = `usr_${Crypto.randomUUID()}`;
+    cachedDeviceUserId = fallback;
+    return fallback;
+  }
+}
+
+/**
+ * Custom fetch wrapper that injects the active Clerk session JWT (when signed in)
+ * and the isolated `x-siyashesha-user-id` header consumed by `public.requesting_user_id()`
+ * in Supabase RLS policies.
+ */
+const authenticatedSupabaseFetch: typeof fetch = async (input, init) => {
+  const headers = new Headers(init?.headers);
+  const userId = await getCurrentUserId();
+
+  if (userId) {
+    headers.set('x-siyashesha-user-id', userId);
+  }
+
+  if (activeTokenGetter) {
+    try {
+      const token = await activeTokenGetter();
+      if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
+      }
+    } catch {
+      // Keep default anon key Authorization if Clerk token retrieval fails
+    }
+  }
+
+  return fetch(input, {
+    ...init,
+    headers,
+  });
+};
+
+export const supabase = createClient(
+  supabaseUrl || 'https://placeholder.supabase.co',
+  supabaseAnonKey || 'placeholder',
+  {
+    auth: {
+      storage: ssrSafeStorage,
+      autoRefreshToken: !isServer,
+      persistSession: !isServer,
+      detectSessionInUrl: false,
+    },
+    global: {
+      fetch: authenticatedSupabaseFetch,
+    },
+  }
+);
 
 export interface StorageUploadResult {
   remoteUrl: string;
@@ -107,7 +212,12 @@ export async function checkSupabaseConnection(): Promise<ConnectionStatus> {
   }
 
   try {
-    const { error: tableErr } = await supabase.from('medical_records').select('id').limit(1);
+    const userId = await getCurrentUserId();
+    const { error: tableErr } = await supabase
+      .from('medical_records')
+      .select('id')
+      .eq('user_id', userId)
+      .limit(1);
     dbReady = !tableErr;
   } catch {
     dbReady = false;
@@ -128,8 +238,9 @@ export async function checkSupabaseConnection(): Promise<ConnectionStatus> {
 }
 
 /**
- * Uploads a medical record file (PDF, image, scan) to Supabase Storage bucket 'medical-records'.
- * Returns public URL and storage path on success, or null on failure (preserving offline flow).
+ * Uploads a medical record file (PDF, image, scan) to the private Supabase Storage bucket
+ * 'medical-records' inside the current user's isolated folder (`<userId>/records/...`).
+ * Returns a time-limited signed URL and storage path on success, or null on failure.
  */
 export async function uploadRecordFile(
   localUri: string,
@@ -141,9 +252,12 @@ export async function uploadRecordFile(
   }
 
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) return null;
+
     const sanitizedName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
     const timestamp = Date.now();
-    const storagePath = `records/${timestamp}_${sanitizedName}`;
+    const storagePath = `${userId}/records/${timestamp}_${sanitizedName}`;
 
     let bodyData: ArrayBuffer | Blob;
 
@@ -169,9 +283,13 @@ export async function uploadRecordFile(
       return null;
     }
 
-    const { data: urlData } = supabase.storage.from(BUCKET_NAME).getPublicUrl(storagePath);
+    // Create a signed URL since the medical-records bucket is private
+    const { data: signedData } = await supabase.storage
+      .from(BUCKET_NAME)
+      .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
+
     return {
-      remoteUrl: urlData.publicUrl,
+      remoteUrl: signedData?.signedUrl ?? '',
       storagePath,
     };
   } catch (err) {
@@ -181,14 +299,19 @@ export async function uploadRecordFile(
 }
 
 /**
- * Syncs a single medical record's metadata to the 'medical_records' table.
+ * Syncs a single medical record's metadata to the 'medical_records' table,
+ * strictly scoped to the current authenticated user's `user_id`.
  */
 export async function syncRecordToDatabase(record: MedicalRecord): Promise<boolean> {
   if (!isSupabaseConfigured) return false;
 
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) return false;
+
     const row = {
       id: record.id,
+      user_id: userId,
       category: record.category,
       title: record.title,
       facility: record.facility,
@@ -223,16 +346,23 @@ export async function syncRecordToDatabase(record: MedicalRecord): Promise<boole
 }
 
 /**
- * Removes a record and its cloud storage file if present.
+ * Removes a single record and its private cloud storage file if owned by the current user.
  */
 export async function deleteRecordFromDatabase(id: string, storagePath?: string): Promise<boolean> {
   if (!isSupabaseConfigured) return false;
 
   try {
-    if (storagePath) {
+    const userId = await getCurrentUserId();
+    if (!userId) return false;
+
+    if (storagePath && storagePath.startsWith(`${userId}/`)) {
       await supabase.storage.from(BUCKET_NAME).remove([storagePath]).catch(() => {});
     }
-    const { error } = await supabase.from('medical_records').delete().eq('id', id);
+    const { error } = await supabase
+      .from('medical_records')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', userId);
     return !error;
   } catch {
     return false;
@@ -240,15 +370,19 @@ export async function deleteRecordFromDatabase(id: string, storagePath?: string)
 }
 
 /**
- * Fetches all medical records stored in the cloud database.
+ * Fetches medical records belonging strictly to the current user.
  */
 export async function fetchRecordsFromDatabase(): Promise<MedicalRecord[] | null> {
   if (!isSupabaseConfigured) return null;
 
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) return null;
+
     const { data, error } = await supabase
       .from('medical_records')
       .select('*')
+      .eq('user_id', userId)
       .order('event_date', { ascending: false });
 
     if (error || !data) {
@@ -286,14 +420,25 @@ export async function fetchRecordsFromDatabase(): Promise<MedicalRecord[] | null
 }
 
 /**
- * Syncs the active patient profile to Supabase.
+ * Syncs the active patient profile to Supabase scoped to the current user's `user_id`.
  */
 export async function syncPatientProfile(profile: PatientProfile): Promise<boolean> {
   if (!isSupabaseConfigured) return false;
 
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) return false;
+
+    const contacts =
+      profile.emergencyContacts && profile.emergencyContacts.length > 0
+        ? profile.emergencyContacts
+        : profile.emergencyContact
+        ? [profile.emergencyContact]
+        : [];
+
     const row = {
-      id: profile.idNumber || 'default_patient',
+      id: userId,
+      user_id: userId,
       first_name: profile.firstName,
       last_name: profile.lastName,
       preferred_name: profile.preferredName ?? null,
@@ -302,7 +447,7 @@ export async function syncPatientProfile(profile: PatientProfile): Promise<boole
       blood_group: profile.bloodGroup ?? null,
       allergies: profile.allergies ?? [],
       conditions: profile.chronicConditions ?? [],
-      emergency_contacts: profile.emergencyContact ? [profile.emergencyContact] : [],
+      emergency_contacts: contacts,
       primary_facility: 'Rosebank Family Practice',
       updated_at: new Date().toISOString(),
     };
@@ -317,14 +462,18 @@ export async function syncPatientProfile(profile: PatientProfile): Promise<boole
 export { syncPatientProfile as syncPatientProfileToDatabase };
 
 /**
- * Syncs active medications to Supabase.
+ * Syncs active medications to Supabase scoped to the current user's `user_id`.
  */
 export async function syncMedications(medications: Medication[]): Promise<boolean> {
   if (!isSupabaseConfigured) return false;
 
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) return false;
+
     const rows = medications.map((m) => ({
-      id: m.id,
+      id: `${userId}_${m.id}`,
+      user_id: userId,
       name: m.name,
       dose: m.strength,
       frequency: m.frequency,
@@ -355,9 +504,13 @@ export async function syncPushTokenToBackend(params: {
   if (!isSupabaseConfigured) return false;
 
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) return false;
+
     const row = {
-      id: `${params.patientId}_${params.token.slice(-12).replace(/[^a-zA-Z0-9]/g, '')}`,
-      patient_id: params.patientId,
+      id: `${userId}_${params.token.slice(-12).replace(/[^a-zA-Z0-9]/g, '')}`,
+      user_id: userId,
+      patient_id: userId,
       expo_push_token: params.token,
       device_os: params.deviceOs ?? Platform.OS,
       device_name: params.deviceName ?? null,
@@ -407,10 +560,13 @@ export async function syncRemindersToBackend(
 
   try {
     if (reminders.length === 0) return true;
+    const userId = await getCurrentUserId();
+    if (!userId) return false;
 
     const rows = reminders.map((r) => ({
-      id: r.id,
-      patient_id: patientId,
+      id: `${userId}_${r.id}`,
+      user_id: userId,
+      patient_id: userId,
       reminder_type: r.reminderType,
       title: r.title,
       body: r.body,
@@ -434,34 +590,48 @@ export async function syncRemindersToBackend(
 }
 
 /**
- * Permanently removes all records, files, reminders, and profile data from Supabase
- * in compliance with POPIA Section 24 and HIPAA Right to Erasure.
+ * Permanently removes ONLY the current authenticated user's records, files, reminders,
+ * and profile data from Supabase in compliance with POPIA Section 24 and HIPAA Right to Erasure.
  */
 export async function eraseAllCloudData(): Promise<{ success: boolean; error?: string }> {
   if (!isSupabaseConfigured) return { success: true };
 
   try {
-    // Delete files in storage bucket
-    const { data: records } = await supabase.from('medical_records').select('storage_path');
+    const userId = await getCurrentUserId();
+    if (!userId || userId === 'ssr-unauthenticated') {
+      return { success: false, error: 'Cannot erase cloud data without an authenticated user ID.' };
+    }
+
+    // 1. Delete only this user's files in the private storage bucket
+    const { data: records } = await supabase
+      .from('medical_records')
+      .select('storage_path')
+      .eq('user_id', userId);
+
     if (records && records.length > 0) {
-      const paths = records.map((r: any) => r.storage_path).filter(Boolean);
+      const paths = records
+        .map((r: any) => r.storage_path as string | undefined)
+        .filter((p): p is string => Boolean(p && p.startsWith(`${userId}/`)));
       if (paths.length > 0) {
         await supabase.storage.from(BUCKET_NAME).remove(paths).catch(() => {});
       }
     }
 
-    // Delete rows across tables
-    await supabase.from('medical_records').delete().neq('id', '___noop___');
-    await supabase.from('medications').delete().neq('id', '___noop___');
-    await supabase.from('appointments').delete().neq('id', '___noop___');
-    await supabase.from('diary_notes').delete().neq('id', '___noop___');
-    await supabase.from('scheduled_reminders_sync').delete().neq('id', '___noop___');
-    await supabase.from('push_notification_tokens').delete().neq('token', '___noop___');
-    await supabase.from('patient_profiles').delete().neq('id', '___noop___');
+    // 2. Delete only this user's rows across all tables (scoped by user_id + RLS)
+    await supabase.from('medical_records').delete().eq('user_id', userId);
+    await supabase.from('medications').delete().eq('user_id', userId);
+    await supabase.from('appointments').delete().eq('user_id', userId);
+    await supabase.from('diary_notes').delete().eq('user_id', userId);
+    await supabase.from('scheduled_reminders_sync').delete().eq('user_id', userId);
+    await supabase.from('push_notification_tokens').delete().eq('user_id', userId);
+    await supabase.from('patient_profiles').delete().eq('user_id', userId);
+
+    // Clear cached device tenant ID so a fresh identity is generated if they re-onboard
+    cachedDeviceUserId = null;
 
     return { success: true };
   } catch (err: any) {
-    console.warn('[Supabase DB] Failed to erase cloud data:', err);
+    console.warn('[Supabase DB] Failed to erase user cloud data:', err);
     return { success: false, error: err?.message };
   }
 }

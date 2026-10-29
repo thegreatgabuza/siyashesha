@@ -26,6 +26,12 @@ export function useEmergencyCard() {
     const allergies = patient.allergies ?? [];
     const allergyList = allergies.map((a) => a.substance);
     const contact = patient.emergencyContact;
+    const contacts =
+      patient.emergencyContacts && patient.emergencyContacts.length > 0
+        ? patient.emergencyContacts.filter((c) => c.name?.trim() || c.phone?.trim())
+        : contact?.phone?.trim() || contact?.name?.trim()
+        ? [contact]
+        : [];
     const hasContact = !!contact?.phone?.trim();
 
     const values: Record<EmergencyFieldKey, string> = {
@@ -44,7 +50,9 @@ export function useEmergencyCard() {
     const visibleFields = emergencyFieldDefs.filter((f) => visibility[f.key]);
     const qrValue = JSON.stringify({
       app: 'Siyashesha Health Passport',
-      emergencyContact: hasContact ? `${contact.name} (${contact.relationship}) ${contact.phone}` : 'Unknown',
+      emergencyContact: hasContact
+        ? contacts.map((c) => `${c.name} (${c.relationship}) ${c.phone}`).join(' | ')
+        : 'Unknown',
       ...visibleFields.reduce((acc, f) => ({ ...acc, [f.label]: values[f.key] }), {} as Record<string, string>),
     });
 
@@ -57,6 +65,7 @@ export function useEmergencyCard() {
       bloodGroupKnown: bloodGroup !== 'Unknown',
       allergyList,
       contact,
+      contacts,
       hasContact,
       readiness: emergencyReadiness(patient),
     };

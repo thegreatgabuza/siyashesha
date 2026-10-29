@@ -1,4 +1,4 @@
-import { useClerk } from '@clerk/clerk-expo';
+import { useClerk, useUser } from '@clerk/clerk-expo';
 import { router } from 'expo-router';
 import {
   ActivityIndicator,
@@ -57,6 +57,7 @@ function AccountDeletionContent({
   const toast = useToast();
   const insets = useSafeAreaInsets();
   const { signOut: clerkSignOut } = useClerk();
+  const { user: clerkUser } = useUser();
 
   const biometricLock = useAppStore((s) => s.biometricLock);
   const eraseAllPatientData = useAppStore((s) => s.eraseAllPatientData);
@@ -83,27 +84,36 @@ function AccountDeletionContent({
 
     // Step 2: Final native alert guard
     Alert.alert(
-      'Permanent Erasure Confirmation',
-      'Are you completely sure? This will delete all clinical records, emergency information, and cryptographic keys immediately.',
+      'Delete Account & Erase All Data',
+      'Are you completely sure? This will permanently delete your account, all clinical records, emergency information, and cryptographic keys immediately.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Erase All Data',
+          text: 'Delete Account & Data',
           style: 'destructive',
           onPress: async () => {
             setIsDeleting(true);
             try {
-              // Sign out from Clerk session
-              try {
-                await clerkSignOut();
-              } catch (clerkErr) {
-                console.warn('[Clerk] Sign out during deletion:', clerkErr);
-              }
-
-              // Permanently erase all local and cloud patient data
+              // 1. Permanently erase all cloud and local patient data while auth context is active
               await eraseAllPatientData();
 
-              toast.show('All personal health data erased successfully under POPIA §24', 'success');
+              // 2. Permanently delete the Clerk authentication user account (Apple Guideline 5.1.1(v))
+              try {
+                if (clerkUser && typeof clerkUser.delete === 'function') {
+                  await clerkUser.delete();
+                } else {
+                  await clerkSignOut();
+                }
+              } catch (clerkErr) {
+                console.warn('[Clerk] Account deletion / sign out:', clerkErr);
+                try {
+                  await clerkSignOut();
+                } catch {
+                  // ignore
+                }
+              }
+
+              toast.show('Account deleted and all health data permanently erased', 'success');
               onClose();
               router.replace('/(auth)/sign-in');
             } catch (err: any) {
@@ -156,9 +166,9 @@ function AccountDeletionContent({
               <Trash2 size={20} color="#DC1F26" />
             </View>
             <View>
-              <Txt variant="headline">Erase Health Data</Txt>
+              <Txt variant="headline">Delete Account & Erase Data</Txt>
               <Txt variant="footnote" tone="muted">
-                POPIA §24 · Right to be Forgotten
+                POPIA §24 & Apple Guideline 5.1.1(v)
               </Txt>
             </View>
           </View>
@@ -337,7 +347,7 @@ function AccountDeletionContent({
                   fontFamily: fonts.semibold,
                 }}
               >
-                {isDeleting ? 'Securely Erasing All Health Data…' : 'Permanently Erase All Data'}
+                {isDeleting ? 'Deleting Account & Erasing Data…' : 'Delete Account & Erase All Data'}
               </Txt>
             </PressableScale>
 

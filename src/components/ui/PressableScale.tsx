@@ -1,4 +1,4 @@
-import { Pressable, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
+import { Platform, Pressable, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from 'react-native-reanimated';
 
 import { motion, springs } from '@/design/tokens';
@@ -7,14 +7,16 @@ import { impactFeedback, tapFeedback } from '@/lib/feedback';
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 /**
- * A pressable surface that sinks slightly under the finger and springs back. Haptics are opt-in:
- * `selection` for choices, `impact` for primary actions.
+ * A pressable surface that sinks slightly under the finger and springs back.
+ * On Android, also provides native Material ripple feedback.
+ * Haptics are opt-in: `selection` for choices, `impact` for primary actions.
  */
 export function PressableScale({
   children,
   style,
   scaleTo = motion.pressScale,
   haptic,
+  android_ripple,
   onPress,
   onPressIn,
   onPressOut,
@@ -33,9 +35,15 @@ export function PressableScale({
     reduced ? { opacity: 1 - pressed.value * 0.15 } : { transform: [{ scale: 1 - (1 - scaleTo) * pressed.value }] }
   );
 
+  const defaultRipple =
+    Platform.OS === 'android'
+      ? { color: 'rgba(11, 37, 89, 0.08)', borderless: false, ...android_ripple }
+      : undefined;
+
   return (
     <AnimatedPressable
       accessibilityRole="button"
+      android_ripple={defaultRipple}
       {...rest}
       onPressIn={(e) => {
         pressed.value = withSpring(1, springs.snappy);

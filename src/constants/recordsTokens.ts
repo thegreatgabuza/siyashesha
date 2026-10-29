@@ -1,3 +1,4 @@
+import { fonts } from '@/design/tokens';
 import { Colors } from './theme';
 
 /**
@@ -8,6 +9,7 @@ import { Colors } from './theme';
 const light = Colors.light;
 
 export const RecordsTokens = {
+  fonts,
   background: '#F8FAFC', // cool-slate page background
   surface: '#FFFFFF',
   border: light.border, // #E3E8F0

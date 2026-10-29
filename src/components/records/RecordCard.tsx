@@ -105,7 +105,7 @@ export function RecordCard({
                   style={{
                     color: review === 'Reviewed' ? RecordsTokens.successText : RecordsTokens.textMuted,
                     fontSize: RecordsTokens.type.tiny,
-                    fontWeight: '600',
+                    fontFamily: RecordsTokens.fonts.semibold,
                   }}
                 >
                   {review}
@@ -125,7 +125,7 @@ export function RecordCard({
                 className="mt-1 self-start rounded-full px-2.5 py-1"
                 style={{ backgroundColor: RecordsTokens.accentSoft, maxWidth: '100%' }}
               >
-                <Text numberOfLines={1} style={{ color: RecordsTokens.accent, fontSize: RecordsTokens.type.tiny, fontWeight: '600' }}>
+                <Text numberOfLines={1} style={{ color: RecordsTokens.accent, fontSize: RecordsTokens.type.tiny, fontFamily: RecordsTokens.fonts.semibold }}>
                   {record.diagnosis}
                 </Text>
               </View>

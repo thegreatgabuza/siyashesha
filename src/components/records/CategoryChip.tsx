@@ -50,7 +50,7 @@ export function CategoryChip({
       </Animated.View>
       <Text
         numberOfLines={1}
-        style={{ color: active ? RecordsTokens.accent : RecordsTokens.text, fontSize: RecordsTokens.type.tiny, fontWeight: active ? '700' : '500' }}
+        style={{ color: active ? RecordsTokens.accent : RecordsTokens.text, fontSize: RecordsTokens.type.tiny, fontFamily: active ? RecordsTokens.fonts.bold : RecordsTokens.fonts.medium }}
       >
         {label}
       </Text>

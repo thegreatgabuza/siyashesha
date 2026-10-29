@@ -1,6 +1,7 @@
 import dayjs from 'dayjs';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
+import { safeBack } from '@/lib/navigation';
 import { Bell, FileText, Link2, Lock, Pencil, Pin, Trash2, Volume2 } from 'lucide-react-native';
 import { useState } from 'react';
 import { Alert, Text, View } from 'react-native';
@@ -29,7 +30,7 @@ export default function DiaryDetailScreen() {
   if (!note || deleted) {
     return (
       <Screen headerOwnsTopInset scroll={false}>
-        <ScreenHeader title="Diary note" onBack={() => router.back()} />
+        <ScreenHeader title="Diary note" onBack={() => safeBack('/(tabs)/diary')} />
         <Text className="px-5 font-sans text-ink-muted dark:text-slate-400">This note is no longer available.</Text>
       </Screen>
     );
@@ -47,7 +48,7 @@ export default function DiaryDetailScreen() {
           deleteDiaryNote(note.id);
           setDeleted(true);
           toast.show('Note deleted', 'info');
-          router.back();
+          safeBack('/(tabs)/diary');
         },
       },
     ]);
@@ -57,7 +58,7 @@ export default function DiaryDetailScreen() {
     <Screen headerOwnsTopInset scroll={false}>
       <ScreenHeader
         title="Diary note"
-        onBack={() => router.back()}
+        onBack={() => safeBack('/(tabs)/diary')}
         right={
           <View className="flex-row gap-2">
             <IconButton accessibilityLabel={note.pinned ? 'Unpin note' : 'Pin note'} onPress={() => togglePin(note.id)}>

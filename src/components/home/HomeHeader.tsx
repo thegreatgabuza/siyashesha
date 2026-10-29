@@ -23,6 +23,7 @@ import { elevation, fonts, radii, springs } from '@/design/tokens';
 import { useTokens } from '@/design/useTokens';
 import { languageNames } from '@/i18n/translations';
 import { bloodGroupLabel } from '@/lib/bloodGroup';
+import { useClerkAvatarSync } from '@/lib/clerkAvatar';
 import { tapFeedback } from '@/lib/feedback';
 import { useAppStore } from '@/store/useAppStore';
 
@@ -34,6 +35,7 @@ export function HomeHeader() {
   const language = useAppStore((s) => s.language);
   const signOut = useAppStore((s) => s.signOut);
   const { signOut: clerkSignOut } = useClerk();
+  const clerkAvatarUrl = useClerkAvatarSync();
   const [menu, setMenu] = useState(false);
   const { width } = useWindowDimensions();
 
@@ -138,7 +140,11 @@ export function HomeHeader() {
             justifyContent: 'center',
           }}
         >
-          <Avatar name={patient.preferredName || patient.firstName || '?'} size={40} />
+          <Avatar
+            name={`${patient.firstName} ${patient.lastName}`.trim() || patient.preferredName || '?'}
+            imageUrl={clerkAvatarUrl}
+            size={40}
+          />
         </PressableScale>
       </View>
 
@@ -208,7 +214,11 @@ export function HomeHeader() {
                     gap: 12,
                   }}
                 >
-                  <Avatar name={patient.preferredName || patient.firstName || '?'} size={48} />
+                  <Avatar
+                    name={`${patient.firstName} ${patient.lastName}`.trim() || patient.preferredName || '?'}
+                    imageUrl={clerkAvatarUrl}
+                    size={48}
+                  />
                   <View style={{ flex: 1, gap: 2 }}>
                     <Txt variant="bodyStrong" numberOfLines={1}>
                       {patient.firstName} {patient.lastName}

@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
-import { AlertCircle, CheckCircle2, ChevronRight, QrCode } from 'lucide-react-native';
-import { View } from 'react-native';
+import { AlertCircle, CheckCircle2, ChevronRight, Phone, QrCode } from 'lucide-react-native';
+import { Linking, View } from 'react-native';
 
 import { Chip } from '@/components/ui/Chip';
 import { PressableScale } from '@/components/ui/PressableScale';
@@ -8,15 +8,24 @@ import { Txt } from '@/components/ui/Txt';
 import { elevation, fonts, radii } from '@/design/tokens';
 import { useTokens } from '@/design/useTokens';
 import { useEmergencyCard } from '@/hooks/useEmergencyCard';
+import { impactFeedback } from '@/lib/feedback';
 
 /**
  * The most important card on Home. A plain status first (Ready or Needs attention, with what is
- * missing by name), then the facts a first responder scans for, then one tap to the ICE card.
+ * missing by name), then the facts a first responder scans for, all emergency contacts with 1-tap
+ * calling, and one tap to the ICE card.
  */
 export function EmergencyReadinessCard() {
   const t = useTokens();
   const ice = useEmergencyCard();
   const { ready, gaps } = ice.readiness;
+  const contacts = ice.contacts ?? [];
+
+  const callNumber = (phone: string) => {
+    if (!phone.trim()) return;
+    impactFeedback('medium');
+    Linking.openURL(`tel:${phone.replace(/\s/g, '')}`);
+  };
 
   return (
     <View style={[{ backgroundColor: t.surface, borderRadius: radii.lg, overflow: 'hidden' }, elevation[2]]}>
@@ -50,12 +59,98 @@ export function EmergencyReadinessCard() {
           ) : (
             <Chip value="No allergies recorded" tone="missing" />
           )}
-          <Chip
-            label="Contact"
-            value={ice.hasContact ? ice.contact.name.split(' ')[0] : 'Unknown'}
-            tone={ice.hasContact ? 'neutral' : 'missing'}
-          />
+          {contacts.length > 0 ? (
+            contacts.map((c, idx) => (
+              <Chip
+                key={`${c.name}-${idx}`}
+                label={contacts.length > 1 ? `ICE #${idx + 1}` : 'Contact'}
+                value={c.name.split(' ')[0] || 'Contact'}
+                tone="neutral"
+              />
+            ))
+          ) : (
+            <Chip label="Contact" value="Unknown" tone="missing" />
+          )}
         </View>
+
+        {/* Emergency Contacts List (shows 1, 2, or more emergency contacts directly on Home) */}
+        {contacts.length > 0 ? (
+          <View style={{ gap: 8 }}>
+            <Txt variant="label" tone="muted" style={{ fontSize: 10 }}>
+              {contacts.length === 1 ? 'Emergency Contact (ICE)' : `Emergency Contacts (${contacts.length})`}
+            </Txt>
+            {contacts.map((c, idx) => (
+              <View
+                key={`${c.name}-${c.phone}-${idx}`}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 10,
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
+                  borderRadius: radii.md,
+                  backgroundColor: t.surfaceMuted,
+                  borderWidth: 1,
+                  borderColor: t.border,
+                }}
+              >
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <Txt variant="callout" style={{ fontFamily: fonts.bold }}>
+                      {c.name}
+                    </Txt>
+                    {c.relationship && c.relationship !== 'Not recorded' ? (
+                      <View
+                        style={{
+                          paddingHorizontal: 7,
+                          paddingVertical: 1.5,
+                          borderRadius: radii.pill,
+                          backgroundColor: t.surface,
+                          borderWidth: 1,
+                          borderColor: t.border,
+                        }}
+                      >
+                        <Txt variant="footnote" tone="muted" style={{ fontSize: 10, fontFamily: fonts.semibold }}>
+                          {c.relationship}
+                        </Txt>
+                      </View>
+                    ) : null}
+                  </View>
+                  {c.phone ? (
+                    <Txt variant="footnote" tone="muted" style={{ marginTop: 2, fontVariant: ['tabular-nums'] }}>
+                      {c.phone}
+                    </Txt>
+                  ) : null}
+                </View>
+
+                {c.phone ? (
+                  <PressableScale
+                    accessibilityRole="button"
+                    accessibilityLabel={`Call emergency contact ${c.name}`}
+                    onPress={() => callNumber(c.phone)}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 6,
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                      borderRadius: radii.pill,
+                      backgroundColor: t.surface,
+                      borderWidth: 1,
+                      borderColor: t.border,
+                    }}
+                  >
+                    <Phone size={14} color={t.interactive} />
+                    <Txt variant="footnote" color={t.interactive} style={{ fontFamily: fonts.bold }}>
+                      Call
+                    </Txt>
+                  </PressableScale>
+                ) : null}
+              </View>
+            ))}
+          </View>
+        ) : null}
 
         {!ready ? (
           <PressableScale

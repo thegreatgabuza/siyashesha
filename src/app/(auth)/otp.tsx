@@ -1,5 +1,6 @@
 import { useSignIn, useSignUp } from '@clerk/clerk-expo';
 import { router } from 'expo-router';
+import { safeBack } from '@/lib/navigation';
 import { ArrowLeft, RefreshCw, ShieldCheck } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -29,6 +30,7 @@ export default function OtpScreen() {
   const pendingEmail = useAppStore((s) => s.pendingEmail);
   const clerkFlow = useAppStore((s) => s.clerkFlow);
   const completeSignIn = useAppStore((s) => s.completeSignIn);
+  const updatePatientProfile = useAppStore((s) => s.updatePatientProfile);
 
   const { isLoaded: isSignInLoaded, signIn, setActive: setSignInActive } = useSignIn();
   const { isLoaded: isSignUpLoaded, signUp, setActive: setSignUpActive } = useSignUp();
@@ -103,6 +105,13 @@ export default function OtpScreen() {
         if (result.status === 'complete') {
           if (setSignInActive && result.createdSessionId) {
             await setSignInActive({ session: result.createdSessionId });
+          }
+          if (result.userData?.imageUrl) {
+            updatePatientProfile({
+              avatarUrl: result.userData.imageUrl,
+              ...(result.userData.firstName ? { firstName: result.userData.firstName, preferredName: result.userData.firstName } : {}),
+              ...(result.userData.lastName ? { lastName: result.userData.lastName } : {}),
+            });
           }
           completeSignIn({
             clerkSessionId: result.createdSessionId || undefined,
@@ -214,7 +223,7 @@ export default function OtpScreen() {
         >
           {/* Back button */}
           <Pressable
-            onPress={() => router.back()}
+            onPress={() => safeBack('/(auth)/sign-in')}
             accessibilityRole="button"
             accessibilityLabel="Back to sign in"
             className="mb-4 h-10 w-10 items-center justify-center rounded-full bg-white/70"
@@ -242,7 +251,9 @@ export default function OtpScreen() {
                 onChangeText={(v) => handleChange(v, i)}
                 onKeyPress={(e) => handleKeyPress(e.nativeEvent.key, i)}
                 keyboardType="number-pad"
-                maxLength={1}
+                maxLength={i === 0 ? 6 : 1}
+                textContentType="oneTimeCode"
+                autoComplete={Platform.OS === 'android' ? 'sms-otp' : 'one-time-code'}
                 editable={!isVerifying}
                 accessibilityLabel={`Digit ${i + 1} of 6`}
                 className="h-14 w-12 rounded-2xl border border-white/70 bg-white/90 text-center font-sans-bold text-[22px] text-ink shadow-sm"
@@ -291,7 +302,7 @@ export default function OtpScreen() {
             </Pressable>
 
             <Pressable
-              onPress={() => router.back()}
+              onPress={() => safeBack('/(auth)/sign-in')}
               accessibilityRole="button"
               accessibilityLabel="Change email address"
               className="mt-2 py-2"

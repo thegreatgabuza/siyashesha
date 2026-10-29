@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GradientBackground } from '@/components/ui/GradientBackground';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { useToast } from '@/components/ui/Toast';
+import { LegalDocumentModal, type LegalDocKind } from '@/components/security/LegalDocumentModal';
 import { useAppStore } from '@/store/useAppStore';
 
 export default function SignInScreen() {
@@ -24,12 +25,15 @@ export default function SignInScreen() {
   const toast = useToast();
   const signInWithEmail = useAppStore((s) => s.signInWithEmail);
   const completeSignIn = useAppStore((s) => s.completeSignIn);
+  const restartOnboarding = useAppStore((s) => s.restartOnboarding);
+  const updatePatientProfile = useAppStore((s) => s.updatePatientProfile);
 
   const { isLoaded: isSignInLoaded, signIn } = useSignIn();
   const { isLoaded: isSignUpLoaded, signUp } = useSignUp();
 
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [legalDoc, setLegalDoc] = useState<LegalDocKind>(null);
 
   const cleanEmail = email.trim().toLowerCase();
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail);
@@ -54,6 +58,14 @@ export default function SignInScreen() {
         const signInAttempt = await signIn.create({
           identifier: cleanEmail,
         });
+
+        if (signInAttempt.userData?.imageUrl) {
+          updatePatientProfile({
+            avatarUrl: signInAttempt.userData.imageUrl,
+            ...(signInAttempt.userData.firstName ? { firstName: signInAttempt.userData.firstName, preferredName: signInAttempt.userData.firstName } : {}),
+            ...(signInAttempt.userData.lastName ? { lastName: signInAttempt.userData.lastName } : {}),
+          });
+        }
 
         // Find email_code strategy in supported first factors
         const emailCodeFactor = signInAttempt.supportedFirstFactors?.find(
@@ -216,9 +228,54 @@ export default function SignInScreen() {
               </View>
               <ArrowRight size={16} color="#FFFFFF" />
             </Pressable>
+
+            <Pressable
+              onPress={() => {
+                restartOnboarding();
+                router.replace('/(onboarding)' as any);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Build a new health passport with guided onboarding"
+              className="mt-2.5 flex-row items-center justify-between rounded-xl border border-ink/20 bg-white px-4 py-3"
+            >
+              <View>
+                <Text className="font-sans-bold text-[13px] text-ink">New here? Build my Health Passport</Text>
+                <Text className="font-sans text-[11px] text-ink-muted">Start the 8-step guided setup & Pro paywall</Text>
+              </View>
+              <ArrowRight size={16} color="#0B2559" />
+            </Pressable>
+          </View>
+
+          {/* Apple Guideline 5.1.1(i) Pre-Authentication Terms of Use & Privacy Policy Links */}
+          <View className="mt-6 items-center">
+            <Text className="text-center font-sans text-[11px] leading-[16px] text-ink-muted">
+              By continuing, you agree to Siyashesha’s
+            </Text>
+            <View className="mt-1 flex-row items-center justify-center gap-3">
+              <Pressable
+                accessibilityRole="link"
+                accessibilityLabel="Terms of Use and End User License Agreement"
+                onPress={() => setLegalDoc('terms')}
+              >
+                <Text className="font-sans-semibold text-[12px] underline text-ink">
+                  Terms of Use (EULA)
+                </Text>
+              </Pressable>
+              <Text className="text-ink-muted">•</Text>
+              <Pressable
+                accessibilityRole="link"
+                accessibilityLabel="Privacy Policy and POPIA Notice"
+                onPress={() => setLegalDoc('privacy')}
+              >
+                <Text className="font-sans-semibold text-[12px] underline text-ink">
+                  Privacy Policy (POPIA)
+                </Text>
+              </Pressable>
+            </View>
           </View>
         </ScrollView>
       </GradientBackground>
+      <LegalDocumentModal visibleDoc={legalDoc} onClose={() => setLegalDoc(null)} />
     </KeyboardAvoidingView>
   );
 }

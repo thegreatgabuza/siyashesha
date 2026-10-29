@@ -1,5 +1,6 @@
 import dayjs from 'dayjs';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
+import { safeBack } from '@/lib/navigation';
 import {
   BookHeart,
   Check,
@@ -99,7 +100,7 @@ export default function SharingScreen() {
   if (view === 'history') {
     return (
       <Screen headerOwnsTopInset scroll={false}>
-        <ScreenHeader title="Sharing" onBack={() => router.back()} />
+        <ScreenHeader title="Sharing" onBack={() => safeBack('/(tabs)/more')} />
         <ShareSummary
           activeCount={activeLinks}
           recordCount={records.length}
@@ -164,7 +165,7 @@ export default function SharingScreen() {
 
   return (
     <Screen headerOwnsTopInset scroll={false}>
-      <ScreenHeader title="Share Records" onBack={() => router.back()} />
+      <ScreenHeader title="Share Records" onBack={() => safeBack('/(tabs)/more')} />
       <ShareSummary activeCount={activeLinks} recordCount={records.length} view="new" onChange={setView} />
       <View className="mt-4 px-5">
         {!completedLink ? (

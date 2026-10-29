@@ -2,7 +2,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import dayjs from 'dayjs';
 import { router } from 'expo-router';
-import { Camera, FileUp, SkipForward } from 'lucide-react-native';
+import { Camera, CheckCircle2, FileText, FileUp, Sparkles } from 'lucide-react-native';
 import { useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 
@@ -27,7 +27,7 @@ export default function RecordsOnboardingScreen() {
   const [message, setMessage] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
 
-  const next = () => router.push('/(onboarding)/reveal' as any);
+  const next = () => router.push('/(onboarding)/notifications' as any);
 
   const saveRecord = async (
     title: string,
@@ -127,29 +127,33 @@ export default function RecordsOnboardingScreen() {
 
   return (
     <OnboardingShell
+      step={5}
+      totalSteps={8}
+      stepLabel="Health Records"
       footer={
         added ? (
           <ChunkyButton label="Continue" onPress={() => (reward ? null : next())} />
         ) : (
-          <ChunkyButton variant="ghost" label="Skip for now" onPress={next} />
+          <ChunkyButton variant="ghost" label="Skip — I’ll upload records later" onPress={next} />
         )
       }
     >
       <View className="gap-5 py-2">
-        <View className="items-center gap-4">
-          <Mascot mood={added ? 'cheer' : 'curious'} size={88} />
-          <SpeechBubble>
+        <View className="items-center gap-3">
+          <Mascot mood={added ? 'cheer' : 'curious'} size={80} />
+          <SpeechBubble subtitle="Supports blood tests, prescriptions, X-ray reports & clinic notes.">
             {analyzing
-              ? 'Scanning your document with OCR and AI…'
+              ? 'Extracting clinical details from your document…'
               : added
-              ? `Saved "${added}" to your vault!`
-              : message ??
-                'Bring in a blood test, prescription, clinic book photo or discharge letter. Siyashesha will scan and organize it.'}
+              ? `Saved "${added}" to your encrypted vault!`
+              : message ?? 'Have a medical document handy? Scan or upload your first record.'}
           </SpeechBubble>
           {analyzing ? (
-            <View className="flex-row items-center gap-2">
+            <View className="flex-row items-center gap-2 rounded-full bg-brand-100/80 px-4 py-1.5 dark:bg-brand-500/20">
               <ActivityIndicator size="small" color="#0B2559" />
-              <Text className="font-sans text-[12px] text-ink-muted">Analyzing clinical details…</Text>
+              <Text className="font-sans-semibold text-[12px] text-brand-700 dark:text-brand-300">
+                Smart OCR organizing fields…
+              </Text>
             </View>
           ) : null}
         </View>
@@ -158,43 +162,60 @@ export default function RecordsOnboardingScreen() {
           <View className="gap-3">
             <OptionCard
               title="Upload a PDF or photo"
-              subtitle="Pick a file from your phone"
-              icon={<FileUp size={24} color="#0B2559" />}
+              subtitle="Choose a lab report, script, or letter from your phone"
+              badge="Fastest"
+              icon={<FileUp size={22} color="#0B2559" />}
               selected={false}
               onPress={pickFile}
             />
             <OptionCard
               title="Scan with my camera"
-              subtitle="Photograph a paper document"
-              icon={<Camera size={24} color="#0B2559" />}
+              subtitle="Snap a photo of a paper prescription or clinic book"
+              icon={<Camera size={22} color="#0B2559" />}
               selected={false}
               onPress={scan}
             />
-            {message ? <Text className="font-sans text-[13px] leading-[18px] text-ink-soft dark:text-slate-300">{message}</Text> : null}
           </View>
         ) : null}
 
         {added ? (
-          <View className="flex-row items-center gap-2 rounded-2xl bg-success-50 p-3 dark:bg-success-500/15">
-            <SkipForward size={16} color="#16A34A" />
-            <Text className="flex-1 font-sans-semibold text-[13px] text-success-600">Added: {added}</Text>
+          <View className="flex-row items-center gap-3 rounded-3xl border border-success-500/30 bg-success-50 p-4 dark:bg-success-500/15">
+            <CheckCircle2 size={22} color="#16A34A" />
+            <View className="flex-1">
+              <Text className="font-sans-bold text-[14px] text-success-600 dark:text-emerald-400">
+                Added to your vault
+              </Text>
+              <Text className="font-sans text-[13px] text-ink dark:text-slate-200">{added}</Text>
+            </View>
           </View>
         ) : null}
 
-        {/* Example of where records will live. Clearly labelled, not real data. */}
+        {/* Example preview of automatic categorization */}
         <View className="gap-2">
-          <Text className="font-sans-semibold text-[12px] uppercase tracking-wide text-ink-muted dark:text-slate-400">
-            Example · where it will live
-          </Text>
-          <View className="rounded-3xl border-2 border-dashed border-slate-300 bg-white/60 p-4 dark:border-slate-600 dark:bg-canvasdark-card/60">
+          <View className="flex-row items-center gap-1.5">
+            <Sparkles size={13} color="#0B2559" />
+            <Text className="font-sans-bold text-[11px] uppercase tracking-[0.8px] text-ink-muted dark:text-slate-400">
+              How Siyashesha organizes your records
+            </Text>
+          </View>
+          <View className="rounded-3xl border border-dashed border-slate-300 bg-white/80 p-4 dark:border-slate-700 dark:bg-canvasdark-card/70">
             <View className="flex-row items-center justify-between">
-              <Text className="font-sans-medium text-[12px] text-ink-muted dark:text-slate-400">Example date</Text>
+              <View className="flex-row items-center gap-2">
+                <FileText size={15} color="#0B2559" />
+                <Text className="font-sans-semibold text-[12px] text-ink-muted dark:text-slate-400">
+                  Auto-tagged by date & clinic
+                </Text>
+              </View>
               <View className="rounded-full bg-brand-100 px-2.5 py-0.5 dark:bg-brand-500/20">
-                <Text className="font-sans-medium text-[10px] text-brand-600 dark:text-brand-300">Example</Text>
+                <Text className="font-sans-bold text-[10px] text-brand-700 dark:text-brand-300">PDF / CSV Exportable</Text>
               </View>
             </View>
-            <Text className="mt-2 font-sans-bold text-[15px] text-ink dark:text-slate-50">Example: clinic visit letter</Text>
-            <Text className="mt-0.5 font-sans text-[12px] text-ink-muted dark:text-slate-400">Your clinic · in date order</Text>
+            <Text className="mt-2 font-sans-bold text-[15px] text-ink dark:text-slate-50">
+              Full Blood Count & Lipid Panel
+            </Text>
+            <Text className="mt-0.5 font-sans text-[12px] text-ink-muted dark:text-slate-400">
+              Lancet Laboratories · Extracted values, doctor & clinical summary
+            </Text>
           </View>
         </View>
       </View>
