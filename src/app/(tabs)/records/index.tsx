@@ -27,12 +27,14 @@ import { ExportSummaryModal } from '@/components/records/ExportSummaryModal';
 import { type SheetOption, SheetList } from '@/components/records/SheetList';
 import { SummaryRing } from '@/components/records/SummaryRing';
 import { PressableScale } from '@/components/ui/PressableScale';
+import { useToast } from '@/components/ui/Toast';
 import { RecordsTokens } from '@/constants/recordsTokens';
 import { springs } from '@/design/tokens';
-import { recordCategories, type RecordCategory } from '@/data/records';
+import { recordCategories, type MedicalRecord, type RecordCategory } from '@/data/records';
 import { useAboveTabBar, useTabBarInset } from '@/hooks/useTabBarInset';
 import { removeOriginal } from '@/lib/documents';
 import { tapFeedback } from '@/lib/feedback';
+import { exportSingleRecordPdf } from '@/lib/pdf';
 import {
   countByCategory,
   groupByMonth,
@@ -46,10 +48,12 @@ import { useAppStore } from '@/store/useAppStore';
 const HERO_HEIGHT = 164;
 const COLLAPSE_AT = 140;
 
-
 export default function RecordsScreen() {
   const insets = useSafeAreaInsets();
+  const toast = useToast();
   const records = useAppStore((s) => s.records);
+  const patient = useAppStore((s) => s.patientProfile);
+  const logAudit = useAppStore((s) => s.logAudit);
   const deleteRecord = useAppStore((s) => s.deleteRecord);
 
   // Stored records load asynchronously on first launch, so show placeholders until they are ready.
@@ -122,6 +126,17 @@ export default function RecordsScreen() {
   const filtersActive = search.trim() !== '' || category !== 'All';
   const sortLabel = recordSortOptions.find((o) => o.key === sort)?.label ?? 'Newest first';
 
+  const handleDownloadSingle = async (record: MedicalRecord) => {
+    tapFeedback();
+    try {
+      await exportSingleRecordPdf(record, patient, 'download');
+      logAudit('export', `Downloaded record PDF: ${record.title}`);
+      toast.show(`Downloaded "${record.title}" as PDF`, 'success');
+    } catch {
+      toast.show('Could not download record PDF. Please try again.', 'warning');
+    }
+  };
+
   const confirmDelete = (id: string, title: string) => {
     const record = records.find((r) => r.id === id);
     Alert.alert('Delete record?', `${title} will be permanently removed from your vault.`, [
@@ -142,210 +157,240 @@ export default function RecordsScreen() {
   return (
     <View className="flex-1" style={{ backgroundColor: RecordsTokens.background }}>
       <GestureDetector gesture={pinch}>
-      <Animated.ScrollView
-        onScroll={onScroll}
-        scrollEventThrottle={16}
-        stickyHeaderIndices={[2]}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: listBottom, gap: 0 }}
-      >
-        {/* 0: header */}
-        <View className="flex-row items-center justify-between pb-4">
-          <View>
-            <Text style={{ color: RecordsTokens.text, fontSize: RecordsTokens.type.title, fontWeight: '700' }}>Medical Records</Text>
-            <Text style={{ color: RecordsTokens.textMuted, fontSize: RecordsTokens.type.meta }}>
-              {records.length} {records.length === 1 ? 'record' : 'records'}
-            </Text>
-          </View>
-          <View className="flex-row gap-2">
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Export Medical Summary PDF"
-            accessibilityHint="Generates a print-ready certified PDF report"
-            onPress={() => {
-              tapFeedback();
-              setShowExport(true);
-            }}
-            style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: RecordsTokens.surface, ...RecordsTokens.shadow }}
-          >
-            <FileDown size={20} color={RecordsTokens.text} />
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={view === 'list' ? 'Show catalog view' : 'Show list view'}
-            accessibilityHint="You can also pinch the list to switch"
-            onPress={() => switchView(view === 'list' ? 'catalog' : 'list')}
-            style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: view === 'catalog' ? RecordsTokens.accent : RecordsTokens.surface, ...RecordsTokens.shadow }}
-          >
-            {view === 'list' ? <LayoutGrid size={20} color={RecordsTokens.text} /> : <Rows3 size={20} color="#FFFFFF" />}
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Notifications and reminders"
-            onPress={() => {
-              tapFeedback();
-              router.push('/more/notifications' as any);
-            }}
-            style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: RecordsTokens.surface, ...RecordsTokens.shadow }}
-          >
-            <Bell size={20} color={RecordsTokens.text} />
-          </Pressable>
-          </View>
-        </View>
-
-        {/* 1: summary, collapses on scroll */}
-        <Animated.View style={[heroStyle, { overflow: 'hidden' }]}>
-          <View
-            className="p-5"
-            style={{ height: HERO_HEIGHT, backgroundColor: RecordsTokens.surface, borderRadius: RecordsTokens.radius.card, ...RecordsTokens.shadow }}
-          >
-            <SummaryRing counts={totalCounts} total={records.length} lastUpdated={lastUpdated} />
-          </View>
-        </Animated.View>
-
-        {/* 2: sticky search and categories */}
-        <View className="gap-2 pb-2" style={{ backgroundColor: RecordsTokens.background, paddingTop: 8 }}>
-          <View
-            className="h-14 flex-row items-center gap-2 pl-4 pr-1"
-            style={{ backgroundColor: RecordsTokens.surface, borderRadius: RecordsTokens.radius.pill, ...RecordsTokens.shadow }}
-          >
-            <Search size={18} color={RecordsTokens.textMuted} />
-            <TextInput
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Search title, diagnosis, doctor, facility"
-              placeholderTextColor={RecordsTokens.textMuted}
-              autoCorrect={false}
-              returnKeyType="search"
-              className="flex-1 font-sans"
-              style={{ color: RecordsTokens.text, fontSize: 15 }}
-              accessibilityLabel="Search medical records"
-            />
-            {search.length > 0 ? (
+        <Animated.ScrollView
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+          stickyHeaderIndices={[2]}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: listBottom, gap: 0 }}
+        >
+          {/* 0: header */}
+          <View className="flex-row items-center justify-between pb-4">
+            <View>
+              <Text style={{ color: RecordsTokens.text, fontSize: RecordsTokens.type.title, fontWeight: '700' }}>Medical Records</Text>
+              <Text style={{ color: RecordsTokens.textMuted, fontSize: RecordsTokens.type.meta }}>
+                {records.length} {records.length === 1 ? 'record' : 'records'}
+              </Text>
+            </View>
+            <View className="flex-row items-center gap-2">
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel="Download or export medical records"
+                accessibilityHint="Export records as PDF, CSV, or JSON"
+                onPress={() => {
+                  tapFeedback();
+                  setShowExport(true);
+                }}
+                style={{
+                  height: 44,
+                  paddingHorizontal: 14,
+                  borderRadius: 22,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  backgroundColor: RecordsTokens.accent,
+                  ...RecordsTokens.shadow,
+                }}
+              >
+                <FileDown size={18} color="#FFFFFF" />
+                <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '700' }}>Export</Text>
+              </PressableScale>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Clear search"
-                onPress={() => setSearch('')}
-                className="h-11 w-11 items-center justify-center"
+                accessibilityLabel={view === 'list' ? 'Show catalog view' : 'Show list view'}
+                accessibilityHint="You can also pinch the list to switch"
+                onPress={() => switchView(view === 'list' ? 'catalog' : 'list')}
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: view === 'catalog' ? RecordsTokens.accent : RecordsTokens.surface,
+                  ...RecordsTokens.shadow,
+                }}
               >
-                <X size={18} color={RecordsTokens.textMuted} />
+                {view === 'list' ? <LayoutGrid size={20} color={RecordsTokens.text} /> : <Rows3 size={20} color="#FFFFFF" />}
               </Pressable>
-            ) : null}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Sort and filter"
-              onPress={() => setSheet('sort')}
-              className="h-11 w-11 items-center justify-center rounded-full"
-              style={{ backgroundColor: RecordsTokens.accentSoft }}
-            >
-              <SlidersHorizontal size={18} color={RecordsTokens.accent} />
-            </Pressable>
-          </View>
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 14, paddingVertical: 6, paddingRight: 8 }}>
-            <CategoryChip label="All" count={searchMatches.length} icon={LayoutGrid} active={category === 'All'} onPress={() => setCategory('All')} />
-            {categories.map((c) => (
-              <CategoryChip
-                key={c}
-                label={categoryStyle[c].short}
-                count={chipCounts.get(c) ?? 0}
-                icon={categoryStyle[c].icon}
-                active={category === c}
-                onPress={() => setCategory(c)}
-              />
-            ))}
-          </ScrollView>
-        </View>
-
-        {/* 3: sort line */}
-        <View className="flex-row items-center justify-between pb-3 pt-2">
-          <Text style={{ color: RecordsTokens.text, fontSize: 16, fontWeight: '700' }}>
-            {filtersActive ? `Showing ${visible.length} of ${records.length}` : view === 'catalog' ? 'Catalog' : 'Recent records'}
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Sort: ${sortLabel}. Change`}
-            onPress={() => setSheet('sort')}
-            className="min-h-[44px] flex-row items-center gap-1 rounded-full px-3"
-            style={{ backgroundColor: RecordsTokens.surface, ...RecordsTokens.shadow }}
-          >
-            <Text style={{ color: RecordsTokens.text, fontSize: RecordsTokens.type.meta, fontWeight: '600' }}>{sortLabel}</Text>
-            <Text style={{ color: RecordsTokens.textMuted, fontSize: 10 }}>▼</Text>
-          </Pressable>
-        </View>
-
-        {/* 4+: list */}
-        {!hydrated ? (
-          <RecordSkeleton />
-        ) : records.length === 0 ? (
-          <View className="items-center gap-3 p-8" style={{ backgroundColor: RecordsTokens.surface, borderRadius: RecordsTokens.radius.card, ...RecordsTokens.shadow }}>
-            <View className="h-14 w-14 items-center justify-center rounded-full" style={{ backgroundColor: RecordsTokens.accentSoft }}>
-              <FileText size={26} color={RecordsTokens.accent} />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Notifications and reminders"
+                onPress={() => {
+                  tapFeedback();
+                  router.push('/more/notifications' as any);
+                }}
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: RecordsTokens.surface,
+                  ...RecordsTokens.shadow,
+                }}
+              >
+                <Bell size={20} color={RecordsTokens.text} />
+              </Pressable>
             </View>
-            <Text style={{ color: RecordsTokens.text, fontSize: 17, fontWeight: '700' }}>No medical records yet</Text>
-            <Text className="text-center" style={{ color: RecordsTokens.textMuted, fontSize: RecordsTokens.type.meta }}>
-              Upload a document, scan one, or add a record by hand.
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Add a record"
-              onPress={() => router.push('/records/upload')}
-              className="min-h-[44px] justify-center rounded-full px-6"
-              style={{ backgroundColor: RecordsTokens.accent }}
-            >
-              <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 15 }}>Add a record</Text>
-            </Pressable>
           </View>
-        ) : visible.length === 0 ? (
-          <View className="items-center gap-3 p-8" style={{ backgroundColor: RecordsTokens.surface, borderRadius: RecordsTokens.radius.card, ...RecordsTokens.shadow }}>
-            <Text style={{ color: RecordsTokens.text, fontSize: 17, fontWeight: '700' }}>
-              {search.trim() ? `No records match "${search.trim()}"` : `No ${category} records`}
-            </Text>
-            <Text className="text-center" style={{ color: RecordsTokens.textMuted, fontSize: RecordsTokens.type.meta }}>
-              {search.trim() ? 'Try fewer words, or search by a different detail.' : 'Choose another category to see your other records.'}
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={search.trim() ? 'Clear search' : 'Show all records'}
-              onPress={() => {
-                setSearch('');
-                setCategory('All');
-              }}
-              className="min-h-[44px] justify-center rounded-full px-6"
-              style={{ backgroundColor: RecordsTokens.accent }}
+
+          {/* 1: summary, collapses on scroll */}
+          <Animated.View style={[heroStyle, { overflow: 'hidden' }]}>
+            <View
+              className="p-5"
+              style={{ height: HERO_HEIGHT, backgroundColor: RecordsTokens.surface, borderRadius: RecordsTokens.radius.card, ...RecordsTokens.shadow }}
             >
-              <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 15 }}>
-                {search.trim() ? 'Clear search' : 'Show all records'}
-              </Text>
-            </Pressable>
-          </View>
-        ) : view === 'catalog' ? (
-          <Animated.View key="catalog" entering={reduced ? undefined : ZoomIn.springify().damping(springs.gentle.damping)} exiting={FadeOut.duration(120)} style={pinchStyle}>
-            <RecordCatalog groups={dateSorted ? groups : groupByMonth(visible)} onOpen={(r) => router.push(`/records/${r.id}`)} />
+              <SummaryRing counts={totalCounts} total={records.length} lastUpdated={lastUpdated} />
+            </View>
           </Animated.View>
-        ) : (
-          <Animated.View key="list" entering={reduced ? undefined : FadeIn.duration(220)} exiting={FadeOut.duration(120)} style={pinchStyle}>
-            {groups.map((group) => (
-              <View key={group.label || 'all'} className="gap-3 pb-4">
-                {group.label ? (
-                  <Text style={{ color: RecordsTokens.textMuted, fontSize: RecordsTokens.type.meta, fontWeight: '600' }}>
-                    {group.label} · {group.records.length}
-                  </Text>
-                ) : null}
-                {group.records.map((record) => (
-                  <RecordCard
-                    key={record.id}
-                    record={record}
-                    onOpen={() => router.push(`/records/${record.id}`)}
-                    onShare={() => router.push({ pathname: '/more/sharing', params: { recordId: record.id } })}
-                    onDelete={() => confirmDelete(record.id, record.title)}
-                  />
-                ))}
+
+          {/* 2: sticky search and categories */}
+          <View className="gap-2 pb-2" style={{ backgroundColor: RecordsTokens.background, paddingTop: 8 }}>
+            <View
+              className="h-14 flex-row items-center gap-2 pl-4 pr-1"
+              style={{ backgroundColor: RecordsTokens.surface, borderRadius: RecordsTokens.radius.pill, ...RecordsTokens.shadow }}
+            >
+              <Search size={18} color={RecordsTokens.textMuted} />
+              <TextInput
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Search title, diagnosis, doctor, facility"
+                placeholderTextColor={RecordsTokens.textMuted}
+                autoCorrect={false}
+                returnKeyType="search"
+                className="flex-1 font-sans"
+                style={{ color: RecordsTokens.text, fontSize: 15 }}
+                accessibilityLabel="Search medical records"
+              />
+              {search.length > 0 ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear search"
+                  onPress={() => setSearch('')}
+                  className="h-11 w-11 items-center justify-center"
+                >
+                  <X size={18} color={RecordsTokens.textMuted} />
+                </Pressable>
+              ) : null}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Sort and filter"
+                onPress={() => setSheet('sort')}
+                className="h-11 w-11 items-center justify-center rounded-full"
+                style={{ backgroundColor: RecordsTokens.accentSoft }}
+              >
+                <SlidersHorizontal size={18} color={RecordsTokens.accent} />
+              </Pressable>
+            </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 14, paddingVertical: 6, paddingRight: 8 }}>
+              <CategoryChip label="All" count={searchMatches.length} icon={LayoutGrid} active={category === 'All'} onPress={() => setCategory('All')} />
+              {categories.map((c) => (
+                <CategoryChip
+                  key={c}
+                  label={categoryStyle[c].short}
+                  count={chipCounts.get(c) ?? 0}
+                  icon={categoryStyle[c].icon}
+                  active={category === c}
+                  onPress={() => setCategory(c)}
+                />
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* 3: sort line */}
+          <View className="flex-row items-center justify-between pb-3 pt-2">
+            <Text style={{ color: RecordsTokens.text, fontSize: 16, fontWeight: '700' }}>
+              {filtersActive ? `Showing ${visible.length} of ${records.length}` : view === 'catalog' ? 'Catalog' : 'Recent records'}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Sort: ${sortLabel}. Change`}
+              onPress={() => setSheet('sort')}
+              className="min-h-[44px] flex-row items-center gap-1 rounded-full px-3"
+              style={{ backgroundColor: RecordsTokens.surface, ...RecordsTokens.shadow }}
+            >
+              <Text style={{ color: RecordsTokens.text, fontSize: RecordsTokens.type.meta, fontWeight: '600' }}>{sortLabel}</Text>
+              <Text style={{ color: RecordsTokens.textMuted, fontSize: 10 }}>▼</Text>
+            </Pressable>
+          </View>
+
+          {/* 4+: list */}
+          {!hydrated ? (
+            <RecordSkeleton />
+          ) : records.length === 0 ? (
+            <View className="items-center gap-3 p-8" style={{ backgroundColor: RecordsTokens.surface, borderRadius: RecordsTokens.radius.card, ...RecordsTokens.shadow }}>
+              <View className="h-14 w-14 items-center justify-center rounded-full" style={{ backgroundColor: RecordsTokens.accentSoft }}>
+                <FileText size={26} color={RecordsTokens.accent} />
               </View>
-            ))}
-          </Animated.View>
-        )}
-      </Animated.ScrollView>
+              <Text style={{ color: RecordsTokens.text, fontSize: 17, fontWeight: '700' }}>No medical records yet</Text>
+              <Text className="text-center" style={{ color: RecordsTokens.textMuted, fontSize: RecordsTokens.type.meta }}>
+                Upload a document, scan one, or add a record by hand.
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Add a record"
+                onPress={() => router.push('/records/upload')}
+                className="min-h-[44px] justify-center rounded-full px-6"
+                style={{ backgroundColor: RecordsTokens.accent }}
+              >
+                <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 15 }}>Add a record</Text>
+              </Pressable>
+            </View>
+          ) : visible.length === 0 ? (
+            <View className="items-center gap-3 p-8" style={{ backgroundColor: RecordsTokens.surface, borderRadius: RecordsTokens.radius.card, ...RecordsTokens.shadow }}>
+              <Text style={{ color: RecordsTokens.text, fontSize: 17, fontWeight: '700' }}>
+                {search.trim() ? `No records match "${search.trim()}"` : `No ${category} records`}
+              </Text>
+              <Text className="text-center" style={{ color: RecordsTokens.textMuted, fontSize: RecordsTokens.type.meta }}>
+                {search.trim() ? 'Try fewer words, or search by a different detail.' : 'Choose another category to see your other records.'}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={search.trim() ? 'Clear search' : 'Show all records'}
+                onPress={() => {
+                  setSearch('');
+                  setCategory('All');
+                }}
+                className="min-h-[44px] justify-center rounded-full px-6"
+                style={{ backgroundColor: RecordsTokens.accent }}
+              >
+                <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 15 }}>
+                  {search.trim() ? 'Clear search' : 'Show all records'}
+                </Text>
+              </Pressable>
+            </View>
+          ) : view === 'catalog' ? (
+            <Animated.View key="catalog" entering={reduced ? undefined : ZoomIn.springify().damping(springs.gentle.damping)} exiting={FadeOut.duration(120)} style={pinchStyle}>
+              <RecordCatalog groups={dateSorted ? groups : groupByMonth(visible)} onOpen={(r) => router.push(`/records/${r.id}`)} />
+            </Animated.View>
+          ) : (
+            <Animated.View key="list" entering={reduced ? undefined : FadeIn.duration(220)} exiting={FadeOut.duration(120)} style={pinchStyle}>
+              {groups.map((group) => (
+                <View key={group.label || 'all'} className="gap-3 pb-4">
+                  {group.label ? (
+                    <Text style={{ color: RecordsTokens.textMuted, fontSize: RecordsTokens.type.meta, fontWeight: '600' }}>
+                      {group.label} · {group.records.length}
+                    </Text>
+                  ) : null}
+                  {group.records.map((record) => (
+                    <RecordCard
+                      key={record.id}
+                      record={record}
+                      onOpen={() => router.push(`/records/${record.id}`)}
+                      onDownload={() => {
+                        void handleDownloadSingle(record);
+                      }}
+                      onShare={() => router.push({ pathname: '/more/sharing', params: { recordId: record.id } })}
+                      onDelete={() => confirmDelete(record.id, record.title)}
+                    />
+                  ))}
+                </View>
+              ))}
+            </Animated.View>
+          )}
+        </Animated.ScrollView>
       </GestureDetector>
 
       {/* Floating add button, above the tab bar */}
@@ -355,7 +400,19 @@ export default function RecordsScreen() {
           haptic="impact"
           scaleTo={0.92}
           onPress={() => router.push('/records/upload')}
-          style={{ width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', backgroundColor: RecordsTokens.accent, shadowColor: RecordsTokens.accent, shadowOpacity: 0.35, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 6 }}
+          style={{
+            width: 64,
+            height: 64,
+            borderRadius: 32,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: RecordsTokens.accent,
+            shadowColor: RecordsTokens.accent,
+            shadowOpacity: 0.35,
+            shadowRadius: 14,
+            shadowOffset: { width: 0, height: 6 },
+            elevation: 6,
+          }}
         >
           <Plus size={28} color="#FFFFFF" />
         </PressableScale>
@@ -376,6 +433,8 @@ export default function RecordsScreen() {
       <ExportSummaryModal
         visible={showExport}
         onClose={() => setShowExport(false)}
+        filteredRecords={filtersActive ? visible : undefined}
+        activeFilterLabel={category !== 'All' ? category : search.trim() ? 'Search Results' : undefined}
       />
     </View>
   );

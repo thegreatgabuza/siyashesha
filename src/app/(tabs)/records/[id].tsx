@@ -18,7 +18,7 @@ import { TranslationSheet } from '@/components/TranslationSheet';
 import { removeOriginal } from '@/lib/documents';
 import { deleteRecordFromDatabase } from '@/lib/supabase';
 import { formatEventDate, reviewLabel } from '@/lib/recordSearch';
-import { baseDocumentStyles, printAndShareHtml } from '@/lib/pdf';
+import { exportSingleRecordPdf } from '@/lib/pdf';
 import { useAppStore } from '@/store/useAppStore';
 import { useAccent } from '@/hooks/useAccent';
 
@@ -27,10 +27,13 @@ export default function RecordDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const toast = useToast();
   const records = useAppStore((s) => s.records);
+  const patient = useAppStore((s) => s.patientProfile);
+  const logAudit = useAppStore((s) => s.logAudit);
   const updateRecord = useAppStore((s) => s.updateRecord);
   const deleteRecord = useAppStore((s) => s.deleteRecord);
   const language = useAppStore((s) => s.language);
   const [translateOpen, setTranslateOpen] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const record = records.find((r) => r.id === id);
 
@@ -47,22 +50,16 @@ export default function RecordDetailScreen() {
   const provider = [record.doctor, record.facility].filter(Boolean).join(' · ');
 
   const handleDownload = async () => {
+    if (isDownloading) return;
+    setIsDownloading(true);
     try {
-      const html = `
-        <html><head>${baseDocumentStyles()}</head><body>
-          <h1>${record.title}</h1>
-          <div class="muted">${record.facility}${record.doctor ? ` · ${record.doctor}` : ''} · ${formatEventDate(record)}</div>
-          <div class="section-title">Diagnosis</div>
-          <div>${record.diagnosis ?? 'Not recorded'}</div>
-          <div class="section-title">Clinical Notes</div>
-          <div>${record.clinicalNotes}</div>
-          ${record.followUp ? `<div class="section-title">Follow-up</div><div>${record.followUp}</div>` : ''}
-          <div class="notice">Siyashesha Health Passport — downloaded by the patient. The original record held by the issuing facility remains authoritative.</div>
-        </body></html>
-      `;
-      await printAndShareHtml(html, record.title);
+      await exportSingleRecordPdf(record, patient, 'download');
+      logAudit('export', `Downloaded record PDF: ${record.title}`);
+      toast.show(`Downloaded "${record.title}" as PDF`, 'success');
     } catch {
       toast.show('Could not prepare the download. Please try again.', 'warning');
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -90,6 +87,9 @@ export default function RecordDetailScreen() {
         onBack={() => router.back()}
         right={
           <View className="flex-row gap-2">
+            <IconButton accessibilityLabel="Download record PDF" onPress={handleDownload}>
+              <Download size={18} color={accent} />
+            </IconButton>
             <IconButton accessibilityLabel="Edit details" onPress={() => router.push(`/records/edit?id=${record.id}` as any)}>
               <Pencil size={18} color="#5B6478" />
             </IconButton>
@@ -133,7 +133,11 @@ export default function RecordDetailScreen() {
               icon={<Share2 size={16} color="#FFFFFF" />}
               onPress={() => router.push({ pathname: '/more/sharing', params: { recordId: record.id } })}
             />
-            <HeroAction label="Download summary" icon={<Download size={16} color="#FFFFFF" />} onPress={handleDownload} />
+            <HeroAction
+              label={isDownloading ? 'Preparing PDF…' : 'Download PDF'}
+              icon={<Download size={16} color="#FFFFFF" />}
+              onPress={handleDownload}
+            />
           </View>
         </View>
 

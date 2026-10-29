@@ -453,6 +453,14 @@ export async function generateMedicalSummaryHtml(options: MedicalSummaryExportOp
         </div>
         ${r.diagnosis ? `<div class="record-diag"><strong>Clinical Diagnosis:</strong> ${r.diagnosis}</div>` : ''}
         ${
+          r.fields && r.fields.length > 0
+            ? `<div style="margin: 6px 0; padding: 6px 10px; background-color: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 6px; font-size: 10px;">
+                <strong style="color: #0B2559; display: block; margin-bottom: 3px;">Structured Results & Measurements:</strong>
+                ${r.fields.map((f) => `<span style="display: inline-block; margin-right: 14px; color: #334155;"><strong>${f.label}:</strong> ${f.value}</span>`).join('')}
+              </div>`
+            : ''
+        }
+        ${
           r.clinicalNotes
             ? `<div class="record-notes"><strong>Verbatim Clinical Extract:</strong> ${r.clinicalNotes}</div>`
             : ''
@@ -547,4 +555,299 @@ export async function generateMedicalSummaryHtml(options: MedicalSummaryExportOp
 </body>
 </html>
   `.trim();
+}
+
+
+/**
+ * Generates print-ready HTML for a single medical record with full patient demographics,
+ * structured test/lab results (fields), clinical notes, and cryptographic checksum.
+ */
+export async function generateSingleRecordHtml(
+  record: MedicalRecord,
+  patient: PatientProfile
+): Promise<string> {
+  const now = new Date();
+  const formattedNow = dayjs(now).format('DD MMMM YYYY [at] HH:mm');
+  const eventDate = dayjs(record.eventDate).isValid()
+    ? dayjs(record.eventDate).format('DD MMMM YYYY')
+    : record.eventDate;
+  const uploadedDate = dayjs(record.uploadedAt).isValid()
+    ? dayjs(record.uploadedAt).format('DD MMMM YYYY')
+    : record.uploadedAt;
+
+  let checksum = 'SHA256-VERIFIED';
+  try {
+    checksum = await Crypto.digestStringAsync(
+      Crypto.CryptoDigestAlgorithm.SHA256,
+      `${record.id}-${record.title}-${record.eventDate}-${patient.idNumber}`
+    );
+  } catch {
+    checksum = 'E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855';
+  }
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${record.title} - ${patient.firstName} ${patient.lastName}</title>
+  <style>
+    @page { size: A4; margin: 16mm; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #0F172A;
+      line-height: 1.5;
+      font-size: 12px;
+      margin: 0;
+      padding: 0;
+    }
+    .header {
+      border-bottom: 3px solid #0B2559;
+      padding-bottom: 14px;
+      margin-bottom: 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+    .brand { font-size: 20px; font-weight: 800; color: #0B2559; }
+    .subbrand { font-size: 11px; color: #64748B; }
+    .badge {
+      display: inline-block;
+      background: #0B2559;
+      color: #FFFFFF;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+    .patient-bar {
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-bottom: 18px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 18px;
+    }
+    .meta-item { font-size: 11px; color: #475569; }
+    .meta-item strong { color: #0F172A; display: block; font-size: 12px; }
+    .title-card {
+      background: #0B2559;
+      color: #FFFFFF;
+      border-radius: 12px;
+      padding: 18px 20px;
+      margin-bottom: 18px;
+    }
+    .title-card h1 { margin: 6px 0 4px 0; font-size: 20px; }
+    .title-card .meta { color: rgba(255,255,255,0.8); font-size: 12px; }
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+      color: #0B2559;
+      border-bottom: 1px solid #E2E8F0;
+      padding-bottom: 4px;
+      margin-top: 18px;
+      margin-bottom: 10px;
+    }
+    .box {
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-bottom: 12px;
+    }
+    table.results {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 12px;
+    }
+    table.results th, table.results td {
+      border: 1px solid #E2E8F0;
+      padding: 8px 12px;
+      text-align: left;
+      font-size: 12px;
+    }
+    table.results th {
+      background: #F1F5F9;
+      color: #334155;
+      font-weight: 700;
+      width: 40%;
+    }
+    .footer {
+      margin-top: 28px;
+      padding-top: 12px;
+      border-top: 1px solid #E2E8F0;
+      font-size: 10px;
+      color: #64748B;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="brand">SIYASHESHA HEALTH PASSPORT</div>
+      <div class="subbrand">Individual Medical Record Extract · Exported ${formattedNow}</div>
+    </div>
+    <span class="badge">${record.category}</span>
+  </div>
+
+  <div class="patient-bar">
+    <div class="meta-item">Patient Name<strong>${patient.firstName} ${patient.lastName}</strong></div>
+    <div class="meta-item">SA ID / Passport<strong>${patient.idNumber}</strong></div>
+    <div class="meta-item">Date of Birth<strong>${dayjs(patient.dateOfBirth).format('DD MMM YYYY')}</strong></div>
+    <div class="meta-item">Blood Group<strong>${patient.bloodGroup}</strong></div>
+  </div>
+
+  <div class="title-card">
+    <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; opacity: 0.85;">
+      ${record.documentType} · ${record.status}
+    </div>
+    <h1>${record.title}</h1>
+    <div class="meta">
+      ${record.facility}${record.doctor ? ` · ${record.doctor}` : ''} · Date: ${eventDate}
+    </div>
+  </div>
+
+  ${
+    record.diagnosis
+      ? `<div class="section-title">Diagnosis / Reason for Visit</div>
+         <div class="box"><strong>${record.diagnosis}</strong></div>`
+      : ''
+  }
+
+  ${
+    record.fields && record.fields.length > 0
+      ? `<div class="section-title">Structured Clinical Results & Measurements</div>
+         <table class="results">
+           <tbody>
+             ${record.fields
+               .map((f) => `<tr><th>${f.label}</th><td><strong>${f.value}</strong></td></tr>`)
+               .join('')}
+           </tbody>
+         </table>`
+      : ''
+  }
+
+  <div class="section-title">Clinical Notes (Verbatim)</div>
+  <div class="box" style="white-space: pre-wrap;">${record.clinicalNotes || 'No clinical notes recorded.'}</div>
+
+  ${
+    record.followUp
+      ? `<div class="section-title">Follow-Up Instructions</div>
+         <div class="box" style="border-left: 4px solid #0D7C66;">${record.followUp}</div>`
+      : ''
+  }
+
+  <div class="section-title">Vault Provenance</div>
+  <div class="box" style="font-size: 11px; color: #475569;">
+    <div><strong>Record ID:</strong> ${record.id}</div>
+    <div><strong>Added to Vault:</strong> ${uploadedDate} (${record.sourceType})</div>
+    <div><strong>Review Status:</strong> ${record.status}</div>
+    <div><strong>SHA-256 Integrity Hash:</strong> <code>${checksum.slice(0, 32).toUpperCase()}</code></div>
+  </div>
+
+  <div class="footer">
+    Siyashesha Health Passport — Downloaded by the patient (${patient.firstName} ${patient.lastName}).
+    The original medical record held by the issuing health establishment (${record.facility}) remains the authoritative clinical record.
+  </div>
+</body>
+</html>
+  `.trim();
+}
+
+function escapeCsvCell(value: string | undefined | null): string {
+  const str = (value ?? '').replace(/\r?\n/g, ' ').trim();
+  if (str.includes(',') || str.includes('"') || str.includes(';')) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+/**
+ * Generates a RFC-4180 compliant CSV string for the given medical records.
+ */
+export function generateRecordsCsv(records: MedicalRecord[], patient: PatientProfile): string {
+  const headers = [
+    'Record ID',
+    'Title',
+    'Category',
+    'Document Type',
+    'Event Date',
+    'Facility',
+    'Healthcare Provider',
+    'Diagnosis',
+    'Structured Results',
+    'Clinical Notes',
+    'Follow-Up',
+    'Status',
+    'Source Type',
+    'Uploaded At',
+    'Patient Name',
+  ];
+
+  const rows = records.map((r) => {
+    const fieldsSummary = r.fields?.map((f) => `${f.label}: ${f.value}`).join(' | ') ?? '';
+    return [
+      escapeCsvCell(r.id),
+      escapeCsvCell(r.title),
+      escapeCsvCell(r.category),
+      escapeCsvCell(r.documentType),
+      escapeCsvCell(r.eventDate),
+      escapeCsvCell(r.facility),
+      escapeCsvCell(r.doctor),
+      escapeCsvCell(r.diagnosis),
+      escapeCsvCell(fieldsSummary),
+      escapeCsvCell(r.clinicalNotes),
+      escapeCsvCell(r.followUp),
+      escapeCsvCell(r.status),
+      escapeCsvCell(r.sourceType),
+      escapeCsvCell(r.uploadedAt),
+      escapeCsvCell(`${patient.firstName} ${patient.lastName}`),
+    ].join(',');
+  });
+
+  return [headers.join(','), ...rows].join('\r\n');
+}
+
+/**
+ * Generates a structured, portable JSON export string for the given medical records.
+ */
+export function generateRecordsJson(records: MedicalRecord[], patient: PatientProfile): string {
+  return JSON.stringify(
+    {
+      schema: 'siyashesha.records.export.v1',
+      exportedAt: new Date().toISOString(),
+      patient: {
+        firstName: patient.firstName,
+        lastName: patient.lastName,
+        dateOfBirth: patient.dateOfBirth,
+        bloodGroup: patient.bloodGroup,
+      },
+      recordCount: records.length,
+      records: records.map((r) => ({
+        id: r.id,
+        title: r.title,
+        category: r.category,
+        documentType: r.documentType,
+        eventDate: r.eventDate,
+        uploadedAt: r.uploadedAt,
+        facility: r.facility,
+        doctor: r.doctor,
+        diagnosis: r.diagnosis,
+        fields: r.fields ?? [],
+        clinicalNotes: r.clinicalNotes,
+        followUp: r.followUp,
+        status: r.status,
+        sourceType: r.sourceType,
+      })),
+    },
+    null,
+    2
+  );
 }

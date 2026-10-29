@@ -19,7 +19,7 @@ import {
   Trash2,
 } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
-import { Alert, FlatList, Text, View } from 'react-native';
+import { Alert, FlatList, Platform, Text, View } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 
 import { CalendarDayCell } from '@/components/CalendarDayCell';
@@ -62,32 +62,48 @@ export default function CalendarScreen() {
   // Modals
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | undefined>();
+  const [modalDayAppointments, setModalDayAppointments] = useState<Appointment[]>([]);
   const [showAllHealthDays, setShowAllHealthDays] = useState(false);
 
+  const handleDayPress = (dateStr: string) => {
+    setSelectedDate(dateStr);
+    const dayAppts = getDayAgenda(dateStr, appointments).appointments;
+    setModalDayAppointments(dayAppts);
+    setSelectedAppointment(dayAppts[0]);
+    setModalVisible(true);
+  };
+
   const openNewAppointmentModal = (dateToUse?: string) => {
+    const targetDate = dateToUse ?? selectedDate;
+    setSelectedDate(targetDate);
+    setModalDayAppointments([]);
     setSelectedAppointment(undefined);
-    if (dateToUse) setSelectedDate(dateToUse);
     setModalVisible(true);
   };
 
   const openEditAppointmentModal = (appt: Appointment) => {
+    setSelectedDate(appt.date);
+    setModalDayAppointments(getDayAgenda(appt.date, appointments).appointments);
     setSelectedAppointment(appt);
     setModalVisible(true);
   };
 
-  const handleSaveAppointment = (data: Omit<Appointment, 'id'>) => {
-    if (selectedAppointment) {
-      updateAppointment(selectedAppointment.id, data);
-      toast.show('Visit details updated', 'success');
+  const handleSaveAppointment = (data: Omit<Appointment, 'id'>, editingId?: string) => {
+    const targetId = editingId ?? selectedAppointment?.id;
+    setSelectedDate(data.date);
+    setVisibleMonth(dayjs(data.date).format('YYYY-MM'));
+    if (targetId) {
+      updateAppointment(targetId, data);
+      toast.show('Event details updated', 'success');
     } else {
       addAppointment(data);
-      toast.show('Visit scheduled in your calendar', 'success');
+      toast.show('Event scheduled in your calendar', 'success');
     }
   };
 
   const handleDeleteAppointment = (id: string) => {
     deleteAppointment(id);
-    toast.show('Visit cancelled', 'info');
+    toast.show('Event removed from calendar', 'info');
   };
 
   const toggleAppointmentComplete = (appt: Appointment) => {
@@ -259,7 +275,7 @@ export default function CalendarScreen() {
           markingType="custom"
           markedDates={markedDates}
           dayComponent={CalendarDayCell as any}
-          onDayPress={(d) => setSelectedDate(d.dateString)}
+          onDayPress={(d) => handleDayPress(d.dateString)}
           onMonthChange={(d) => setVisibleMonth(dayjs(d.dateString).format('YYYY-MM'))}
           theme={{
             backgroundColor: 'transparent',
@@ -535,16 +551,20 @@ export default function CalendarScreen() {
                     >
                       <Edit2 size={13} color={t.accent} />
                       <Txt variant="footnote" color={t.accent} style={{ fontFamily: fonts.medium }}>
-                        Reschedule
+                        Edit
                       </Txt>
                     </PressableScale>
 
                     <PressableScale
                       onPress={() => {
-                        Alert.alert('Cancel Appointment', `Cancel "${appt.title}"?`, [
+                        if (Platform.OS === 'web') {
+                          handleDeleteAppointment(appt.id);
+                          return;
+                        }
+                        Alert.alert('Delete Event', `Remove "${appt.title}" from your calendar?`, [
                           { text: 'Keep', style: 'cancel' },
                           {
-                            text: 'Cancel Visit',
+                            text: 'Delete',
                             style: 'destructive',
                             onPress: () => handleDeleteAppointment(appt.id),
                           },
@@ -677,6 +697,7 @@ export default function CalendarScreen() {
         onDelete={handleDeleteAppointment}
         initialDate={selectedDate}
         existingAppointment={selectedAppointment}
+        dayAppointments={modalDayAppointments}
       />
 
       {/* All 20 Health Days Browser Modal */}
