@@ -39,7 +39,11 @@
         "track": "internal",
         "releaseStatus": "draft"
       },
-      "ios": {}
+      "ios": {
+        "appleId": "siyasheshahealth@gmail.com",
+        "ascAppId": "6828490481",
+        "appleTeamId": "KK4Y9A8F7W"
+      }
     }
   }
 }
