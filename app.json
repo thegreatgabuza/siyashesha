@@ -207,6 +207,17 @@
       "barStyle": "dark-content",
       "backgroundColor": "#F8FAFC",
       "visible": "leanback"
-    }
+    },
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "a7200f46-b138-41f4-91f3-8254aa68aaa2"
+      }
+    },
+    "owner": "siyashesha-health"
   }
 }
