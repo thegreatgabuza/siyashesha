@@ -277,7 +277,7 @@ export const useAppStore = create<AppState>()(
         });
       },
 
-      themePreference: 'system',
+      themePreference: 'light',
       setThemePreference: (t) => set({ themePreference: t }),
       language: 'en',
       setLanguage: (l) =>
