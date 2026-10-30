@@ -1,12 +1,14 @@
 import { router } from 'expo-router';
 import { Bell, CalendarCheck, HeartPulse, Pill } from 'lucide-react-native';
-import { Text, View } from 'react-native';
+import { useState } from 'react';
+import { Alert, Linking, Text, View } from 'react-native';
 
 import { ChunkyButton } from '@/components/onboarding/ChunkyButton';
 import { Mascot } from '@/components/onboarding/Mascot';
 import { OnboardingShell } from '@/components/onboarding/OnboardingShell';
 import { SpeechBubble } from '@/components/onboarding/SpeechBubble';
-import { ensureNotificationPermission, syncReminders } from '@/lib/reminders';
+import { useToast } from '@/components/ui/Toast';
+import { requestNotificationPermission, sendReminderConfirmation, syncReminders } from '@/lib/reminders';
 import { useAppStore } from '@/store/useAppStore';
 
 const benefits = [
@@ -30,13 +32,56 @@ const benefits = [
 /** Friendly pre-prompt. The system permission dialog only appears after the user says yes here. */
 export default function NotificationsScreen() {
   const setNotification = useAppStore((s) => s.setNotification);
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+
+  const goNext = () => router.push('/(onboarding)/privacy' as any);
 
   const allowReminders = async () => {
-    const granted = await ensureNotificationPermission();
-    setNotification('medicationReminders', granted);
-    setNotification('wellnessCheckins', granted);
-    await syncReminders();
-    router.push('/(onboarding)/privacy' as any);
+    if (busy) return;
+    setBusy(true);
+    try {
+      const result = await requestNotificationPermission();
+      setNotification('medicationReminders', result.granted);
+      setNotification('wellnessCheckins', result.granted);
+
+      if (result.granted) {
+        await syncReminders();
+        await sendReminderConfirmation();
+        toast.show('Reminders are on. A test notification is on its way.', 'success');
+        goNext();
+        return;
+      }
+
+      if (!result.available) {
+        toast.show('Reminders need the installed Siyashesha app (not Expo Go).', 'warning');
+        goNext();
+        return;
+      }
+
+      if (!result.canAskAgain) {
+        Alert.alert(
+          'Notifications are turned off',
+          'Turn on notifications for Siyashesha in Settings so your medication reminders can reach you. You can also do this later.',
+          [
+            { text: 'Maybe later', style: 'cancel', onPress: goNext },
+            {
+              text: 'Open Settings',
+              onPress: () => {
+                Linking.openSettings().catch(() => {});
+                goNext();
+              },
+            },
+          ],
+        );
+        return;
+      }
+
+      toast.show('No problem. You can switch reminders on any time in Settings.', 'info');
+      goNext();
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -46,7 +91,7 @@ export default function NotificationsScreen() {
       stepLabel="Smart Reminders"
       footer={
         <>
-          <ChunkyButton label="Enable smart reminders" onPress={allowReminders} />
+          <ChunkyButton label={busy ? 'Setting up…' : 'Enable smart reminders'} onPress={allowReminders} />
           <ChunkyButton variant="ghost" label="Maybe later" onPress={() => router.push('/(onboarding)/privacy' as any)} />
         </>
       }

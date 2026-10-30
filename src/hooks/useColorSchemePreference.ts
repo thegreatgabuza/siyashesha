@@ -1,16 +1,20 @@
-import { useEffect } from 'react';
+import { useLayoutEffect } from 'react';
 import { Platform } from 'react-native';
 import { colorScheme as nativewindColorScheme, useColorScheme as useNativewindColorScheme } from 'nativewind';
 
 import { useAppStore } from '@/store/useAppStore';
 
 /** Keeps NativeWind's `dark:` variants (and the native Appearance API) in sync with the
- * user's stored theme preference. Mount once near the root of the app. */
+ * user's stored theme preference. Mount once near the root of the app.
+ *
+ * Onboarding is always light, whatever the phone or the saved preference says. Once onboarding
+ * is complete the user's own preference (light, dark or system) takes over. */
 export function useSyncColorScheme() {
   const preference = useAppStore((s) => s.themePreference);
-  useEffect(() => {
-    nativewindColorScheme.set(preference);
-  }, [preference]);
+  const hasCompletedOnboarding = useAppStore((s) => s.hasCompletedOnboarding);
+  useLayoutEffect(() => {
+    nativewindColorScheme.set(hasCompletedOnboarding ? preference : 'light');
+  }, [preference, hasCompletedOnboarding]);
 }
 
 /** The scheme NativeWind is actually rendering, so token colours always match the `dark:` classes. */

@@ -15,6 +15,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -133,6 +134,27 @@ export default function EmergencyScreen() {
     setContacts(contacts.filter((_, idx) => idx !== index));
   };
 
+  /**
+   * Applies a contact chosen from the phone's address book. A contact with several numbers
+   * opens the in-app list so the user can choose which number paramedics should call.
+   */
+  const applyPickedContact = (index: number, name: string, numbers: string[]) => {
+    const displayName = name.trim() || 'Emergency Contact';
+    const unique = Array.from(new Set(numbers.map((n) => n.trim()).filter(Boolean)));
+    if (unique.length === 0) {
+      toast.show(`${displayName} has no phone number saved`, 'warning');
+      return;
+    }
+    if (unique.length === 1) {
+      updateContactAt(index, { name: displayName, phone: unique[0] });
+      toast.show(`Imported ${displayName} from Contacts`, 'success');
+      return;
+    }
+    setDeviceContacts(unique.map((phone, i) => ({ id: `${displayName}-${i}`, name: displayName, phone })));
+    setContactSearch('');
+    setContactPickerIndex(index);
+  };
+
   const handlePickFromPhoneContacts = async (index: number) => {
     tapFeedback();
     if (Platform.OS === 'web') {
@@ -142,74 +164,81 @@ export default function EmergencyScreen() {
       return;
     }
 
+    // 1. The system contact picker. On iOS and Android it returns only the contact the user
+    //    taps, so no blanket address-book permission is needed.
     try {
-      // 1. Try native OS single-contact picker first (does not require full address book read permission on Android/iOS)
-      if (typeof Contacts.presentContactPickerAsync === 'function') {
-        try {
-          const picked = await Contacts.presentContactPickerAsync();
-          if (picked) {
-            const pickedName =
-              picked.name ||
-              [picked.firstName, picked.lastName].filter(Boolean).join(' ') ||
-              'Emergency Contact';
-            const pickedPhone = picked.phoneNumbers?.[0]?.number ?? '';
-            updateContactAt(index, {
-              name: pickedName,
-              phone: pickedPhone,
-            });
-            toast.show(`Imported ${pickedName} from Contacts`, 'success');
-            return;
-          } else {
-            return;
-          }
-        } catch {
-          // Fall back to permission-gated searchable in-app contacts modal below
-        }
-      }
+      const picked = await Contacts.Contact.presentPicker();
+      if (!picked) return; // user cancelled
+      const [fullName, phones] = await Promise.all([
+        picked.getFullName().catch(() => ''),
+        picked.getPhones().catch(() => []),
+      ]);
+      applyPickedContact(
+        index,
+        fullName,
+        phones.map((p) => p.number ?? ''),
+      );
+      return;
+    } catch {
+      // Picker unavailable or details unreadable without permission: use the searchable list below.
+    }
 
-      // 2. Check existing permission; if not yet granted, show Google Play Prominent Disclosure first
-      const existingPerm = await Contacts.getPermissionsAsync();
-      if (existingPerm.status !== 'granted') {
-        const userConfirmed = await new Promise<boolean>((resolve) => {
+    // 2. Searchable in-app list. Show the Google Play prominent disclosure before the OS prompt.
+    try {
+      const existing = await Contacts.getPermissionsAsync();
+      if (existing.status !== 'granted') {
+        const confirmed = await new Promise<boolean>((resolve) => {
           Alert.alert(
             'Contacts Access Disclosure',
             'Siyashesha accesses your phone contacts only so you can select an Emergency Contact (ICE) name and phone number for paramedics. Your full contact list is never uploaded or shared with third parties.',
             [
               { text: 'Not Now', style: 'cancel', onPress: () => resolve(false) },
               { text: 'Continue', onPress: () => resolve(true) },
-            ]
+            ],
           );
         });
-        if (!userConfirmed) return;
-      }
+        if (!confirmed) return;
 
-      const { status } = await Contacts.requestPermissionsAsync();
-      if (status !== 'granted') {
-        toast.show('Contacts permission is needed to import from your phonebook', 'warning');
-        return;
+        const requested = await Contacts.requestPermissionsAsync();
+        if (requested.status !== 'granted') {
+          if (requested.canAskAgain === false) {
+            Alert.alert(
+              'Contacts permission is off',
+              'Turn on Contacts for Siyashesha in Settings to import an emergency contact, or type the details in manually.',
+              [
+                { text: 'Type manually', style: 'cancel' },
+                { text: 'Open Settings', onPress: () => Linking.openSettings().catch(() => {}) },
+              ],
+            );
+          } else {
+            toast.show('Contacts permission is needed to import from your phonebook', 'warning');
+          }
+          return;
+        }
       }
 
       setLoadingContacts(true);
       setContactSearch('');
       setContactPickerIndex(index);
 
-      const { data } = await Contacts.getContactsAsync({
-        fields: [Contacts.Fields.Name, Contacts.Fields.PhoneNumbers],
-        sort: Contacts.SortTypes.FirstName,
-      });
-
+      // ContactField is re-exported via `export *`, which eslint-plugin-import cannot follow; TypeScript and the runtime both resolve it.
+      /* eslint-disable import/namespace */
+      const details = await Contacts.Contact.getAllDetails([
+        Contacts.ContactField.FULL_NAME,
+        Contacts.ContactField.PHONES,
+      ]);
+      /* eslint-enable import/namespace */
       const parsed: DeviceContactItem[] = [];
-      for (const c of data) {
-        const phone = c.phoneNumbers?.[0]?.number?.trim();
-        const name = (c.name || [c.firstName, c.lastName].filter(Boolean).join(' ')).trim();
-        if (name && phone) {
-          parsed.push({ id: c.id ?? `${name}-${phone}`, name, phone });
-        }
-      }
-      setDeviceContacts(parsed.length > 0 ? parsed : FALLBACK_DEVICE_CONTACTS);
+      details.forEach((d, i) => {
+        const name = (d.fullName ?? '').trim();
+        const phone = d.phones?.[0]?.number?.trim();
+        if (name && phone) parsed.push({ id: `${i}-${name}-${phone}`, name, phone });
+      });
+      parsed.sort((a, b) => a.name.localeCompare(b.name));
+      setDeviceContacts(parsed);
     } catch {
-      setDeviceContacts(FALLBACK_DEVICE_CONTACTS);
-      setContactPickerIndex(index);
+      setContactPickerIndex(null);
+      toast.show('Could not open your contacts. Please type the details in manually.', 'warning');
     } finally {
       setLoadingContacts(false);
     }

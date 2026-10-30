@@ -118,6 +118,7 @@
         "android.permission.READ_MEDIA_AUDIO",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.WRITE_CONTACTS",
         "android.permission.SYSTEM_ALERT_WINDOW"
       ],
       "intentFilters": [

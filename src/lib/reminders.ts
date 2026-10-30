@@ -46,11 +46,59 @@ export async function notificationsGranted(): Promise<boolean> {
  * Returns true when reminders are allowed on this phone.
  */
 export async function ensureNotificationPermission(): Promise<boolean> {
+  return (await requestNotificationPermission()).granted;
+}
+
+export interface NotificationPermissionResult {
+  /** The phone allows notifications from this app. */
+  granted: boolean;
+  /** False once the user has denied twice (or on Android after two refusals): only Settings can fix it. */
+  canAskAgain: boolean;
+  /** False in builds that cannot show notifications at all (for example Expo Go on Android). */
+  available: boolean;
+}
+
+/**
+ * Asks for notification permission and reports why it failed.
+ * Android 13+ only shows the system prompt once at least one notification channel exists,
+ * so the channels are created before the request.
+ */
+export async function requestNotificationPermission(): Promise<NotificationPermissionResult> {
   const N = getNotifications();
-  if (!N) return false;
-  const current = await N.getPermissionsAsync();
-  if (current.granted) return true;
-  return (await N.requestPermissionsAsync()).granted;
+  if (!N) return { granted: false, canAskAgain: false, available: false };
+  try {
+    await ensureChannels(N);
+    const current = await N.getPermissionsAsync();
+    if (current.granted) return { granted: true, canAskAgain: true, available: true };
+    if (current.canAskAgain === false) return { granted: false, canAskAgain: false, available: true };
+    const requested = await N.requestPermissionsAsync({
+      ios: { allowAlert: true, allowBadge: true, allowSound: true },
+    });
+    return { granted: requested.granted, canAskAgain: requested.canAskAgain !== false, available: true };
+  } catch (err) {
+    console.warn('[Notifications] Permission request failed:', err);
+    return { granted: false, canAskAgain: true, available: true };
+  }
+}
+
+/** Schedules a quick confirmation so the user sees reminders working straight after allowing them. */
+export async function sendReminderConfirmation(seconds = 4): Promise<boolean> {
+  const N = getNotifications();
+  if (!N || !(await notificationsGranted())) return false;
+  await ensureChannels(N);
+  await N.scheduleNotificationAsync({
+    content: {
+      title: 'Reminders are on',
+      body: 'Siyashesha will nudge you for doses and check-ups at the times you choose.',
+      sound: true,
+    },
+    trigger: {
+      type: N.SchedulableTriggerInputTypes.TIME_INTERVAL,
+      seconds,
+      channelId: CHANNEL_ID,
+    },
+  });
+  return true;
 }
 
 async function ensureChannels(N: NonNullable<ReturnType<typeof getNotifications>>) {
@@ -385,11 +433,8 @@ export async function registerForPushNotifications(): Promise<string | null> {
   if (!N) return null;
 
   try {
-    const { granted } = await N.getPermissionsAsync();
-    if (!granted) {
-      const req = await N.requestPermissionsAsync();
-      if (!req.granted) return null;
-    }
+    const { granted } = await requestNotificationPermission();
+    if (!granted) return null;
 
     if (Device.isDevice) {
       const projectId =
@@ -430,7 +475,16 @@ export async function registerForPushNotifications(): Promise<string | null> {
  * 7. Weekly wellness check-in
  * And opportunistically syncs with the Supabase cloud backend.
  */
-export async function syncReminders(): Promise<void> {
+export function syncReminders(): Promise<void> {
+  const run = syncChain.then(runReminderSync, runReminderSync);
+  syncChain = run.catch(() => {});
+  return run;
+}
+
+/** Calls are queued so two overlapping syncs never interleave "cancel all" with "schedule". */
+let syncChain: Promise<void> = Promise.resolve();
+
+async function runReminderSync(): Promise<void> {
   const N = getNotifications();
   if (!N) return;
   await N.cancelAllScheduledNotificationsAsync();

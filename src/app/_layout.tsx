@@ -35,9 +35,33 @@ export default function RootLayout() {
   const isDark = colorScheme === 'dark';
   useSyncColorScheme();
 
-  // Keep scheduled reminders in step with the saved settings on every launch.
+  // Keep scheduled reminders in step with the saved settings on launch and whenever anything
+  // that feeds them changes (medications added during onboarding, toggles, appointments, notes).
   useEffect(() => {
-    syncReminders().catch(() => {});
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const schedule = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        syncReminders().catch(() => {});
+      }, 500);
+    };
+    schedule();
+    const unsubscribe = useAppStore.subscribe((state, prev) => {
+      if (
+        state.medications !== prev.medications ||
+        state.medicationReminderEnabled !== prev.medicationReminderEnabled ||
+        state.notifications !== prev.notifications ||
+        state.customReminders !== prev.customReminders ||
+        state.appointments !== prev.appointments ||
+        state.diaryNotes !== prev.diaryNotes
+      ) {
+        schedule();
+      }
+    });
+    return () => {
+      if (timer) clearTimeout(timer);
+      unsubscribe();
+    };
   }, []);
 
   // Listen for notification taps and interactive category actions (Spec §4.6 & §8.2)
