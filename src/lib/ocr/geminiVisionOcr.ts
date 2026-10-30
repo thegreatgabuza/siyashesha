@@ -7,19 +7,28 @@ import { extractClinicalEntitiesOffline } from './onDeviceOcr';
 import type { ExtractedClinicalRecord } from './types';
 
 const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? '';
-const PRIMARY_MODEL = process.env.EXPO_PUBLIC_GEMINI_MODEL || 'gemini-3.8-flash';
-const FALLBACK_MODELS = ['gemini-3.5-flash', 'gemini-3.6-flash', 'gemini-flash-latest'];
+
+const CANDIDATE_MODELS = [
+  process.env.EXPO_PUBLIC_GEMINI_MODEL,
+  'gemini-3.1-flash-lite',
+  'gemini-3.5-flash',
+  'gemini-3.6-flash',
+  'gemini-3.7-flash',
+  'gemini-3.8-flash',
+].filter((m): m is string => Boolean(m) && m !== 'gemini-flash-latest');
+
+const MODELS_TO_TRY = Array.from(new Set(CANDIDATE_MODELS));
 
 const CLINICAL_NER_PROMPT = `You are an expert Clinical OCR and Named Entity Recognition (NER) system tailored for the South African healthcare ecosystem (public clinics/CHCs, private hospitals, Lancet, Ampath, NHLS, Dis-Chem, Rosebank Family Practice, etc.).
 
 Analyze the document carefully, transcribe the clinical findings, and extract structured medical metadata into this exact JSON format:
 {
-  "title": "Concise, professional title (e.g. 'HbA1c & Lipogram Panel', 'Chronic Prescription — Metformin', 'Chest X-Ray Report')",
+  "title": "Concise, professional title (e.g. 'HbA1c & Lipogram Panel', 'Chronic Prescription — Metformin', 'Chest X-Ray Report', 'Discharge Summary — Charlotte Maxeke Hospital')",
   "category": "Must be exactly one of: Blood Tests, Radiology, Prescriptions, Discharge Summaries, Hospital Visits, Clinic Visits, Operations, Specialist Letters, Vaccinations, Chronic Care, Other",
   "facility": "Name of the clinic, hospital, surgery, practice, or laboratory (e.g. 'Lancet Laboratories, Bedfordview' or 'Rosebank Family Practice', or 'Not recorded')",
   "doctor": "Full name and title of the prescribing or attending clinician (e.g. 'Dr N. Mokoena' or 'Sr P. Dlamini'), or null if absent",
   "eventDate": "Date of encounter, specimen collection, or report in YYYY-MM-DD format. If only month/year or absent, use the closest visible date or today's date",
-  "diagnosis": "Primary diagnosis, indication, or impression (e.g. 'Type 2 Diabetes Mellitus', 'Hypertension'), or null",
+  "diagnosis": "Primary diagnosis, indication, or impression (e.g. 'Type 2 Diabetes Mellitus', 'Essential Hypertension'), or null",
   "followUp": "Follow-up instructions or recall schedule (e.g. 'Repeat in 3 months', 'Review at clinic club'), or null",
   "clinicalNotes": "Transcribed clinical verbatim text, findings, impressions, or prescription directions",
   "fields": [
@@ -60,6 +69,7 @@ function parseGeminiJson(rawJson: string, fallbackFileName?: string): ExtractedC
   try {
     const cleaned = rawJson
       .replace(/^```json\s*/i, '')
+      .replace(/^```\s*/i, '')
       .replace(/\s*```$/i, '')
       .trim();
 
@@ -67,10 +77,18 @@ function parseGeminiJson(rawJson: string, fallbackFileName?: string): ExtractedC
 
     const title = parsed.title?.trim() || fallbackFileName?.replace(/\.[^/.]+$/, '') || 'Medical Record';
     const category = sanitizeCategory(parsed.category);
-    const facility = parsed.facility?.trim() || 'Not recorded';
-    const doctor = parsed.doctor?.trim() || undefined;
-    const diagnosis = parsed.diagnosis?.trim() || undefined;
-    const followUp = parsed.followUp?.trim() || undefined;
+    const rawFacility = parsed.facility?.trim();
+    const facility = rawFacility && !/^(n\/?a|unknown|none)$/i.test(rawFacility) ? rawFacility : 'Not recorded';
+
+    const rawDoctor = parsed.doctor?.trim();
+    const doctor = rawDoctor && !/^(n\/?a|none|unknown)$/i.test(rawDoctor) ? rawDoctor : undefined;
+
+    const rawDiag = parsed.diagnosis?.trim();
+    const diagnosis = rawDiag && !/^(n\/?a|none|unknown|nil)$/i.test(rawDiag) ? rawDiag : undefined;
+
+    const rawFollowUp = parsed.followUp?.trim();
+    const followUp = rawFollowUp && !/^(n\/?a|none|nil)$/i.test(rawFollowUp) ? rawFollowUp : undefined;
+
     const clinicalNotes = parsed.clinicalNotes?.trim() || 'Details extracted from medical document.';
 
     let eventDate = dayjs().format('YYYY-MM-DD');
@@ -131,16 +149,14 @@ export async function extractRecordWithGeminiVision(
     generationConfig: {
       temperature: 0.1,
       responseMimeType: 'application/json',
-      maxOutputTokens: 1000,
+      maxOutputTokens: 1200,
     },
   };
 
-  const modelsToTry = [PRIMARY_MODEL, ...FALLBACK_MODELS];
-
-  for (const model of modelsToTry) {
+  for (const model of MODELS_TO_TRY) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 12000);
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
 
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
       const res = await fetch(url, {
@@ -169,13 +185,14 @@ export async function extractRecordWithGeminiVision(
 }
 
 /**
- * Performs Clinical NER entity extraction on raw text provided by an on-device OCR engine.
+ * Performs Clinical NER entity extraction on raw text provided by an on-device OCR engine,
+ * DOCX OpenXML document extractor, or text stream.
  */
 export async function extractEntitiesFromTextWithGemini(
   rawText: string,
   fileName?: string
 ): Promise<ExtractedClinicalRecord> {
-  const prompt = `${CLINICAL_NER_PROMPT}\n\nRAW EXTRACTED OCR TEXT FROM DOCUMENT:\n"""\n${rawText}\n"""`;
+  const prompt = `${CLINICAL_NER_PROMPT}\n\nRAW EXTRACTED CLINICAL DOCUMENT TEXT:\n"""\n${rawText.slice(0, 15000)}\n"""`;
 
   const payload = {
     contents: [
@@ -186,13 +203,11 @@ export async function extractEntitiesFromTextWithGemini(
     generationConfig: {
       temperature: 0.1,
       responseMimeType: 'application/json',
-      maxOutputTokens: 800,
+      maxOutputTokens: 1200,
     },
   };
 
-  const modelsToTry = [PRIMARY_MODEL, ...FALLBACK_MODELS];
-
-  for (const model of modelsToTry) {
+  for (const model of MODELS_TO_TRY) {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 8000);
@@ -214,6 +229,7 @@ export async function extractEntitiesFromTextWithGemini(
           return parseGeminiJson(text, fileName);
         }
       }
+      console.warn(`[GeminiNER] Model ${model} returned status ${res.status}`);
     } catch (err) {
       console.warn(`[GeminiNER] Error with model ${model}:`, err);
     }

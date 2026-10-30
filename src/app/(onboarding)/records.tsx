@@ -19,10 +19,43 @@ import { extractClinicalRecord } from '@/lib/ocr/documentExtractor';
 import { syncRecordToDatabase } from '@/lib/supabase';
 import { useAppStore } from '@/store/useAppStore';
 
+const SUPPORTED_MIME_TYPES = [
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/msword',
+  'image/jpeg',
+  'image/png',
+  'image/heic',
+  'image/webp',
+  'image/*',
+  '*/*',
+];
+
+function resolveDocumentMime(name: string, reportedMime?: string | null): string {
+  const lower = name.toLowerCase();
+  if (lower.endsWith('.docx')) {
+    return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  }
+  if (lower.endsWith('.doc')) {
+    return 'application/msword';
+  }
+  if (lower.endsWith('.pdf')) {
+    return 'application/pdf';
+  }
+  if (lower.endsWith('.png')) {
+    return 'image/png';
+  }
+  if (/\.(jpe?g)$/i.test(lower)) {
+    return 'image/jpeg';
+  }
+  return reportedMime || 'application/octet-stream';
+}
+
 export default function RecordsOnboardingScreen() {
   const addRecord = useAppStore((s) => s.addRecord);
   const earnStamp = useAppStore((s) => s.earnStamp);
   const [added, setAdded] = useState<string | null>(null);
+  const [savedRecordSummary, setSavedRecordSummary] = useState<MedicalRecord | null>(null);
   const [reward, setReward] = useState<StampId | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
@@ -90,23 +123,36 @@ export default function RecordsOnboardingScreen() {
       clinicalNotes: extractedNotes,
       fields: extractedFields,
     };
+
     addRecord(newRecord);
     syncRecordToDatabase(newRecord).catch(() => {});
     setAdded(extractedTitle);
+    setSavedRecordSummary(newRecord);
     setMessage(null);
     if (earnStamp('record')) setReward('record');
   };
 
   const pickFile = async () => {
-    const result = await DocumentPicker.getDocumentAsync({ type: ['image/*', 'application/pdf'] });
-    if (!result.canceled && result.assets[0]) {
-      const name = result.assets[0].name.replace(/\.[^/.]+$/, '');
-      const asset = result.assets[0];
-      saveRecord(name || 'Uploaded document', 'Upload', {
-        uri: asset.uri,
-        name: asset.name,
-        mimeType: asset.mimeType ?? 'application/octet-stream',
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: SUPPORTED_MIME_TYPES,
+        copyToCacheDirectory: true,
       });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        const asset = result.assets[0];
+        const resolvedMime = resolveDocumentMime(asset.name, asset.mimeType);
+        const cleanName = asset.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+
+        saveRecord(cleanName || 'Uploaded document', 'Upload', {
+          uri: asset.uri,
+          name: asset.name,
+          mimeType: resolvedMime,
+        });
+      }
+    } catch (err) {
+      console.warn('[OnboardingRecords] Pick file error:', err);
+      setMessage('Could not select file. Please try again.');
     }
   };
 
@@ -116,10 +162,11 @@ export default function RecordsOnboardingScreen() {
       setMessage('Camera access is needed to scan. You can allow it in your phone settings, or upload a file instead.');
       return;
     }
-    const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
-    if (result.canceled || !result.assets[0]) return;
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
+    if (result.canceled || !result.assets || !result.assets[0]) return;
+    const asset = result.assets[0];
     saveRecord(`Scanned document ${dayjs().format('D MMM YYYY')}`, 'Scan', {
-      uri: result.assets[0].uri,
+      uri: asset.uri,
       name: `Scanned document ${dayjs().format('YYYY-MM-DD')}.jpg`,
       mimeType: 'image/jpeg',
     });
@@ -141,18 +188,18 @@ export default function RecordsOnboardingScreen() {
       <View className="gap-5 py-2">
         <View className="items-center gap-3">
           <Mascot mood={added ? 'cheer' : 'curious'} size={80} />
-          <SpeechBubble subtitle="Supports blood tests, prescriptions, X-ray reports & clinic notes.">
+          <SpeechBubble subtitle="Supports PDF, Word (.docx), blood tests, prescriptions & clinic letters.">
             {analyzing
-              ? 'Extracting clinical details from your document…'
+              ? 'Extracting clinical details and prefilling from your document…'
               : added
               ? `Saved "${added}" to your encrypted vault!`
-              : message ?? 'Have a medical document handy? Scan or upload your first record.'}
+              : message ?? 'Have a medical document handy? Upload your PDF, DOCX or scan.'}
           </SpeechBubble>
           {analyzing ? (
             <View className="flex-row items-center gap-2 rounded-full bg-brand-100/80 px-4 py-1.5 dark:bg-brand-500/20">
               <ActivityIndicator size="small" color="#0B2559" />
               <Text className="font-sans-semibold text-[12px] text-brand-700 dark:text-brand-300">
-                Smart OCR organizing fields…
+                AI parsing clinical entities…
               </Text>
             </View>
           ) : null}
@@ -161,8 +208,8 @@ export default function RecordsOnboardingScreen() {
         {!added && !analyzing ? (
           <View className="gap-3">
             <OptionCard
-              title="Upload a PDF or photo"
-              subtitle="Choose a lab report, script, or letter from your phone"
+              title="Upload a PDF, Word DOCX, or photo"
+              subtitle="Choose a lab report, script, or hospital letter from your phone"
               badge="Fastest"
               icon={<FileUp size={22} color="#0B2559" />}
               selected={false}
@@ -178,46 +225,81 @@ export default function RecordsOnboardingScreen() {
           </View>
         ) : null}
 
-        {added ? (
-          <View className="flex-row items-center gap-3 rounded-3xl border border-success-500/30 bg-success-50 p-4 dark:bg-success-500/15">
-            <CheckCircle2 size={22} color="#16A34A" />
-            <View className="flex-1">
-              <Text className="font-sans-bold text-[14px] text-success-600 dark:text-emerald-400">
-                Added to your vault
+        {added && savedRecordSummary ? (
+          <View className="rounded-3xl border border-success-500/30 bg-success-50 p-4 dark:bg-success-500/15">
+            <View className="flex-row items-center gap-2 mb-2">
+              <CheckCircle2 size={20} color="#16A34A" />
+              <Text className="font-sans-bold text-[14px] text-success-700 dark:text-emerald-400">
+                Details Auto-Prefilled & Saved to Vault
               </Text>
-              <Text className="font-sans text-[13px] text-ink dark:text-slate-200">{added}</Text>
             </View>
+
+            <Text className="font-sans-bold text-[16px] text-ink dark:text-slate-50">
+              {savedRecordSummary.title}
+            </Text>
+            <Text className="mt-0.5 font-sans text-[12px] text-ink-muted dark:text-slate-400">
+              {savedRecordSummary.category} · {savedRecordSummary.facility} · {dayjs(savedRecordSummary.eventDate).format('D MMM YYYY')}
+            </Text>
+
+            {savedRecordSummary.doctor ? (
+              <Text className="mt-1 font-sans text-[12px] text-ink-muted dark:text-slate-400">
+                Clinician: {savedRecordSummary.doctor}
+              </Text>
+            ) : null}
+
+            {savedRecordSummary.diagnosis ? (
+              <Text className="mt-1 font-sans-medium text-[12px] text-brand-700 dark:text-brand-300">
+                Diagnosis: {savedRecordSummary.diagnosis}
+              </Text>
+            ) : null}
+
+            {savedRecordSummary.fields && savedRecordSummary.fields.length > 0 ? (
+              <View className="mt-3 flex-row flex-wrap gap-1.5 pt-2 border-t border-success-200 dark:border-success-800">
+                {savedRecordSummary.fields.map((f, i) => (
+                  <View key={i} className="rounded-xl bg-white px-2.5 py-1 dark:bg-canvasdark">
+                    <Text className="font-sans text-[11px] text-ink dark:text-slate-200">
+                      <Text className="font-sans-semibold">{f.label}: </Text>
+                      {f.value}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
           </View>
         ) : null}
 
-        {/* Example preview of automatic categorization */}
-        <View className="gap-2">
-          <View className="flex-row items-center gap-1.5">
-            <Sparkles size={13} color="#0B2559" />
-            <Text className="font-sans-bold text-[11px] uppercase tracking-[0.8px] text-ink-muted dark:text-slate-400">
-              How Siyashesha organizes your records
-            </Text>
-          </View>
-          <View className="rounded-3xl border border-dashed border-slate-300 bg-white/80 p-4 dark:border-slate-700 dark:bg-canvasdark-card/70">
-            <View className="flex-row items-center justify-between">
-              <View className="flex-row items-center gap-2">
-                <FileText size={15} color="#0B2559" />
-                <Text className="font-sans-semibold text-[12px] text-ink-muted dark:text-slate-400">
-                  Auto-tagged by date & clinic
-                </Text>
-              </View>
-              <View className="rounded-full bg-brand-100 px-2.5 py-0.5 dark:bg-brand-500/20">
-                <Text className="font-sans-bold text-[10px] text-brand-700 dark:text-brand-300">PDF / CSV Exportable</Text>
-              </View>
+        {/* Informative explanation */}
+        {!added && (
+          <View className="gap-2">
+            <View className="flex-row items-center gap-1.5">
+              <Sparkles size={13} color="#0B2559" />
+              <Text className="font-sans-bold text-[11px] uppercase tracking-[0.8px] text-ink-muted dark:text-slate-400">
+                Automatic Clinical Extraction
+              </Text>
             </View>
-            <Text className="mt-2 font-sans-bold text-[15px] text-ink dark:text-slate-50">
-              Full Blood Count & Lipid Panel
-            </Text>
-            <Text className="mt-0.5 font-sans text-[12px] text-ink-muted dark:text-slate-400">
-              Lancet Laboratories · Extracted values, doctor & clinical summary
-            </Text>
+            <View className="rounded-3xl border border-dashed border-slate-300 bg-white/80 p-4 dark:border-slate-700 dark:bg-canvasdark-card/70">
+              <View className="flex-row items-center justify-between">
+                <View className="flex-row items-center gap-2">
+                  <FileText size={15} color="#0B2559" />
+                  <Text className="font-sans-semibold text-[12px] text-ink-muted dark:text-slate-400">
+                    PDF & Word DOCX Supported
+                  </Text>
+                </View>
+                <View className="rounded-full bg-brand-100 px-2.5 py-0.5 dark:bg-brand-500/20">
+                  <Text className="font-sans-bold text-[10px] text-brand-700 dark:text-brand-300">
+                    Auto-Prefill
+                  </Text>
+                </View>
+              </View>
+              <Text className="mt-2 font-sans-bold text-[15px] text-ink dark:text-slate-50">
+                Full Blood Count & Lipid Panel
+              </Text>
+              <Text className="mt-0.5 font-sans text-[12px] text-ink-muted dark:text-slate-400">
+                Lancet Laboratories · Pre-fills lab values, clinician & clinical summary
+              </Text>
+            </View>
           </View>
-        </View>
+        )}
       </View>
 
       <RewardModal

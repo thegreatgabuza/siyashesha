@@ -1,6 +1,6 @@
 import type { RecordCategory, RecordField } from '@/data/records';
 
-export type ExtractionSource = 'on-device' | 'gemini-vision' | 'offline-heuristic';
+export type ExtractionSource = 'on-device' | 'gemini-vision' | 'gemini-ner' | 'offline-heuristic';
 
 export interface ExtractedClinicalRecord {
   title: string;
