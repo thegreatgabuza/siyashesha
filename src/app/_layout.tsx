@@ -18,6 +18,7 @@ import '@/global.css';
 import { BiometricGate } from '@/components/security/BiometricGate';
 import { ToastProvider } from '@/components/ui/Toast';
 import { useEffectiveColorScheme, useSyncColorScheme } from '@/hooks/useColorSchemePreference';
+import { ClerkEnabledContext, isValidClerkPublishableKey } from '@/lib/clerkAvatar';
 import { tokenCache } from '@/lib/clerkTokenCache';
 import { todayKey } from '@/lib/date';
 import { getNotifications } from '@/lib/notify';
@@ -148,10 +149,10 @@ export default function RootLayout() {
               <Stack.Protected guard={!hasCompletedOnboarding}>
                 <Stack.Screen name="(onboarding)" />
               </Stack.Protected>
-              <Stack.Protected guard={isSignedIn}>
+              <Stack.Protected guard={hasCompletedOnboarding && isSignedIn}>
                 <Stack.Screen name="(tabs)" />
               </Stack.Protected>
-              <Stack.Protected guard={!isSignedIn}>
+              <Stack.Protected guard={hasCompletedOnboarding && !isSignedIn}>
                 <Stack.Screen name="(auth)" />
               </Stack.Protected>
             </Stack>
@@ -161,10 +162,12 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 
-  if (clerkPublishableKey) {
+  if (isValidClerkPublishableKey(clerkPublishableKey)) {
     return (
       <ClerkProvider publishableKey={clerkPublishableKey} tokenCache={tokenCache}>
-        {content}
+        <ClerkEnabledContext.Provider value={true}>
+          {content}
+        </ClerkEnabledContext.Provider>
       </ClerkProvider>
     );
   }

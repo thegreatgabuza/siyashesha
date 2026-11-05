@@ -1,4 +1,3 @@
-import { useSignIn, useSignUp } from '@clerk/clerk-expo';
 import { router } from 'expo-router';
 import { safeBack } from '@/lib/navigation';
 import { ArrowLeft, RefreshCw, ShieldCheck } from 'lucide-react-native';
@@ -18,6 +17,7 @@ import { BrandLockup } from '@/components/ui/BrandLockup';
 import { GradientBackground } from '@/components/ui/GradientBackground';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { useToast } from '@/components/ui/Toast';
+import { useSafeSignIn, useSafeSignUp } from '@/lib/clerkAvatar';
 import { useAppStore } from '@/store/useAppStore';
 
 const LENGTH = 6;
@@ -32,8 +32,8 @@ export default function OtpScreen() {
   const completeSignIn = useAppStore((s) => s.completeSignIn);
   const updatePatientProfile = useAppStore((s) => s.updatePatientProfile);
 
-  const { isLoaded: isSignInLoaded, signIn, setActive: setSignInActive } = useSignIn();
-  const { isLoaded: isSignUpLoaded, signUp, setActive: setSignUpActive } = useSignUp();
+  const { isLoaded: isSignInLoaded, signIn, setActive: setSignInActive } = useSafeSignIn();
+  const { isLoaded: isSignUpLoaded, signUp, setActive: setSignUpActive } = useSafeSignUp();
 
   const [digits, setDigits] = useState<string[]>(Array(LENGTH).fill(''));
   const [isVerifying, setIsVerifying] = useState(false);

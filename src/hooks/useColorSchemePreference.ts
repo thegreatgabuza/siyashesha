@@ -1,4 +1,4 @@
-import { useLayoutEffect } from 'react';
+import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { colorScheme as nativewindColorScheme, useColorScheme as useNativewindColorScheme } from 'nativewind';
 
@@ -12,8 +12,16 @@ import { useAppStore } from '@/store/useAppStore';
 export function useSyncColorScheme() {
   const preference = useAppStore((s) => s.themePreference);
   const hasCompletedOnboarding = useAppStore((s) => s.hasCompletedOnboarding);
-  useLayoutEffect(() => {
-    nativewindColorScheme.set(hasCompletedOnboarding ? preference : 'light');
+  useEffect(() => {
+    const target = hasCompletedOnboarding ? preference : 'light';
+    const timer = setTimeout(() => {
+      try {
+        nativewindColorScheme.set(target);
+      } catch {
+        // Ignore native Appearance transitions during screen stack teardown
+      }
+    }, 0);
+    return () => clearTimeout(timer);
   }, [preference, hasCompletedOnboarding]);
 }
 

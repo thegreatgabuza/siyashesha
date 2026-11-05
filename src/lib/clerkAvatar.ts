@@ -1,10 +1,99 @@
-import { useClerk, useSession, useUser } from '@clerk/clerk-expo';
-import { useEffect, useRef } from 'react';
+import { useClerk, useSession, useSignIn, useSignUp, useUser } from '@clerk/clerk-expo';
+import { createContext, useContext, useEffect, useRef } from 'react';
 
 import { setSupabaseAuthContext } from '@/lib/supabase';
 import { useAppStore } from '@/store/useAppStore';
 
-const hasClerkKey = Boolean(process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY);
+export function isValidClerkPublishableKey(key: string | undefined): key is string {
+  if (!key) return false;
+  const trimmed = key.trim();
+  return (
+    (trimmed.startsWith('pk_test_') || trimmed.startsWith('pk_live_')) &&
+    !trimmed.includes('your_clerk_publishable_key')
+  );
+}
+
+export const hasClerkKey = isValidClerkPublishableKey(
+  process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY
+);
+
+/**
+ * Tracks whether `<ClerkProvider>` is actually mounted above the tree.
+ * Prevents fatal `@clerk/clerk-react: useClerk can only be used within the <ClerkProvider /> component`
+ * native crashes when `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` is absent in standalone/preview builds.
+ */
+export const ClerkEnabledContext = createContext<boolean>(false);
+
+const FALLBACK_CLERK = {
+  signOut: async () => {},
+  setActive: async () => {},
+  client: null,
+  loaded: false,
+};
+
+const FALLBACK_USER = {
+  isLoaded: false as const,
+  isSignedIn: undefined,
+  user: null,
+};
+
+const FALLBACK_SESSION = {
+  isLoaded: false as const,
+  isSignedIn: undefined,
+  session: null,
+};
+
+const FALLBACK_SIGN_IN = {
+  isLoaded: false as const,
+  signIn: undefined,
+  setActive: undefined,
+};
+
+const FALLBACK_SIGN_UP = {
+  isLoaded: false as const,
+  signUp: undefined,
+  setActive: undefined,
+};
+
+export function useSafeClerk(): {
+  signOut: () => Promise<void>;
+  setActive?: (params: any) => Promise<void>;
+  client?: any;
+  loaded?: boolean;
+} {
+  const enabled = useContext(ClerkEnabledContext);
+  if (!enabled) return FALLBACK_CLERK;
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  return useClerk() as any;
+}
+
+export function useSafeUser() {
+  const enabled = useContext(ClerkEnabledContext);
+  if (!enabled) return FALLBACK_USER;
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  return useUser();
+}
+
+export function useSafeSession() {
+  const enabled = useContext(ClerkEnabledContext);
+  if (!enabled) return FALLBACK_SESSION;
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  return useSession();
+}
+
+export function useSafeSignIn() {
+  const enabled = useContext(ClerkEnabledContext);
+  if (!enabled) return FALLBACK_SIGN_IN;
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  return useSignIn();
+}
+
+export function useSafeSignUp() {
+  const enabled = useContext(ClerkEnabledContext);
+  if (!enabled) return FALLBACK_SIGN_UP;
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  return useSignUp();
+}
 
 /**
  * Extracts the best available profile image URL from Clerk's user, external OAuth
@@ -51,13 +140,9 @@ export function useClerkAvatarSync(): string | undefined {
   const updatePatientProfile = useAppStore((s) => s.updatePatientProfile);
   const reloadedRef = useRef(false);
 
-  // Safe hook usage when ClerkProvider is mounted
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const userState = hasClerkKey ? useUser() : { isLoaded: false, user: null };
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const sessionState = hasClerkKey ? useSession() : { isLoaded: false, session: null };
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const clerk = hasClerkKey ? useClerk() : null;
+  const userState = useSafeUser();
+  const sessionState = useSafeSession();
+  const clerk = useSafeClerk();
 
   const user = userState.user;
   const session = sessionState.session;

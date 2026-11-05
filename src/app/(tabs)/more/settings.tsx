@@ -1,4 +1,3 @@
-import { useClerk } from '@clerk/clerk-expo';
 import { router } from 'expo-router';
 import { safeBack } from '@/lib/navigation';
 import {
@@ -24,6 +23,7 @@ import { heroShadow } from '@/components/ui/HeroAction';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { useToast } from '@/components/ui/Toast';
 import { languageNames } from '@/i18n/translations';
+import { useSafeClerk } from '@/lib/clerkAvatar';
 import { useAppStore, type ThemePreference } from '@/store/useAppStore';
 import { AccountDeletionModal } from '@/components/security/AccountDeletionModal';
 import { AiConsentModal } from '@/components/security/AiConsentModal';
@@ -58,7 +58,7 @@ export default function SettingsScreen() {
   const biometricLock = useAppStore((s) => s.biometricLock);
   const setBiometricLock = useAppStore((s) => s.setBiometricLock);
   const lockApp = useAppStore((s) => s.lockApp);
-  const { signOut: clerkSignOut } = useClerk();
+  const { signOut: clerkSignOut } = useSafeClerk();
 
   const [capabilities, setCapabilities] = useState<BiometricCapabilities | null>(null);
   const [dsarVisible, setDsarVisible] = useState(false);

@@ -4,13 +4,13 @@ import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import Animated, {
   Easing,
-  runOnJS,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
   withDelay,
   withTiming,
 } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 
 import { ChunkyButton } from '@/components/onboarding/ChunkyButton';
 import { Confetti } from '@/components/onboarding/Confetti';
@@ -46,7 +46,7 @@ export default function RevealScreen() {
     angle.value = withDelay(
       350,
       withTiming(-160, { duration: 1100, easing: Easing.out(Easing.cubic) }, (finished) => {
-        if (finished) runOnJS(setAnimatedOpen)(true);
+        if (finished) scheduleOnRN(setAnimatedOpen, true);
       })
     );
   }, [angle, reduced]);

@@ -1,4 +1,3 @@
-import { useClerk } from '@clerk/clerk-expo';
 import { router } from 'expo-router';
 import {
   Bell,
@@ -23,7 +22,7 @@ import { elevation, fonts, radii, springs } from '@/design/tokens';
 import { useTokens } from '@/design/useTokens';
 import { languageNames } from '@/i18n/translations';
 import { bloodGroupLabel } from '@/lib/bloodGroup';
-import { useClerkAvatarSync } from '@/lib/clerkAvatar';
+import { useClerkAvatarSync, useSafeClerk } from '@/lib/clerkAvatar';
 import { tapFeedback } from '@/lib/feedback';
 import { useAppStore } from '@/store/useAppStore';
 
@@ -34,7 +33,7 @@ export function HomeHeader() {
   const patient = useAppStore((s) => s.patientProfile);
   const language = useAppStore((s) => s.language);
   const signOut = useAppStore((s) => s.signOut);
-  const { signOut: clerkSignOut } = useClerk();
+  const { signOut: clerkSignOut } = useSafeClerk();
   const clerkAvatarUrl = useClerkAvatarSync();
   const [menu, setMenu] = useState(false);
   const { width } = useWindowDimensions();

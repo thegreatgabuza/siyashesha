@@ -1,4 +1,3 @@
-import { useClerk } from '@clerk/clerk-expo';
 import { router } from 'expo-router';
 import {
   BellRing,
@@ -33,6 +32,7 @@ import { useTokens } from '@/design/useTokens';
 import { useAccent } from '@/hooks/useAccent';
 import { languageNames } from '@/i18n/translations';
 import { bloodGroupLabel } from '@/lib/bloodGroup';
+import { useSafeClerk } from '@/lib/clerkAvatar';
 import { useAppStore } from '@/store/useAppStore';
 
 interface MenuItem {
@@ -63,7 +63,7 @@ export default function MoreScreen() {
   const language = useAppStore((s) => s.language);
   const subscriptionPlan = useAppStore((s) => s.subscriptionPlan);
   const signOut = useAppStore((s) => s.signOut);
-  const { signOut: clerkSignOut } = useClerk();
+  const { signOut: clerkSignOut } = useSafeClerk();
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [dsarVisible, setDsarVisible] = useState(false);
 

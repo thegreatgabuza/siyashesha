@@ -4,9 +4,26 @@
     "appVersionSource": "remote"
   },
   "build": {
+    "base": {
+      "env": {
+        "EXPO_PUBLIC_USE_MOCK_DATA": "true",
+        "EXPO_PUBLIC_EMERGENCY_PORTAL_URL": "https://siyashesha-health-passport.lovable.app",
+        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_YnJpZ2h0LWRlZXItNDguY2xlcmsuYWNjb3VudHMuZGV2JA",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://bwsarnrbcdrfanhohwwe.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ3c2FybnJiY2RyZmFuaG9od3dlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI4ODgzODksImV4cCI6MjEwODQ2NDM4OX0.9Kc7l_GI5QS_1kklEo7bfE8mkwfaLpTbKm3RzQDZ3gE",
+        "EXPO_PUBLIC_SUPABASE_STORAGE_BUCKET": "medical-records",
+        "EXPO_PUBLIC_AI_ASSISTANT_PROVIDER": "gemini",
+        "EXPO_PUBLIC_GEMINI_MODEL": "gemini-3.8-flash",
+        "EXPO_PUBLIC_ENABLE_ANALYTICS": "false"
+      }
+    },
     "development": {
+      "extends": "base",
       "developmentClient": true,
       "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_APP_ENV": "development"
+      },
       "android": {
         "buildType": "apk"
       },
@@ -15,7 +32,11 @@
       }
     },
     "preview": {
+      "extends": "base",
       "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_APP_ENV": "staging"
+      },
       "android": {
         "buildType": "apk"
       },
@@ -24,7 +45,11 @@
       }
     },
     "production": {
+      "extends": "base",
       "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_APP_ENV": "production"
+      },
       "android": {
         "buildType": "app-bundle"
       },

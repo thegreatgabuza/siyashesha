@@ -36,7 +36,8 @@ const MAX_WIDTH = 440;
  */
 export function PassportCard({ recordCount }: { recordCount: number }) {
   const { width } = useWindowDimensions();
-  const cardW = Math.min(width - 40, MAX_WIDTH);
+  const safeWidth = Number.isFinite(width) && width > 80 ? width : 360;
+  const cardW = Math.max(240, Math.min(safeWidth - 40, MAX_WIDTH));
   const cardH = Math.max(cardW / CARD_RATIO, 210);
   const narrow = cardW < 330;
   const reduced = useReducedMotion();
@@ -67,8 +68,10 @@ export function PassportCard({ recordCount }: { recordCount: number }) {
   const pan = Gesture.Pan()
     .minDistance(4)
     .onUpdate((e) => {
-      touchX.value = Math.max(-1, Math.min(1, e.translationX / (cardW / 2)));
-      touchY.value = Math.max(-1, Math.min(1, e.translationY / (cardH / 2)));
+      const dx = Number.isFinite(e.translationX) ? e.translationX : 0;
+      const dy = Number.isFinite(e.translationY) ? e.translationY : 0;
+      touchX.value = Math.max(-1, Math.min(1, dx / (cardW / 2)));
+      touchY.value = Math.max(-1, Math.min(1, dy / (cardH / 2)));
     })
     .onFinalize(() => {
       touchX.value = withSpring(0, springs.bouncy);
@@ -84,12 +87,16 @@ export function PassportCard({ recordCount }: { recordCount: number }) {
   // Combined tilt from the gyro (gentle) and the finger (stronger), clamped to a few degrees.
   const tiltStyle = useAnimatedStyle(() => {
     const s = rotation.sensor.value;
-    const gx = reduced ? 0 : Math.max(-1, Math.min(1, (s?.roll ?? 0) / 0.6));
-    const gy = reduced ? 0 : Math.max(-1, Math.min(1, ((s?.pitch ?? 0) - 0.6) / 0.6));
+    const rawRoll = s && Number.isFinite(s.roll) ? s.roll : 0;
+    const rawPitch = s && Number.isFinite(s.pitch) ? s.pitch : 0.6;
+    const gx = reduced ? 0 : Math.max(-1, Math.min(1, rawRoll / 0.6));
+    const gy = reduced ? 0 : Math.max(-1, Math.min(1, (rawPitch - 0.6) / 0.6));
     const tx = reduced ? 0 : touchX.value + gx * 0.5;
     const ty = reduced ? 0 : touchY.value + gy * 0.3;
+    const rotY = Number.isFinite(tx) ? tx * 6 : 0;
+    const rotX = Number.isFinite(ty) ? -ty * 6 : 0;
     return {
-      transform: [{ perspective: 1000 }, { rotateY: `${tx * 6}deg` }, { rotateX: `${-ty * 6}deg` }],
+      transform: [{ perspective: 1000 }, { rotateY: `${rotY}deg` }, { rotateX: `${rotX}deg` }],
     };
   });
 
@@ -111,9 +118,11 @@ export function PassportCard({ recordCount }: { recordCount: number }) {
   // The light band drifts across the card and leans with the tilt.
   const sheenStyle = useAnimatedStyle(() => {
     const s = rotation.sensor.value;
-    const lean = reduced ? 0 : (s?.roll ?? 0) * 0.4 + touchX.value * 0.35;
+    const rawRoll = s && Number.isFinite(s.roll) ? s.roll : 0;
+    const lean = reduced ? 0 : rawRoll * 0.4 + touchX.value * 0.35;
     const x = interpolate(sheen.value + lean, [-0.5, 1.5], [-cardW * 1.1, cardW * 1.1]);
-    return { transform: [{ translateX: reduced ? cardW * 0.15 : x }, { rotate: '18deg' }] };
+    const safeX = Number.isFinite(x) ? x : 0;
+    return { transform: [{ translateX: reduced ? cardW * 0.15 : safeX }, { rotate: '18deg' }] };
   });
 
   const p = ice.patient;

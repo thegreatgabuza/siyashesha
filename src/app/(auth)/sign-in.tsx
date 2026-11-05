@@ -1,4 +1,3 @@
-import { useSignIn, useSignUp } from '@clerk/clerk-expo';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { ArrowRight, Mail, ShieldCheck, Sparkles } from 'lucide-react-native';
@@ -18,6 +17,7 @@ import { GradientBackground } from '@/components/ui/GradientBackground';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { useToast } from '@/components/ui/Toast';
 import { LegalDocumentModal, type LegalDocKind } from '@/components/security/LegalDocumentModal';
+import { hasClerkKey, useSafeSignIn, useSafeSignUp } from '@/lib/clerkAvatar';
 import { useAppStore } from '@/store/useAppStore';
 
 export default function SignInScreen() {
@@ -28,8 +28,8 @@ export default function SignInScreen() {
   const restartOnboarding = useAppStore((s) => s.restartOnboarding);
   const updatePatientProfile = useAppStore((s) => s.updatePatientProfile);
 
-  const { isLoaded: isSignInLoaded, signIn } = useSignIn();
-  const { isLoaded: isSignUpLoaded, signUp } = useSignUp();
+  const { isLoaded: isSignInLoaded, signIn } = useSafeSignIn();
+  const { isLoaded: isSignUpLoaded, signUp } = useSafeSignUp();
 
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -41,6 +41,16 @@ export default function SignInScreen() {
   const handleContinue = async () => {
     if (!emailValid) {
       toast.show('Enter a valid email address', 'warning');
+      return;
+    }
+
+    // Offline / local build fallback when Clerk is not configured
+    if (!hasClerkKey) {
+      signInWithEmail(cleanEmail, 'sign_in');
+      updatePatientProfile({ email: cleanEmail });
+      completeSignIn();
+      toast.show('Signed in to your Health Passport', 'success');
+      router.replace('/(tabs)');
       return;
     }
 

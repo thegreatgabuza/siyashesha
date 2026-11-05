@@ -11,7 +11,7 @@ import {
   Unlock,
   X,
 } from 'lucide-react-native';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -111,15 +111,25 @@ export default function OnboardingPaywallScreen() {
   const [processing, setProcessing] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [legalDoc, setLegalDoc] = useState<LegalDocKind>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   const selectedOffer = offers.find((o) => o.id === selectedId) ?? offers[0];
   const storeAccountName = Platform.OS === 'android' ? 'Google Play account' : 'Apple ID / App Store account';
   const storeSettingsLabel = Platform.OS === 'android' ? 'Google Play Subscriptions' : 'Account Settings';
 
   const handleStartSelectedPlan = () => {
+    if (processing) return;
     tapFeedback();
+    setLegalDoc(null);
     setProcessing(true);
-    setTimeout(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
       setProcessing(false);
       toast.show(
         selectedOffer.hasFreeTrial
@@ -135,7 +145,10 @@ export default function OnboardingPaywallScreen() {
   };
 
   const handleContinueFree = () => {
+    if (processing) return;
     tapFeedback();
+    setLegalDoc(null);
+    if (timerRef.current) clearTimeout(timerRef.current);
     toast.show('Welcome to your Siyashesha Health Passport!', 'info');
     finishOnboarding({ plan: 'free', startTrial: false });
   };

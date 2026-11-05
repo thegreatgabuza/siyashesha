@@ -1,4 +1,3 @@
-import { useClerk, useUser } from '@clerk/clerk-expo';
 import { router } from 'expo-router';
 import {
   ActivityIndicator,
@@ -23,6 +22,7 @@ import { Txt } from '@/components/ui/Txt';
 import { useToast } from '@/components/ui/Toast';
 import { elevation, fonts, radii } from '@/design/tokens';
 import { useTokens } from '@/design/useTokens';
+import { useSafeClerk, useSafeUser } from '@/lib/clerkAvatar';
 import { authenticateWithBiometrics } from '@/lib/security/enclaveSecurity';
 import { useAppStore } from '@/store/useAppStore';
 
@@ -56,8 +56,8 @@ function AccountDeletionContent({
   const t = useTokens();
   const toast = useToast();
   const insets = useSafeAreaInsets();
-  const { signOut: clerkSignOut } = useClerk();
-  const { user: clerkUser } = useUser();
+  const { signOut: clerkSignOut } = useSafeClerk();
+  const { user: clerkUser } = useSafeUser();
 
   const biometricLock = useAppStore((s) => s.biometricLock);
   const eraseAllPatientData = useAppStore((s) => s.eraseAllPatientData);
