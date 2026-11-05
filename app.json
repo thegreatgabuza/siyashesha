@@ -7,6 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "siyashesha",
     "userInterfaceStyle": "automatic",
+    "sdkVersion": "58.0.0",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "za.co.siyashesha.healthpassport",
@@ -203,11 +204,6 @@
       "barStyle": "dark-content",
       "backgroundColor": "#00000000",
       "translucent": true
-    },
-    "androidNavigationBar": {
-      "barStyle": "dark-content",
-      "backgroundColor": "#F8FAFC",
-      "visible": "leanback"
     },
     "extra": {
       "router": {

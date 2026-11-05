@@ -8,6 +8,7 @@ import { Platform } from 'react-native';
 import type { MedicalRecord } from '@/data/records';
 import type { PatientProfile } from '@/data/patient';
 import type { Medication } from '@/data/medications';
+import type { Database, Json } from '@/types/supabase';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -117,16 +118,10 @@ export async function getCurrentUserId(): Promise<string> {
 
 /**
  * Custom fetch wrapper that injects the active Clerk session JWT (when signed in)
- * and the isolated `x-siyashesha-user-id` header consumed by `public.requesting_user_id()`
- * in Supabase RLS policies.
+ * for cryptographically verified Row-Level Security in Supabase.
  */
 const authenticatedSupabaseFetch: typeof fetch = async (input, init) => {
   const headers = new Headers(init?.headers);
-  const userId = await getCurrentUserId();
-
-  if (userId) {
-    headers.set('x-siyashesha-user-id', userId);
-  }
 
   if (activeTokenGetter) {
     try {
@@ -145,7 +140,7 @@ const authenticatedSupabaseFetch: typeof fetch = async (input, init) => {
   });
 };
 
-export const supabase = createClient(
+export const supabase = createClient<Database>(
   supabaseUrl || 'https://placeholder.supabase.co',
   supabaseAnonKey || 'placeholder',
   {
@@ -324,7 +319,7 @@ export async function syncRecordToDatabase(record: MedicalRecord): Promise<boole
       document_type: record.documentType,
       status: record.status,
       clinical_notes: record.clinicalNotes,
-      fields: record.fields ?? [],
+      fields: (record.fields ?? []) as unknown as Json,
       original_file_uri: record.originalFile?.uri ?? null,
       original_file_name: record.originalFile?.name ?? null,
       original_file_mime: record.originalFile?.mimeType ?? null,
@@ -445,9 +440,9 @@ export async function syncPatientProfile(profile: PatientProfile): Promise<boole
       date_of_birth: profile.dateOfBirth,
       national_id: profile.idNumber ?? null,
       blood_group: profile.bloodGroup ?? null,
-      allergies: profile.allergies ?? [],
-      conditions: profile.chronicConditions ?? [],
-      emergency_contacts: contacts,
+      allergies: (profile.allergies ?? []) as unknown as Json,
+      conditions: (profile.chronicConditions ?? []) as unknown as Json,
+      emergency_contacts: contacts as unknown as Json,
       primary_facility: 'Rosebank Family Practice',
       updated_at: new Date().toISOString(),
     };
@@ -477,7 +472,7 @@ export async function syncMedications(medications: Medication[]): Promise<boolea
       name: m.name,
       dose: m.strength,
       frequency: m.frequency,
-      times: m.times ?? [],
+      times: (m.times ?? []) as unknown as Json,
       instructions: m.directions ?? null,
       purpose: m.indication ?? null,
       prescribed_by: m.prescriber ?? null,
@@ -573,7 +568,7 @@ export async function syncRemindersToBackend(
       scheduled_time: r.scheduledTime,
       recurrence: r.recurrence ?? 'daily',
       status: r.status ?? 'active',
-      metadata: r.metadata ?? {},
+      metadata: (r.metadata ?? {}) as unknown as Json,
       synced_at: new Date().toISOString(),
     }));
 
