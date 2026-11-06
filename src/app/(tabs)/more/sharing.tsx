@@ -7,10 +7,11 @@ import {
   ChevronRight,
   FileDown,
   History,
+  Share2,
   ShieldCheck,
 } from 'lucide-react-native';
 import { useState } from 'react';
-import { Alert, Pressable, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, Share, Text, TextInput, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
 import { Card } from '@/components/ui/Card';
@@ -133,26 +134,50 @@ export default function SharingScreen() {
                     Expires {dayjs(link.expiresAt).format('D MMM, h:mm A')}
                   </Text>
                   {link.status === 'active' ? (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`Revoke share with ${link.recipientName}`}
-                      onPress={() =>
-                        Alert.alert('Revoke access?', `${link.recipientName} will lose access immediately.`, [
-                          { text: 'Cancel', style: 'cancel' },
-                          {
-                            text: 'Revoke',
-                            style: 'destructive',
-                            onPress: () => {
-                              revokeShare(link.id);
-                              toast.show('Access revoked', 'info');
+                    <View className="mt-3 flex-row flex-wrap items-center gap-2">
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Send share link and PIN to ${link.recipientName}`}
+                        onPress={() => {
+                          const portalBase = (
+                            process.env.EXPO_PUBLIC_EMERGENCY_PORTAL_URL ||
+                            'https://siyashesha-health-passport.lovable.app'
+                          ).replace(/\/+$/, '');
+                          const shareUrl = `${portalBase}/?share=${encodeURIComponent(link.id)}`;
+                          Share.share({
+                            title: 'Siyashesha Clinical Record Share',
+                            message: `Siyashesha Health Passport — Secure Clinician Access for ${link.recipientName} (${link.recipientFacility})\n\nAccess Link: ${shareUrl}\n4-Digit PIN: ${link.pin}\nExpires: ${dayjs(link.expiresAt).format('D MMM YYYY, h:mm A')}`,
+                            url: shareUrl,
+                          }).catch(() => {});
+                        }}
+                        className="min-h-[40px] flex-row items-center justify-center gap-1.5 rounded-full bg-brand-50 px-4 dark:bg-brand-500/15"
+                      >
+                        <Share2 size={13} color="#0284C7" />
+                        <Text className="font-sans-semibold text-[12px] text-sky-700 dark:text-sky-300">
+                          Send Link & PIN
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Revoke share with ${link.recipientName}`}
+                        onPress={() =>
+                          Alert.alert('Revoke access?', `${link.recipientName} will lose access immediately.`, [
+                            { text: 'Cancel', style: 'cancel' },
+                            {
+                              text: 'Revoke',
+                              style: 'destructive',
+                              onPress: () => {
+                                revokeShare(link.id);
+                                toast.show('Access revoked', 'info');
+                              },
                             },
-                          },
-                        ])
-                      }
-                      className="mt-3 min-h-[40px] items-center justify-center self-start rounded-full bg-emergency-50 px-4 dark:bg-emergency-500/15"
-                    >
-                      <Text className="font-sans-semibold text-[12px] text-emergency-500">Revoke access</Text>
-                    </Pressable>
+                          ])
+                        }
+                        className="min-h-[40px] items-center justify-center rounded-full bg-emergency-50 px-4 dark:bg-emergency-500/15"
+                      >
+                        <Text className="font-sans-semibold text-[12px] text-emergency-500">Revoke access</Text>
+                      </Pressable>
+                    </View>
                   ) : null}
                 </Card>
               ))}
@@ -494,7 +519,20 @@ function ReviewRow({ label, value }: { label: string; value: string }) {
 }
 
 function ConfirmationView({ link, onDone }: { link: SharedLink; onDone: () => void }) {
-  const url = `siyashesha://share/${link.id}`;
+  const portalBase = (
+    process.env.EXPO_PUBLIC_EMERGENCY_PORTAL_URL ||
+    'https://siyashesha-health-passport.lovable.app'
+  ).replace(/\/+$/, '');
+  const url = `${portalBase}/?share=${encodeURIComponent(link.id)}`;
+
+  const handleNativeShare = () => {
+    Share.share({
+      title: 'Siyashesha Clinical Record Share',
+      message: `Siyashesha Health Passport — Secure Clinician Access for ${link.recipientName} (${link.recipientFacility})\n\nAccess Link: ${url}\n4-Digit PIN: ${link.pin}\nExpires: ${dayjs(link.expiresAt).format('D MMM YYYY, h:mm A')}`,
+      url,
+    }).catch(() => {});
+  };
+
   return (
     <View className="items-center">
       <View className="mb-4 h-16 w-16 items-center justify-center rounded-full bg-success-50 dark:bg-success-500/15">
@@ -507,9 +545,22 @@ function ConfirmationView({ link, onDone }: { link: SharedLink; onDone: () => vo
       <View className="mb-5 items-center rounded-2xl bg-white p-3 dark:bg-canvasdark-card">
         <QRCode value={url} size={140} color="#0B2559" backgroundColor="#FFFFFF" />
       </View>
-      <Text className="mb-6 font-sans text-[12px] text-ink-muted dark:text-slate-400">
+      <Text className="mb-5 font-sans text-[12px] text-ink-muted dark:text-slate-400">
         Access PIN: <Text className="font-sans-bold text-ink dark:text-slate-50">{link.pin}</Text>
       </Text>
+      <View className="mb-3 w-full">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Share link and PIN via WhatsApp, SMS or Email"
+          onPress={handleNativeShare}
+          className="min-h-[50px] flex-row items-center justify-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-5 dark:border-sky-500/30 dark:bg-sky-500/15"
+        >
+          <Share2 size={16} color="#0284C7" />
+          <Text className="font-sans-bold text-[14px] text-sky-700 dark:text-sky-300">
+            Send Link & PIN via WhatsApp / SMS
+          </Text>
+        </Pressable>
+      </View>
       <PrimaryButton label="Done" onPress={onDone} />
     </View>
   );
