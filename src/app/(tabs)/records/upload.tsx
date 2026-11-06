@@ -1,9 +1,11 @@
 import dayjs from 'dayjs';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
+import { router } from 'expo-router';
 import { safeBack } from '@/lib/navigation';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -105,6 +107,8 @@ export default function UploadRecordScreen() {
   const { accent } = useAccent();
   const toast = useToast();
   const addRecord = useAppStore((s) => s.addRecord);
+  const recordCount = useAppStore((s) => s.records.length);
+  const subscriptionPlan = useAppStore((s) => s.subscriptionPlan);
   const aiConsentGranted = useAppStore((s) => s.aiConsentGranted);
   const setAiConsentGranted = useAppStore((s) => s.setAiConsentGranted);
 
@@ -289,6 +293,21 @@ export default function UploadRecordScreen() {
   };
 
   const handleSave = async () => {
+    if (subscriptionPlan === 'free' && recordCount >= 10) {
+      Alert.alert(
+        'Free Vault Limit Reached (10/10)',
+        'The Free Basic plan includes up to 10 medical records in your encrypted vault. Upgrade to Siyashesha Pro for unlimited medical records, smart OCR scans, and clinical PDF exports.',
+        [
+          { text: 'Not Now', style: 'cancel' },
+          {
+            text: 'Upgrade to Pro',
+            onPress: () => router.push('/(tabs)/more/billing'),
+          },
+        ]
+      );
+      return;
+    }
+
     if (!title.trim()) {
       toast.show('Add a title for this record', 'warning');
       return;

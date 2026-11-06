@@ -1,6 +1,7 @@
 import { PlatformDatePicker } from '@/components/ui/PlatformDatePicker';
 import dayjs from 'dayjs';
 import {
+  AlertTriangle,
   Bell,
   Calendar as CalendarIcon,
   Clock,
@@ -9,7 +10,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react-native';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -28,6 +29,11 @@ import { type Medication } from '@/data/medications';
 import { elevation, fonts, radii } from '@/design/tokens';
 import { useTokens } from '@/design/useTokens';
 import { tapFeedback } from '@/lib/feedback';
+import { useAppStore } from '@/store/useAppStore';
+
+const PENICILLIN_CLASS = ['penicillin', 'amoxicillin', 'augmentin', 'ampicillin', 'flucloxacillin', 'co-amoxiclav'];
+const SULFA_CLASS = ['sulfa', 'sulfamethoxazole', 'cotrimoxazole', 'bactrim', 'sulfasalazine'];
+const NSAID_CLASS = ['aspirin', 'ibuprofen', 'brufen', 'diclofenac', 'voltaren', 'naproxen', 'cataflam'];
 
 interface MedicationModalProps {
   visible: boolean;
@@ -111,6 +117,50 @@ function MedicationForm({
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [timePickerIndex, setTimePickerIndex] = useState<number | null>(null);
+
+  const allergies = useAppStore((s) => s.patientProfile.allergies);
+  const allMedications = useAppStore((s) => s.medications);
+
+  const safetyCheck = useMemo(() => {
+    const clean = name.trim().toLowerCase();
+    if (clean.length < 3) return null;
+
+    for (const allergy of allergies ?? []) {
+      const sub = allergy.substance.toLowerCase();
+      const directMatch = clean.includes(sub) || sub.includes(clean);
+      const penicillinCross =
+        sub.includes('penicillin') && PENICILLIN_CLASS.some((d) => clean.includes(d));
+      const sulfaCross =
+        sub.includes('sulfa') && SULFA_CLASS.some((d) => clean.includes(d));
+      const nsaidCross =
+        (sub.includes('aspirin') || sub.includes('nsaid') || sub.includes('ibuprofen')) &&
+        NSAID_CLASS.some((d) => clean.includes(d));
+
+      if (directMatch || penicillinCross || sulfaCross || nsaidCross) {
+        return {
+          level: 'danger' as const,
+          title: `Allergy Alert: ${allergy.substance}`,
+          detail: `Your Emergency Profile lists an allergy to ${allergy.substance} (${allergy.reaction}). Verify with your doctor or pharmacist before taking ${name.trim()}.`,
+        };
+      }
+    }
+
+    const duplicate = (allMedications ?? []).find(
+      (m) =>
+        m.status === 'active' &&
+        m.id !== existingMedication?.id &&
+        m.name.toLowerCase() === clean
+    );
+    if (duplicate) {
+      return {
+        level: 'warning' as const,
+        title: 'Duplicate Active Medication',
+        detail: `${duplicate.name} (${duplicate.strength}) is already in your active prescriptions.`,
+      };
+    }
+
+    return null;
+  }, [name, allergies, allMedications, existingMedication?.id]);
 
   const handleSelectFrequency = (freqLabel: string) => {
     setFrequency(freqLabel);
@@ -325,9 +375,50 @@ function MedicationForm({
                 paddingHorizontal: 14,
                 paddingVertical: 11,
                 borderWidth: 1,
-                borderColor: t.border,
+                borderColor: safetyCheck?.level === 'danger' ? '#DC1F26' : t.border,
               }}
             />
+            {safetyCheck ? (
+              <View
+                style={{
+                  marginTop: 4,
+                  flexDirection: 'row',
+                  alignItems: 'flex-start',
+                  gap: 10,
+                  padding: 12,
+                  borderRadius: radii.md,
+                  backgroundColor:
+                    safetyCheck.level === 'danger'
+                      ? 'rgba(220, 31, 38, 0.1)'
+                      : 'rgba(245, 158, 11, 0.12)',
+                  borderWidth: 1,
+                  borderColor:
+                    safetyCheck.level === 'danger'
+                      ? 'rgba(220, 31, 38, 0.35)'
+                      : 'rgba(245, 158, 11, 0.35)',
+                }}
+              >
+                <AlertTriangle
+                  size={17}
+                  color={safetyCheck.level === 'danger' ? '#DC1F26' : '#D97706'}
+                  style={{ marginTop: 1 }}
+                />
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Txt
+                    variant="footnote"
+                    style={{
+                      fontFamily: fonts.bold,
+                      color: safetyCheck.level === 'danger' ? '#DC1F26' : '#D97706',
+                    }}
+                  >
+                    {safetyCheck.title}
+                  </Txt>
+                  <Txt variant="footnote" tone="muted" style={{ fontSize: 12, lineHeight: 17 }}>
+                    {safetyCheck.detail}
+                  </Txt>
+                </View>
+              </View>
+            ) : null}
           </View>
 
           {/* Strength / Dose */}
