@@ -10,7 +10,7 @@ import {
   Sparkles,
   Zap,
 } from 'lucide-react-native';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Platform, Pressable, Text, View } from 'react-native';
 
 import { LegalDocumentModal, type LegalDocKind } from '@/components/security/LegalDocumentModal';
@@ -23,6 +23,12 @@ import { Txt } from '@/components/ui/Txt';
 import { elevation, fonts, radii } from '@/design/tokens';
 import { useTokens } from '@/design/useTokens';
 import { tapFeedback } from '@/lib/feedback';
+import {
+  fetchStoreKitCatalog,
+  IAP_PRODUCT_IDS,
+  purchasePlanWithStoreKit,
+  restoreStoreKitPurchases,
+} from '@/lib/iap';
 import { safeBack } from '@/lib/navigation';
 import { useAppStore, type SubscriptionPlanId } from '@/store/useAppStore';
 
@@ -30,6 +36,7 @@ export type PlanId = SubscriptionPlanId;
 
 interface Plan {
   id: PlanId;
+  productId?: string;
   name: string;
   officialTitle: string;
   price: string;
@@ -57,11 +64,13 @@ const plans: Plan[] = [
   },
   {
     id: 'annual_premium',
+    productId: IAP_PRODUCT_IDS.annual_premium,
     name: 'Annual Pro',
     officialTitle: 'Siyashesha Health Passport Pro — Annual',
-    price: 'R150.00 / year',
+    price: 'R149.99 / year',
     durationLabel: '1 Year (Auto-renewing subscription)',
-    subordinateNote: 'Includes 7-day free trial, then R150.00 billed annually (equivalent to R12.50/month).',
+    subordinateNote:
+      'Includes 7-day free trial (no end date on introductory offer), then R149.99 billed annually (equivalent to R12.50/month).',
     badge: '7-DAY FREE TRIAL · SAVE 38%',
     badgeColor: '#16A34A',
     features: [
@@ -73,11 +82,12 @@ const plans: Plan[] = [
   },
   {
     id: 'monthly_premium',
+    productId: IAP_PRODUCT_IDS.monthly_premium,
     name: 'Monthly Pro',
     officialTitle: 'Siyashesha Health Passport Pro — Monthly',
-    price: 'R20.00 / month',
+    price: 'R19.99 / month',
     durationLabel: '1 Month (Auto-renewing subscription)',
-    subordinateNote: 'Billed monthly at R20.00/month · Flexible month-to-month plan.',
+    subordinateNote: 'Billed monthly at R19.99/month · Flexible month-to-month plan.',
     features: [
       'Unlimited encrypted health documents & OCR',
       'Siyashesha Clinical Assistant with lab explanations',
@@ -87,17 +97,18 @@ const plans: Plan[] = [
   },
   {
     id: 'lifetime_premium',
+    productId: IAP_PRODUCT_IDS.lifetime_premium,
     name: 'Lifetime Founder Pass',
-    officialTitle: 'Siyashesha Health Passport Pro — Lifetime Pass',
-    price: 'R299.00 once-off',
+    officialTitle: 'Siyashesha Health Passport Pro — Lifetime Founder Pass',
+    price: 'R299.99 once-off',
     durationLabel: 'Lifetime Access (One-time purchase)',
-    subordinateNote: 'Single one-time payment of R299.00 · Never auto-renews.',
+    subordinateNote: 'Single one-time payment of R299.99 · Never auto-renews.',
     badge: 'FOUNDER PASS',
     badgeColor: '#DC1F26',
     features: [
       'All Pro features with no recurring subscription charges',
       'Permanent access to future Health Passport Pro updates',
-      'One-time payment of R299.00 — never pay again',
+      'One-time payment of R299.99 — never pay again',
       'Founder member badge on health passport',
     ],
   },
@@ -111,45 +122,95 @@ export default function BillingScreen() {
   const setCurrentPlan = useAppStore((s) => s.setSubscriptionPlan);
 
   const [restoring, setRestoring] = useState(false);
+  const [purchasingPlanId, setPurchasingPlanId] = useState<PlanId | null>(null);
   const [legalDoc, setLegalDoc] = useState<LegalDocKind>(null);
+
+  useEffect(() => {
+    void fetchStoreKitCatalog();
+  }, []);
 
   const activePlanData = plans.find((p) => p.id === currentPlan) ?? plans[0];
   const hasActiveTrial = Boolean(trialEndsAt && dayjs(trialEndsAt).isAfter(dayjs()));
   const storeLabel = Platform.OS === 'android' ? 'Google Play' : 'App Store';
   const storeAccountLabel = Platform.OS === 'android' ? 'Google Play account' : 'Apple ID / App Store account';
 
-  const handleChangePlan = (plan: Plan) => {
-    if (plan.id === currentPlan) return;
+  const handleChangePlan = async (plan: Plan) => {
+    if (plan.id === currentPlan || purchasingPlanId) return;
     tapFeedback();
-    Alert.alert(
-      plan.id === 'free' ? 'Switch to Free Basic' : 'Confirm Subscription Plan',
-      plan.id === 'free'
-        ? 'Switch your Health Passport to the Free Basic plan (R0.00)? Your emergency ICE card and existing records remain safe.'
-        : `${plan.officialTitle}\n\nPrice: ${plan.price}\nLength: ${plan.durationLabel}\n\n${plan.subordinateNote}`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: plan.id === 'free' ? 'Switch to Free' : 'Confirm',
-          onPress: () => {
-            setCurrentPlan(plan.id, { startTrial: plan.id === 'annual_premium' });
-            toast.show(`Active plan updated to ${plan.name}`, 'success');
+
+    if (plan.id === 'free') {
+      Alert.alert(
+        'Switch to Free Basic',
+        'Switch your Health Passport to the Free Basic plan (R0.00)? Your emergency ICE card and existing records remain safe.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Switch to Free',
+            onPress: () => {
+              setCurrentPlan('free', { startTrial: false });
+              toast.show('Active plan updated to Free Basic', 'success');
+            },
           },
-        },
-      ]
-    );
+        ]
+      );
+      return;
+    }
+
+    setPurchasingPlanId(plan.id);
+    try {
+      const result = await purchasePlanWithStoreKit(plan.id);
+      setPurchasingPlanId(null);
+
+      if (result.status === 'purchased') {
+        setCurrentPlan(result.planId, { startTrial: result.planId === 'annual_premium' });
+        toast.show(`Active plan updated to ${plan.name}`, 'success');
+        return;
+      }
+
+      if (result.status === 'cancelled') {
+        return;
+      }
+
+      Alert.alert(
+        'Confirm Subscription Plan',
+        `${plan.officialTitle}\nProduct ID: ${plan.productId}\n\nPrice: ${plan.price}\nLength: ${plan.durationLabel}\n\n${plan.subordinateNote}`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: plan.id === 'annual_premium' ? 'Start 7-Day Free Trial' : 'Confirm Plan',
+            onPress: () => {
+              setCurrentPlan(plan.id, { startTrial: plan.id === 'annual_premium' });
+              toast.show(`Active plan updated to ${plan.name}`, 'success');
+            },
+          },
+        ]
+      );
+    } catch {
+      setPurchasingPlanId(null);
+    }
   };
 
-  const handleRestorePurchases = () => {
+  const handleRestorePurchases = async () => {
+    if (restoring) return;
     tapFeedback();
     setRestoring(true);
-    setTimeout(() => {
+    try {
+      const { restoredPlan } = await restoreStoreKitPurchases();
       setRestoring(false);
+      if (restoredPlan) {
+        const matched = plans.find((p) => p.id === restoredPlan);
+        setCurrentPlan(restoredPlan, { startTrial: false });
+        toast.show(`Restored ${matched?.name ?? 'Pro Plan'}`, 'success');
+        return;
+      }
       Alert.alert(
         'Restore Purchases',
         `Your ${storeLabel} receipt status has been verified. Current active tier: ${activePlanData.officialTitle}.`,
         [{ text: 'OK' }]
       );
-    }, 700);
+    } catch {
+      setRestoring(false);
+    }
   };
 
   const handleManageStoreSubscriptions = () => {
@@ -367,6 +428,11 @@ export default function BillingScreen() {
                       <Txt variant="footnote" tone="muted" style={{ marginTop: 4, lineHeight: 16 }}>
                         {plan.subordinateNote}
                       </Txt>
+                      {plan.productId ? (
+                        <Txt variant="footnote" tone="muted" style={{ marginTop: 3, fontSize: 10 }}>
+                          Product ID: {plan.productId}
+                        </Txt>
+                      ) : null}
                     </View>
 
                     {isCurrent ? (
@@ -384,17 +450,25 @@ export default function BillingScreen() {
                       </View>
                     ) : (
                       <PressableScale
+                        disabled={Boolean(purchasingPlanId)}
                         onPress={() => handleChangePlan(plan)}
                         style={{
                           backgroundColor: isLifetime ? '#DC1F26' : t.accent,
                           paddingHorizontal: 14,
                           paddingVertical: 8,
                           borderRadius: radii.pill,
+                          minWidth: 96,
+                          alignItems: 'center',
+                          justifyContent: 'center',
                         }}
                       >
-                        <Txt variant="footnote" tone="onNavy" style={{ fontFamily: fonts.semibold }}>
-                          {plan.id === 'free' ? 'Select Free' : 'Choose Plan'}
-                        </Txt>
+                        {purchasingPlanId === plan.id ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <Txt variant="footnote" tone="onNavy" style={{ fontFamily: fonts.semibold }}>
+                            {plan.id === 'free' ? 'Select Free' : 'Choose Plan'}
+                          </Txt>
+                        )}
                       </PressableScale>
                     )}
                   </View>

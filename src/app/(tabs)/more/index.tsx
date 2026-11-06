@@ -69,11 +69,11 @@ export default function MoreScreen() {
 
   const planSummary =
     subscriptionPlan === 'annual_premium'
-      ? { subtitle: 'Annual Pro (R150/yr) · Active', badge: 'Annual Pro' }
+      ? { subtitle: 'Annual Pro (R149.99/yr) · Active', badge: 'Annual Pro' }
       : subscriptionPlan === 'monthly_premium'
-      ? { subtitle: 'Monthly Pro (R20/mo) · Active', badge: 'R20/mo' }
+      ? { subtitle: 'Monthly Pro (R19.99/mo) · Active', badge: 'R19.99/mo' }
       : subscriptionPlan === 'lifetime_premium'
-      ? { subtitle: 'Lifetime Founder Pass · Active', badge: 'Lifetime' }
+      ? { subtitle: 'Lifetime Founder Pass (R299.99) · Active', badge: 'Lifetime' }
       : { subtitle: 'Free Basic Plan (R0) · Upgrade anytime', badge: 'Free' };
 
   const confirmSignOut = () => {

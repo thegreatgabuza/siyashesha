@@ -193,7 +193,8 @@
           "icon": "./assets/images/icon.png",
           "color": "#0B2559"
         }
-      ]
+      ],
+      "expo-iap"
     ],
     "experiments": {
       "typedRoutes": true,

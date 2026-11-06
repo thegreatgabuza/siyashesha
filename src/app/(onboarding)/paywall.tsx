@@ -11,19 +11,26 @@ import {
   Unlock,
   X,
 } from 'lucide-react-native';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LegalDocumentModal, type LegalDocKind } from '@/components/security/LegalDocumentModal';
 import { useToast } from '@/components/ui/Toast';
 import { tapFeedback } from '@/lib/feedback';
+import {
+  fetchStoreKitCatalog,
+  IAP_PRODUCT_IDS,
+  purchasePlanWithStoreKit,
+  restoreStoreKitPurchases,
+} from '@/lib/iap';
 import { safeBack } from '@/lib/navigation';
 import type { SubscriptionPlanId } from '@/store/useAppStore';
 import { useAppStore } from '@/store/useAppStore';
 
 interface PaywallOffer {
   id: Exclude<SubscriptionPlanId, 'free'>;
+  productId: string;
   officialTitle: string;
   shortName: string;
   durationLabel: string;
@@ -39,41 +46,45 @@ interface PaywallOffer {
 const offers: PaywallOffer[] = [
   {
     id: 'annual_premium',
+    productId: IAP_PRODUCT_IDS.annual_premium,
     officialTitle: 'Siyashesha Health Passport Pro — Annual',
     shortName: 'Annual Pro',
     durationLabel: '1 Year (Auto-renewing)',
-    billedPrice: 'R150.00 / year',
-    subordinateBreakdown: '7-day free trial, then R150.00 billed annually (equivalent to R12.50/month)',
+    billedPrice: 'R149.99 / year',
+    subordinateBreakdown:
+      '7-day free trial (no end date on introductory offer), then R149.99 billed annually (equivalent to R12.50/month)',
     badge: '7-DAY FREE TRIAL · SAVE 38%',
     badgeTone: 'emerald',
     hasFreeTrial: true,
     ctaLabel: 'Start 7-Day Free Trial',
-    ctaSublabel: 'R0.00 due today · Then R150.00 / year · Cancel anytime',
+    ctaSublabel: 'R0.00 due today · Then R149.99 / year · Cancel anytime',
   },
   {
     id: 'monthly_premium',
+    productId: IAP_PRODUCT_IDS.monthly_premium,
     officialTitle: 'Siyashesha Health Passport Pro — Monthly',
     shortName: 'Monthly Pro',
     durationLabel: '1 Month (Auto-renewing)',
-    billedPrice: 'R20.00 / month',
-    subordinateBreakdown: 'Billed monthly at R20.00/month · Flexible month-to-month plan',
+    billedPrice: 'R19.99 / month',
+    subordinateBreakdown: 'Billed monthly at R19.99/month · Flexible month-to-month plan',
     badge: 'FLEXIBLE MONTHLY',
     badgeTone: 'navy',
     hasFreeTrial: false,
-    ctaLabel: 'Subscribe for R20.00 / month',
+    ctaLabel: 'Subscribe for R19.99 / month',
     ctaSublabel: 'Billed monthly · Cancel anytime in Account Settings',
   },
   {
     id: 'lifetime_premium',
+    productId: IAP_PRODUCT_IDS.lifetime_premium,
     officialTitle: 'Siyashesha Health Passport Pro — Lifetime Founder Pass',
-    shortName: 'Lifetime Pass',
+    shortName: 'Lifetime Founder Pass',
     durationLabel: 'Lifetime Access (One-time purchase)',
-    billedPrice: 'R299.00 once-off',
-    subordinateBreakdown: 'Single one-time payment of R299.00 · No recurring subscription charges',
+    billedPrice: 'R299.99 once-off',
+    subordinateBreakdown: 'Single one-time payment of R299.99 · No recurring subscription charges',
     badge: 'FOUNDER OFFER',
     badgeTone: 'red',
     hasFreeTrial: false,
-    ctaLabel: 'Unlock Lifetime Access — R299.00',
+    ctaLabel: 'Unlock Lifetime Access — R299.99',
     ctaSublabel: 'One-time payment · Own Pro forever with no renewals',
   },
 ];
@@ -111,59 +122,97 @@ export default function OnboardingPaywallScreen() {
   const [processing, setProcessing] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [legalDoc, setLegalDoc] = useState<LegalDocKind>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
+    void fetchStoreKitCatalog();
   }, []);
 
   const selectedOffer = offers.find((o) => o.id === selectedId) ?? offers[0];
   const storeAccountName = Platform.OS === 'android' ? 'Google Play account' : 'Apple ID / App Store account';
   const storeSettingsLabel = Platform.OS === 'android' ? 'Google Play Subscriptions' : 'Account Settings';
 
-  const handleStartSelectedPlan = () => {
+  const activatePlanAndFinish = (planId: Exclude<SubscriptionPlanId, 'free'>, startTrial: boolean) => {
+    toast.show(
+      startTrial
+        ? '7-Day Free Trial activated! Welcome to Siyashesha Pro.'
+        : `${selectedOffer.shortName} activated! Welcome to Siyashesha Pro.`,
+      'success'
+    );
+    finishOnboarding({
+      plan: planId,
+      startTrial,
+    });
+  };
+
+  const handleStartSelectedPlan = async () => {
     if (processing) return;
     tapFeedback();
     setLegalDoc(null);
     setProcessing(true);
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => {
+    try {
+      const result = await purchasePlanWithStoreKit(selectedOffer.id);
       setProcessing(false);
-      toast.show(
-        selectedOffer.hasFreeTrial
-          ? '7-Day Free Trial activated! Welcome to Siyashesha Pro.'
-          : `${selectedOffer.shortName} activated! Welcome to Siyashesha Pro.`,
-        'success'
+
+      if (result.status === 'purchased') {
+        activatePlanAndFinish(result.planId, selectedOffer.hasFreeTrial);
+        return;
+      }
+
+      if (result.status === 'cancelled') {
+        return;
+      }
+
+      // If StoreKit sandbox SKU is still syncing in App Store Connect or running on simulator/preview,
+      // allow TestFlight testers to either retry or activate the tier in TestFlight Preview mode.
+      Alert.alert(
+        'TestFlight Sandbox Checkout',
+        `${selectedOffer.officialTitle} (${selectedOffer.billedPrice})\nProduct ID: ${selectedOffer.productId}\n\n${
+          selectedOffer.hasFreeTrial
+            ? 'Includes 7-day free trial (no end date on introductory offer), then R149.99 / year.'
+            : selectedOffer.subordinateBreakdown
+        }\n\nActivate this plan for your TestFlight session now?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: selectedOffer.hasFreeTrial ? 'Start 7-Day Free Trial' : 'Activate Plan',
+            onPress: () => activatePlanAndFinish(selectedOffer.id, selectedOffer.hasFreeTrial),
+          },
+        ]
       );
-      finishOnboarding({
-        plan: selectedOffer.id,
-        startTrial: selectedOffer.hasFreeTrial,
-      });
-    }, 600);
+    } catch {
+      setProcessing(false);
+    }
   };
 
   const handleContinueFree = () => {
     if (processing) return;
     tapFeedback();
     setLegalDoc(null);
-    if (timerRef.current) clearTimeout(timerRef.current);
     toast.show('Welcome to your Siyashesha Health Passport!', 'info');
     finishOnboarding({ plan: 'free', startTrial: false });
   };
 
-  const handleRestorePurchases = () => {
+  const handleRestorePurchases = async () => {
+    if (restoring) return;
     tapFeedback();
     setRestoring(true);
-    setTimeout(() => {
+    try {
+      const { restoredPlan } = await restoreStoreKitPurchases();
       setRestoring(false);
+      if (restoredPlan) {
+        const matchedOffer = offers.find((o) => o.id === restoredPlan);
+        toast.show(`Restored ${matchedOffer?.shortName ?? 'Siyashesha Pro'}!`, 'success');
+        finishOnboarding({ plan: restoredPlan, startTrial: false });
+        return;
+      }
       Alert.alert(
         'Restore Purchases',
         'We checked your App Store / Google Play receipt history. No previous active subscription was found for this account, or you can continue with your new passport.',
         [{ text: 'OK' }]
       );
-    }, 800);
+    } catch {
+      setRestoring(false);
+    }
   };
 
   return (
@@ -274,7 +323,7 @@ export default function OnboardingPaywallScreen() {
                 icon={<CheckCircle2 size={15} color="#FFFFFF" />}
                 iconBg="bg-slate-600"
                 title="Day 7 · Annual Subscription Begins"
-                subtitle="Billed at R150.00 / year on Day 7 unless cancelled at least 24 hours before."
+                subtitle="Billed at R149.99 / year on Day 7 unless cancelled at least 24 hours before."
                 isLast
               />
             </View>
@@ -361,8 +410,9 @@ export default function OnboardingPaywallScreen() {
           </View>
           <Text className="mt-1.5 font-sans text-[11px] leading-[16px] text-ink-muted dark:text-slate-400">
             • <Text className="font-sans-semibold">Title:</Text> {selectedOffer.officialTitle}{'\n'}
+            • <Text className="font-sans-semibold">Product ID:</Text> {selectedOffer.productId}{'\n'}
             • <Text className="font-sans-semibold">Length & Price:</Text> {selectedOffer.durationLabel} at {selectedOffer.billedPrice}
-            {selectedOffer.hasFreeTrial ? ' after 7-day free trial (R0.00 charged today).' : '.'}{'\n'}
+            {selectedOffer.hasFreeTrial ? ' after 7-day free trial (R0.00 charged today, no end date on introductory offer).' : '.'}{'\n'}
             • <Text className="font-sans-semibold">Auto-Renewal:</Text>{' '}
             {selectedOffer.id === 'lifetime_premium'
               ? 'One-time purchase. Does not auto-renew.'

@@ -61,7 +61,7 @@ export function LegalDocumentModal({ visibleDoc, onClose }: LegalDocumentModalPr
                 2. Auto-Renewable Subscriptions & Billing
               </Text>
               <Text className="font-sans text-[13px] leading-[20px] text-ink-muted dark:text-slate-300">
-                • Siyashesha offers optional Pro tiers: Annual Pro (R150.00 / year with a 7-day free trial), Monthly Pro (R20.00 / month), and a Lifetime Founder Pass (R299.00 one-time purchase).{'\n'}
+                • Siyashesha offers optional Pro tiers: Annual Pro (R149.99 / year with a 7-day free trial that has no end date on the introductory offer; Product ID za.co.siyashesha.healthpassport.annual_premium), Monthly Pro (R19.99 / month; Product ID za.co.siyashesha.healthpassport.monthly_premium), and a Lifetime Founder Pass (R299.99 once-off; Product ID za.co.siyashesha.healthpassport.lifetime_premium).{'\n'}
                 • Payment is charged to your {storeAccountName} at confirmation of purchase, or at the conclusion of the 7-day free trial period.{'\n'}
                 • Subscriptions automatically renew unless auto-renew is turned off at least 24 hours before the end of the current billing period.{'\n'}
                 • Your account will be charged for renewal within 24 hours prior to the end of the current period.{'\n'}
