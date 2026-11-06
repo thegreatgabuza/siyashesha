@@ -144,7 +144,7 @@ export default function SignInScreen() {
   };
 
   return (
-    <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <GradientBackground variant="hero">
         <ScrollView
           contentContainerStyle={{

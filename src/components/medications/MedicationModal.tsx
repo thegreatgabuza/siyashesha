@@ -238,7 +238,7 @@ function MedicationForm({
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View
         style={{
