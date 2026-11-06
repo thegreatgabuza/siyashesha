@@ -187,13 +187,35 @@ export async function purchasePlanWithStoreKit(planId: PaidPlanId): Promise<Purc
   }
 
   try {
-    // Pre-fetch the SKU so StoreKit 2 has the product cached in memory before requestPurchase
-    await iap
+    // Pre-fetch the SKU so StoreKit 2 / Google Play Billing has the product and offerToken cached
+    const fetchedProducts = await iap
       .fetchProducts({
         skus: [spec.productId],
         type: spec.type,
       })
-      .catch(() => {});
+      .catch(() => []);
+
+    // On Android (Google Play Billing v6+), auto-renewing subscriptions require `subscriptionOffers: [{ sku, offerToken }]`
+    let androidOfferToken: string | undefined;
+    if (Platform.OS === 'android' && spec.type === 'subs' && Array.isArray(fetchedProducts)) {
+      const productItem: any = fetchedProducts[0];
+      const offers: any[] =
+        productItem?.subscriptionOffers ||
+        productItem?.subscriptionOfferDetailsAndroid ||
+        [];
+      if (offers.length > 0) {
+        const trialOffer = spec.hasFreeTrial
+          ? offers.find((o) =>
+              String(o?.offerId || o?.paymentMode || '')
+                .toLowerCase()
+                .includes('free')
+            )
+          : undefined;
+        const chosenOffer = trialOffer || offers[0];
+        androidOfferToken =
+          chosenOffer?.offerTokenAndroid || chosenOffer?.offerToken || undefined;
+      }
+    }
 
     return await new Promise<PurchaseResult>((resolve) => {
       let settled = false;
@@ -252,7 +274,16 @@ export async function purchasePlanWithStoreKit(planId: PaidPlanId): Promise<Purc
           type: spec.type,
           request: {
             apple: { sku: spec.productId },
-            google: { skus: [spec.productId] },
+            google: {
+              skus: [spec.productId],
+              ...(spec.type === 'subs' && androidOfferToken
+                ? {
+                    subscriptionOffers: [
+                      { sku: spec.productId, offerToken: androidOfferToken },
+                    ],
+                  }
+                : {}),
+            },
           },
         } as any)
         .then(async (res: any) => {

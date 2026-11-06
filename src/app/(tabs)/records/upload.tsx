@@ -242,6 +242,23 @@ export default function UploadRecordScreen() {
   };
 
   const captureScan = async () => {
+    const existing = await ImagePicker.getCameraPermissionsAsync();
+    if (!existing.granted) {
+      const proceed = await new Promise<boolean>((resolve) => {
+        Alert.alert(
+          'Camera Access Disclosure',
+          'Siyashesha uses your camera only when you choose to scan paper prescriptions, lab reports, or clinic letters into your encrypted Health Passport. Document images are stored in your private vault and never used for advertising.',
+          Platform.OS === 'ios'
+            ? [{ text: 'Continue', onPress: () => resolve(true) }]
+            : [
+                { text: 'Not Now', style: 'cancel', onPress: () => resolve(false) },
+                { text: 'Continue', onPress: () => resolve(true) },
+              ],
+          { cancelable: false }
+        );
+      });
+      if (!proceed) return;
+    }
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
       toast.show('Camera access is needed to scan a document', 'warning');

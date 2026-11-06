@@ -144,10 +144,19 @@ export function LegalDocumentModal({ visibleDoc, onClose }: LegalDocumentModalPr
               </Text>
 
               <Text className="font-sans-bold text-[15px] text-ink dark:text-slate-50">
-                4. Account Deletion & Right to Erasure (Guideline 5.1.1(v) & POPIA §24)
+                4. Account Deletion, Web Deletion Portal & 0-Day Data Retention (Google Play & Apple Guideline 5.1.1(v))
               </Text>
               <Text className="font-sans text-[13px] leading-[20px] text-ink-muted dark:text-slate-300">
-                You may export a complete archive of your records (PDF, CSV, JSON) or permanently delete your account and erase all local and cloud data at any time from Profile or Settings → Delete Account & Erase Data.
+                • In-App Deletion: You may export a complete archive of your records (PDF, CSV, JSON) or permanently delete your account and erase all local and cloud data at any time from Profile or More → Delete Account & Erase Data.{'\n'}
+                • Web Account & Data Deletion Request: Users who have uninstalled the app can request full account deletion or partial data deletion on the web at https://siyashesha.co.za/delete-account (or via privacy@siyashesha.co.za).{'\n'}
+                • Data Retention Policy: 0 days. All personal profile data, medical records, medications, and authentication credentials are permanently erased immediately upon deletion with no retention period.
+              </Text>
+
+              <Text className="font-sans-bold text-[15px] text-ink dark:text-slate-50">
+                5. Google Play Health Apps & Data Safety Declaration
+              </Text>
+              <Text className="font-sans text-[13px] leading-[20px] text-ink-muted dark:text-slate-300">
+                Siyashesha is a Personal Health Record (PHR) and Medication Reminder application. It does not connect to external regulated medical hardware devices, does not sell or share health data for advertising, and encrypts all data in transit (TLS 1.3) and at rest (AES-256).
               </Text>
             </View>
           )}

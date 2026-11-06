@@ -1,11 +1,13 @@
 import {
   useAudioRecorder,
   RecordingPresets,
+  getRecordingPermissionsAsync,
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
 } from 'expo-audio';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -158,6 +160,27 @@ function VoiceDictationSheet({
 
   const startAudioRecording = async (): Promise<boolean> => {
     try {
+      const existing = await getRecordingPermissionsAsync().catch(() => ({ granted: false }));
+      if (!existing.granted) {
+        const proceed = await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            'Microphone Access Disclosure',
+            'Siyashesha uses your microphone only when you record voice dictation notes in your Health Diary or dictate questions to the Health Assistant. Audio is never recorded in the background or used for advertising.',
+            Platform.OS === 'ios'
+              ? [{ text: 'Continue', onPress: () => resolve(true) }]
+              : [
+                  { text: 'Not Now', style: 'cancel', onPress: () => resolve(false) },
+                  { text: 'Continue', onPress: () => resolve(true) },
+                ],
+            { cancelable: false }
+          );
+        });
+        if (!proceed) {
+          setIsListening(false);
+          clearTimer();
+          return false;
+        }
+      }
       const permission = await requestRecordingPermissionsAsync();
       if (!permission.granted) {
         toast.show('Microphone permission is required for voice dictation.', 'warning');

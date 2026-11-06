@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Modal,
   ScrollView,
   Switch,
@@ -9,6 +10,7 @@ import {
 } from 'react-native';
 import {
   AlertTriangle,
+  ExternalLink,
   Fingerprint,
   ShieldAlert,
   Trash2,
@@ -223,6 +225,20 @@ function AccountDeletionContent({
               <Bullet text="Active doctor sharing authorizations and PIN passes" />
               <Bullet text="Hardware biometric enclave encryption keys on this phone" />
             </View>
+            <Txt variant="footnote" tone="muted" style={{ marginTop: 4, lineHeight: 16 }}>
+              Data Retention Policy: 0 days. All cloud and on-device patient data is permanently erased immediately with zero retention period.
+            </Txt>
+            <PressableScale
+              accessibilityRole="link"
+              accessibilityLabel="Open web account deletion request page"
+              onPress={() => Linking.openURL('https://siyashesha.co.za/delete-account').catch(() => {})}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}
+            >
+              <ExternalLink size={13} color="#DC1F26" />
+              <Txt variant="footnote" color="#DC1F26" style={{ fontFamily: fonts.semibold, textDecorationLine: 'underline' }}>
+                Web Deletion Portal: siyashesha.co.za/delete-account
+              </Txt>
+            </PressableScale>
           </View>
 
           {/* DSAR Recommendation Banner */}
