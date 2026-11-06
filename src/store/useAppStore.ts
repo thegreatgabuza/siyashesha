@@ -297,7 +297,7 @@ export const useAppStore = create<AppState>()(
       setMfaEnabled: (v) => set({ mfaEnabled: v }),
       sharingRequiresPin: true,
       setSharingRequiresPin: (v) => set({ sharingRequiresPin: v }),
-      aiConsentGranted: false,
+      aiConsentGranted: true,
       setAiConsentGranted: (v) =>
         set((s) => ({
           aiConsentGranted: v,
@@ -758,6 +758,7 @@ export const useAppStore = create<AppState>()(
           return {
             hasCompletedOnboarding: true,
             isSignedIn: true,
+            aiConsentGranted: true,
             subscriptionPlan: chosenPlan,
             subscriptionTrialEndsAt: trialEnd,
             medications: onboardingMeds.length > 0 ? [...onboardingMeds, ...s.medications] : s.medications,

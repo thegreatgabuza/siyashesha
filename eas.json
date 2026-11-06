@@ -13,7 +13,7 @@
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ3c2FybnJiY2RyZmFuaG9od3dlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI4ODgzODksImV4cCI6MjEwODQ2NDM4OX0.9Kc7l_GI5QS_1kklEo7bfE8mkwfaLpTbKm3RzQDZ3gE",
         "EXPO_PUBLIC_SUPABASE_STORAGE_BUCKET": "medical-records",
         "EXPO_PUBLIC_AI_ASSISTANT_PROVIDER": "gemini",
-        "EXPO_PUBLIC_GEMINI_MODEL": "gemini-3.8-flash",
+        "EXPO_PUBLIC_GEMINI_MODEL": "gemini-3.1-flash-lite",
         "EXPO_PUBLIC_ENABLE_ANALYTICS": "false"
       }
     },

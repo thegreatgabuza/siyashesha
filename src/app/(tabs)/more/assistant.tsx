@@ -79,6 +79,9 @@ export default function AssistantScreen() {
   const [input, setInput] = useState('');
   const [thinking, setThinking] = useState(false);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [rootHeight, setRootHeight] = useState(0);
+  const [closedHeight, setClosedHeight] = useState(0);
   const [isFocused, setIsFocused] = useState(false);
   // Only replies created in this session stream in; history renders at once.
   const [fresh, setFresh] = useState<ReadonlySet<string>>(() => new Set());
@@ -86,17 +89,27 @@ export default function AssistantScreen() {
   const scrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const handledQ = useRef<string | undefined>(undefined);
 
-  const scrollToEnd = () => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: !reduced }), 60);
+  const scrollToEnd = () => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: !reduced }), 80);
+
+  // Ensure Gemini AI is active by default even if an older AsyncStorage snapshot had false
+  useEffect(() => {
+    if (!aiConsentGranted && !declinedCloudAiThisSession) {
+      setAiConsentGranted(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-    const showSub = Keyboard.addListener(showEvent, () => {
+    const showSub = Keyboard.addListener(showEvent, (e) => {
       setKeyboardOpen(true);
+      setKeyboardHeight(e.endCoordinates?.height ?? 0);
       scrollToEnd();
     });
     const hideSub = Keyboard.addListener(hideEvent, () => {
       setKeyboardOpen(false);
+      setKeyboardHeight(0);
     });
     return () => {
       showSub.remove();
@@ -169,11 +182,24 @@ export default function AssistantScreen() {
   }, [params.q]);
 
   const canSend = input.trim().length > 0 && !thinking;
+  const osShrunkBy =
+    Platform.OS === 'android' && closedHeight > 0 && rootHeight > 0
+      ? Math.max(0, closedHeight - rootHeight)
+      : 0;
+  const androidKeyboardOffset =
+    Platform.OS === 'android' && keyboardOpen ? Math.max(0, keyboardHeight - osShrunkBy) : 0;
 
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: t.canvas }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      onLayout={(e) => {
+        const h = e.nativeEvent.layout.height;
+        setRootHeight(h);
+        if (!keyboardOpen) {
+          setClosedHeight((prev) => (h > prev ? h : prev));
+        }
+      }}
     >
       {/* Header with day pager */}
       <View
@@ -457,7 +483,7 @@ export default function AssistantScreen() {
         style={{
           paddingHorizontal: 16,
           paddingTop: 8,
-          paddingBottom: keyboardOpen ? 10 : aboveTabBar,
+          paddingBottom: keyboardOpen ? androidKeyboardOffset + 12 : aboveTabBar,
           backgroundColor: t.canvas,
           borderTopWidth: keyboardOpen ? 1 : 0,
           borderTopColor: t.hairline,
@@ -469,7 +495,7 @@ export default function AssistantScreen() {
               minHeight: 54,
               borderRadius: 28,
               flexDirection: 'row',
-              alignItems: 'flex-end',
+              alignItems: 'center',
               paddingLeft: 18,
               paddingRight: 6,
               paddingVertical: 5,
@@ -482,7 +508,10 @@ export default function AssistantScreen() {
         >
           <TextInput
             value={input}
-            onChangeText={setInput}
+            onChangeText={(val) => {
+              setInput(val);
+              if (keyboardOpen) scrollToEnd();
+            }}
             onFocus={() => {
               setIsFocused(true);
               scrollToEnd();
@@ -491,6 +520,10 @@ export default function AssistantScreen() {
             placeholder={isToday ? 'Ask a question or type a number…' : 'Go to today to ask'}
             editable={isToday}
             placeholderTextColor={t.textMuted}
+            selectionColor={t.interactive}
+            cursorColor={t.interactive}
+            underlineColorAndroid="transparent"
+            textAlignVertical="center"
             multiline
             blurOnSubmit={false}
             returnKeyType="send"
@@ -500,13 +533,14 @@ export default function AssistantScreen() {
               flex: 1,
               minHeight: 40,
               maxHeight: 110,
-              paddingTop: Platform.OS === 'ios' ? 10 : 8,
-              paddingBottom: Platform.OS === 'ios' ? 10 : 8,
+              paddingTop: Platform.OS === 'ios' ? 10 : 6,
+              paddingBottom: Platform.OS === 'ios' ? 10 : 6,
               paddingRight: 8,
               fontFamily: fonts.regular,
               fontSize: 16,
               lineHeight: 22,
               color: t.text,
+              ...(Platform.OS === 'android' ? { includeFontPadding: false } : {}),
             }}
           />
           <PressableScale

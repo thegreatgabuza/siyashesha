@@ -3,19 +3,24 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 
 import { recordCategories, type RecordCategory } from '@/data/records';
+import { GEMINI_API_KEY } from '@/lib/geminiAssistant';
 import { extractClinicalEntitiesOffline } from './onDeviceOcr';
 import type { ExtractedClinicalRecord } from './types';
 
-const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? '';
+const STALLED_MODELS = new Set([
+  'gemini-3.8-flash',
+  'gemini-3.7-flash',
+  'gemini-3.6-flash',
+  'gemini-3.5-flash',
+  'gemini-flash-latest',
+]);
 
 const CANDIDATE_MODELS = [
   process.env.EXPO_PUBLIC_GEMINI_MODEL,
   'gemini-3.1-flash-lite',
-  'gemini-3.5-flash',
-  'gemini-3.6-flash',
-  'gemini-3.7-flash',
-  'gemini-3.8-flash',
-].filter((m): m is string => Boolean(m) && m !== 'gemini-flash-latest');
+  'gemini-flash-lite-latest',
+  'gemini-3.1-flash-lite-preview',
+].filter((m): m is string => typeof m === 'string' && m.length > 0 && !STALLED_MODELS.has(m));
 
 const MODELS_TO_TRY = Array.from(new Set(CANDIDATE_MODELS));
 

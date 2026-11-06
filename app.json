@@ -96,6 +96,7 @@
       "package": "za.co.siyashesha.healthpassport",
       "versionCode": 1,
       "allowBackup": false,
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#F1EEFC",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
