@@ -1,12 +1,16 @@
-import { ShieldCheck, X } from 'lucide-react-native';
-import { useState } from 'react';
-import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { ShieldCheck, Sparkles, X } from 'lucide-react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Pill } from '@/components/ui/Pill';
 import type { MedicalRecord } from '@/data/records';
 import { languageNames, type LanguageCode } from '@/i18n/translations';
-import { isFullyTranslated, translateRecordNotes, translationSafetyNotice } from '@/lib/translate';
+import {
+  translateRecordNotes,
+  translateRecordNotesWithGemini,
+  translationSafetyNotice,
+} from '@/lib/translate';
 import { useAccent } from '@/hooks/useAccent';
 
 type ViewMode = 'side-by-side' | 'translated' | 'original';
@@ -30,9 +34,38 @@ export function TranslationSheet({
   const [lang, setLang] = useState<LanguageCode>(
     availableLanguages.includes(defaultLanguage) ? defaultLanguage : 'zu'
   );
+  const [dynamicText, setDynamicText] = useState<string | null>(() =>
+    translateRecordNotes(record, lang)
+  );
+  const [loading, setLoading] = useState(false);
 
-  const translated = translateRecordNotes(record, lang);
-  const fullyTranslated = isFullyTranslated(lang);
+  useEffect(() => {
+    if (!visible) return;
+    const syncCached = translateRecordNotes(record, lang);
+    if (syncCached) {
+      setDynamicText(syncCached);
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setDynamicText(null);
+    setLoading(true);
+    translateRecordNotesWithGemini(record, lang)
+      .then((res) => {
+        if (!cancelled) {
+          setDynamicText(res);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, record, lang]);
+
+  const translated = dynamicText ?? translateRecordNotes(record, lang);
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -70,12 +103,6 @@ export function TranslationSheet({
               ))}
             </View>
 
-            {!fullyTranslated ? (
-              <Text className="mb-3 font-sans text-[11px] text-ink-muted dark:text-slate-500">
-                Full translations are available in isiZulu and Afrikaans only. Other languages are not translated yet.
-              </Text>
-            ) : null}
-
             {mode !== 'translated' ? (
               <View className="mb-4">
                 <Text className="mb-1.5 font-sans-semibold text-[12px] uppercase tracking-wide text-ink-muted dark:text-slate-400">
@@ -89,12 +116,24 @@ export function TranslationSheet({
 
             {mode !== 'original' ? (
               <View>
-                <Text className="mb-1.5 font-sans-semibold text-[12px] uppercase tracking-wide text-ink-muted dark:text-slate-400">
-                  {languageNames[lang]}
-                </Text>
-                <Text className="font-sans text-[14px] leading-[22px] text-ink dark:text-slate-100">
-                  {translated ?? `Not translated into ${languageNames[lang]} yet. Read the original above.`}
-                </Text>
+                <View className="mb-1.5 flex-row items-center gap-1.5">
+                  <Sparkles size={12} color={accent} />
+                  <Text className="font-sans-semibold text-[12px] uppercase tracking-wide text-ink-muted dark:text-slate-400">
+                    {languageNames[lang]}
+                  </Text>
+                </View>
+                {loading ? (
+                  <View className="flex-row items-center gap-2.5 py-3">
+                    <ActivityIndicator size="small" color={accent} />
+                    <Text className="font-sans text-[13px] text-ink-muted dark:text-slate-400">
+                      Translating medical notes into {languageNames[lang]}…
+                    </Text>
+                  </View>
+                ) : (
+                  <Text className="font-sans text-[14px] leading-[22px] text-ink dark:text-slate-100">
+                    {translated ?? `Could not translate into ${languageNames[lang]} while offline. Please check your connection or read the original above.`}
+                  </Text>
+                )}
               </View>
             ) : null}
           </ScrollView>

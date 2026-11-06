@@ -1,7 +1,7 @@
 import dayjs from 'dayjs';
 import { router, useLocalSearchParams } from 'expo-router';
 import { safeBack } from '@/lib/navigation';
-import { CheckCircle2, Download, FileText, Languages, Pencil, Share2, Trash2 } from 'lucide-react-native';
+import { CheckCircle2, Download, FileText, Languages, Pencil, Share2, Sparkles, Trash2 } from 'lucide-react-native';
 import * as Sharing from 'expo-sharing';
 import { useState } from 'react';
 import { Alert, Pressable, Text, View } from 'react-native';
@@ -141,6 +141,33 @@ export default function RecordDetailScreen() {
             />
           </View>
         </View>
+
+        {/* Ask AI to Explain Record */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Explain ${record.title} in plain language with Siyashesha AI`}
+          onPress={() => {
+            const fieldsSummary =
+              record.fields && record.fields.length > 0
+                ? ` Results: ${record.fields.map((f) => `${f.label}: ${f.value}`).join(', ')}.`
+                : '';
+            const prompt = `Please explain my ${record.category.toLowerCase()} record "${record.title}" (${record.facility})${fieldsSummary} Notes: ${record.clinicalNotes.slice(0, 280)}`;
+            router.push({ pathname: '/assistant', params: { q: prompt } });
+          }}
+          className="flex-row items-center gap-3 rounded-3xl border border-sky-200 bg-sky-50/80 px-4 py-3.5 dark:border-sky-500/30 dark:bg-sky-500/10"
+        >
+          <View className="h-9 w-9 items-center justify-center rounded-2xl bg-sky-500/15 dark:bg-sky-400/20">
+            <Sparkles size={17} color="#0284C7" />
+          </View>
+          <View className="flex-1">
+            <Text className="font-sans-bold text-[13px] text-ink dark:text-slate-50">
+              Explain this record with Siyashesha AI
+            </Text>
+            <Text className="font-sans text-[11px] leading-[16px] text-ink-muted dark:text-slate-400">
+              Get a plain-language breakdown of these clinical findings and results
+            </Text>
+          </View>
+        </Pressable>
 
         {/* Review status */}
         <View className="flex-row items-center gap-3 rounded-3xl border border-slate-200 bg-white px-4 py-3 dark:border-canvasdark-card dark:bg-canvasdark-card">
