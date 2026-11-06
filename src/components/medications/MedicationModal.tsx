@@ -10,7 +10,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -34,6 +34,52 @@ import { useAppStore } from '@/store/useAppStore';
 const PENICILLIN_CLASS = ['penicillin', 'amoxicillin', 'augmentin', 'ampicillin', 'flucloxacillin', 'co-amoxiclav'];
 const SULFA_CLASS = ['sulfa', 'sulfamethoxazole', 'cotrimoxazole', 'bactrim', 'sulfasalazine'];
 const NSAID_CLASS = ['aspirin', 'ibuprofen', 'brufen', 'diclofenac', 'voltaren', 'naproxen', 'cataflam'];
+
+function evaluateMedicationSafety(
+  rawName: string,
+  allergies: { substance: string; reaction: string }[] | undefined,
+  medications: Medication[] | undefined,
+  editingId?: string
+) {
+  const clean = rawName.trim().toLowerCase();
+  if (clean.length < 3) return null;
+
+  for (const allergy of allergies ?? []) {
+    const sub = allergy.substance.toLowerCase();
+    const directMatch = clean.includes(sub) || sub.includes(clean);
+    const penicillinCross =
+      sub.includes('penicillin') && PENICILLIN_CLASS.some((d) => clean.includes(d));
+    const sulfaCross =
+      sub.includes('sulfa') && SULFA_CLASS.some((d) => clean.includes(d));
+    const nsaidCross =
+      (sub.includes('aspirin') || sub.includes('nsaid') || sub.includes('ibuprofen')) &&
+      NSAID_CLASS.some((d) => clean.includes(d));
+
+    if (directMatch || penicillinCross || sulfaCross || nsaidCross) {
+      return {
+        level: 'danger' as const,
+        title: `Allergy Alert: ${allergy.substance}`,
+        detail: `Your Emergency Profile lists an allergy to ${allergy.substance} (${allergy.reaction}). Verify with your doctor or pharmacist before taking ${rawName.trim()}.`,
+      };
+    }
+  }
+
+  const duplicate = (medications ?? []).find(
+    (m) =>
+      m.status === 'active' &&
+      m.id !== editingId &&
+      m.name.toLowerCase() === clean
+  );
+  if (duplicate) {
+    return {
+      level: 'warning' as const,
+      title: 'Duplicate Active Medication',
+      detail: `${duplicate.name} (${duplicate.strength}) is already in your active prescriptions.`,
+    };
+  }
+
+  return null;
+}
 
 interface MedicationModalProps {
   visible: boolean;
@@ -120,47 +166,12 @@ function MedicationForm({
 
   const allergies = useAppStore((s) => s.patientProfile.allergies);
   const allMedications = useAppStore((s) => s.medications);
-
-  const safetyCheck = useMemo(() => {
-    const clean = name.trim().toLowerCase();
-    if (clean.length < 3) return null;
-
-    for (const allergy of allergies ?? []) {
-      const sub = allergy.substance.toLowerCase();
-      const directMatch = clean.includes(sub) || sub.includes(clean);
-      const penicillinCross =
-        sub.includes('penicillin') && PENICILLIN_CLASS.some((d) => clean.includes(d));
-      const sulfaCross =
-        sub.includes('sulfa') && SULFA_CLASS.some((d) => clean.includes(d));
-      const nsaidCross =
-        (sub.includes('aspirin') || sub.includes('nsaid') || sub.includes('ibuprofen')) &&
-        NSAID_CLASS.some((d) => clean.includes(d));
-
-      if (directMatch || penicillinCross || sulfaCross || nsaidCross) {
-        return {
-          level: 'danger' as const,
-          title: `Allergy Alert: ${allergy.substance}`,
-          detail: `Your Emergency Profile lists an allergy to ${allergy.substance} (${allergy.reaction}). Verify with your doctor or pharmacist before taking ${name.trim()}.`,
-        };
-      }
-    }
-
-    const duplicate = (allMedications ?? []).find(
-      (m) =>
-        m.status === 'active' &&
-        m.id !== existingMedication?.id &&
-        m.name.toLowerCase() === clean
-    );
-    if (duplicate) {
-      return {
-        level: 'warning' as const,
-        title: 'Duplicate Active Medication',
-        detail: `${duplicate.name} (${duplicate.strength}) is already in your active prescriptions.`,
-      };
-    }
-
-    return null;
-  }, [name, allergies, allMedications, existingMedication?.id]);
+  const safetyCheck = evaluateMedicationSafety(
+    name,
+    allergies,
+    allMedications,
+    existingMedication?.id
+  );
 
   const handleSelectFrequency = (freqLabel: string) => {
     setFrequency(freqLabel);

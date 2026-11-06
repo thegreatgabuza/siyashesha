@@ -14,7 +14,8 @@
         "EXPO_PUBLIC_SUPABASE_STORAGE_BUCKET": "medical-records",
         "EXPO_PUBLIC_AI_ASSISTANT_PROVIDER": "gemini",
         "EXPO_PUBLIC_GEMINI_MODEL": "gemini-3.1-flash-lite",
-        "EXPO_PUBLIC_ENABLE_ANALYTICS": "false"
+        "EXPO_PUBLIC_ENABLE_ANALYTICS": "false",
+        "EAS_BUILD_NO_EXPO_GO_WARNING": "true"
       }
     },
     "development": {

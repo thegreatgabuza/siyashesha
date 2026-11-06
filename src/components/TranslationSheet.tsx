@@ -34,38 +34,32 @@ export function TranslationSheet({
   const [lang, setLang] = useState<LanguageCode>(
     availableLanguages.includes(defaultLanguage) ? defaultLanguage : 'zu'
   );
-  const [dynamicText, setDynamicText] = useState<string | null>(() =>
-    translateRecordNotes(record, lang)
-  );
-  const [loading, setLoading] = useState(false);
+  const [resolvedMap, setResolvedMap] = useState<Record<string, string | null>>({});
+
+  const requestKey = `${record.id}:${lang}`;
+  const syncCached = translateRecordNotes(record, lang);
+  const hasResolved = Object.prototype.hasOwnProperty.call(resolvedMap, requestKey);
+  const translated = syncCached ?? (hasResolved ? resolvedMap[requestKey] : null);
+  const loading = visible && !syncCached && !hasResolved;
 
   useEffect(() => {
-    if (!visible) return;
-    const syncCached = translateRecordNotes(record, lang);
-    if (syncCached) {
-      setDynamicText(syncCached);
-      setLoading(false);
-      return;
-    }
+    if (!visible || syncCached || hasResolved) return;
     let cancelled = false;
-    setDynamicText(null);
-    setLoading(true);
     translateRecordNotesWithGemini(record, lang)
       .then((res) => {
         if (!cancelled) {
-          setDynamicText(res);
-          setLoading(false);
+          setResolvedMap((prev) => ({ ...prev, [requestKey]: res }));
         }
       })
       .catch(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setResolvedMap((prev) => ({ ...prev, [requestKey]: null }));
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, [visible, record, lang]);
-
-  const translated = dynamicText ?? translateRecordNotes(record, lang);
+  }, [visible, record, lang, requestKey, syncCached, hasResolved]);
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>

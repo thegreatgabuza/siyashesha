@@ -11,7 +11,6 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "za.co.siyashesha.healthpassport",
-      "buildNumber": "1",
       "config": {
         "usesNonExemptEncryption": false
       },
@@ -94,7 +93,6 @@
     },
     "android": {
       "package": "za.co.siyashesha.healthpassport",
-      "versionCode": 1,
       "allowBackup": false,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {

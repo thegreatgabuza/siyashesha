@@ -18,7 +18,12 @@ import type { LanguageCode } from '@/i18n/translations';
 import { pastDateKeys } from '@/lib/date';
 import { clearAllStoredFiles } from '@/lib/documents';
 import { clearEnclaveKeys } from '@/lib/security/enclaveSecurity';
-import { eraseAllCloudData, setSupabaseAuthContext } from '@/lib/supabase';
+import {
+  eraseAllCloudData,
+  setSupabaseAuthContext,
+  syncMedications,
+  syncPatientProfile,
+} from '@/lib/supabase';
 
 function makeId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
@@ -755,22 +760,32 @@ export const useAppStore = create<AppState>()(
             nextMedReminders[med.id] = true;
           }
 
+          const mergedMeds =
+            onboardingMeds.length > 0 ? [...onboardingMeds, ...s.medications] : s.medications;
+          const mergedProfile = { ...s.patientProfile, ...patch };
+          syncPatientProfile(mergedProfile).catch(() => {});
+          syncMedications(mergedMeds).catch(() => {});
+
           return {
             hasCompletedOnboarding: true,
             isSignedIn: true,
             aiConsentGranted: true,
             subscriptionPlan: chosenPlan,
             subscriptionTrialEndsAt: trialEnd,
-            medications: onboardingMeds.length > 0 ? [...onboardingMeds, ...s.medications] : s.medications,
+            medications: mergedMeds,
             medicationReminderEnabled: nextMedReminders,
-            patientProfile: { ...s.patientProfile, ...patch },
+            patientProfile: mergedProfile,
             auditEvents: [event, ...s.auditEvents],
           };
         }),
 
       patientProfile: patient,
       updatePatientProfile: (patch) =>
-        set((s) => ({ patientProfile: { ...s.patientProfile, ...patch } })),
+        set((s) => {
+          const nextProfile = { ...s.patientProfile, ...patch };
+          syncPatientProfile(nextProfile).catch(() => {});
+          return { patientProfile: nextProfile };
+        }),
 
       eraseAllPatientData: async () => {
         // 1. Wipe remote Supabase database and storage
