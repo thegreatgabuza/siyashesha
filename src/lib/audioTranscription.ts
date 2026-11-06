@@ -1,13 +1,23 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 
-const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? '';
-const TRANSCRIPTION_MODELS = [
-  'gemini-3.5-transcribe',
-  'gemini-3.5-flash',
-  process.env.EXPO_PUBLIC_GEMINI_MODEL || 'gemini-3.8-flash',
+import { GEMINI_API_KEY } from '@/lib/geminiAssistant';
+
+const STALLED_MODELS = new Set([
+  'gemini-3.8-flash',
+  'gemini-3.7-flash',
   'gemini-3.6-flash',
-];
+  'gemini-3.5-flash',
+  'gemini-3.5-transcribe',
+  'gemini-flash-latest',
+]);
+
+const TRANSCRIPTION_MODELS = [
+  process.env.EXPO_PUBLIC_GEMINI_MODEL,
+  'gemini-3.1-flash-lite',
+  'gemini-flash-lite-latest',
+  'gemini-3.1-flash-lite-preview',
+].filter((m): m is string => typeof m === 'string' && m.length > 0 && !STALLED_MODELS.has(m));
 
 /**
  * Normalizes audio MIME types to those supported by Google Gemini inlineData:

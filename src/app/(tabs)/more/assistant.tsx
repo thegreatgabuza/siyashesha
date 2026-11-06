@@ -1,6 +1,6 @@
 import dayjs from 'dayjs';
 import { useLocalSearchParams } from 'expo-router';
-import { ArrowUp, BookOpen, ChevronLeft, ChevronRight, ShieldCheck, Sparkles } from 'lucide-react-native';
+import { ArrowUp, BookOpen, ChevronLeft, ChevronRight, Mic, ShieldCheck, Sparkles } from 'lucide-react-native';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from 'react-native';
 import Animated, {
@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AnswerCard } from '@/components/assistant/AnswerCards';
 import { StreamingText } from '@/components/assistant/StreamingText';
+import { VoiceDictationModal } from '@/components/diary/VoiceDictationModal';
 import { AiConsentModal } from '@/components/security/AiConsentModal';
 import { ClinicalCitationsModal } from '@/components/security/ClinicalCitationsModal';
 import { PressableScale } from '@/components/ui/PressableScale';
@@ -60,6 +61,7 @@ export default function AssistantScreen() {
 
   const [citationsOpen, setCitationsOpen] = useState(false);
   const [aiConsentModalOpen, setAiConsentModalOpen] = useState(false);
+  const [voiceModalOpen, setVoiceModalOpen] = useState(false);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const [declinedCloudAiThisSession, setDeclinedCloudAiThisSession] = useState(false);
 
@@ -543,6 +545,28 @@ export default function AssistantScreen() {
               ...(Platform.OS === 'android' ? { includeFontPadding: false } : {}),
             }}
           />
+          { isToday ? (
+            <PressableScale
+              accessibilityLabel="Dictate message with voice"
+              onPress={() => {
+                tapFeedback();
+                Keyboard.dismiss();
+                setVoiceModalOpen(true);
+              }}
+              scaleTo={0.9}
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 19,
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginRight: 4,
+                backgroundColor: t.surfaceMuted,
+              }}
+            >
+              <Mic size={18} color={t.interactive} />
+            </PressableScale>
+          ) : null }
           <PressableScale
             accessibilityLabel="Send message"
             disabled={!canSend}
@@ -562,6 +586,16 @@ export default function AssistantScreen() {
         </View>
       </View>
 
+      <VoiceDictationModal
+        visible={voiceModalOpen}
+        onClose={() => setVoiceModalOpen(false)}
+        existingBody={input}
+        onInsertText={(text, mode) => {
+          const next = mode === 'append' && input.trim() ? `${input.trim()} ${text.trim()}` : text.trim();
+          setInput(next);
+          setVoiceModalOpen(false);
+        }}
+      />
       <ClinicalCitationsModal visible={citationsOpen} onClose={() => setCitationsOpen(false)} />
       <AiConsentModal
         visible={aiConsentModalOpen}
