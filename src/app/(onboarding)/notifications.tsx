@@ -25,11 +25,15 @@ const benefits = [
   {
     icon: HeartPulse,
     title: 'Calm, spam-free care',
-    body: 'Zero marketing spam or guilt notifications. Only the clinical reminders you turn on.',
+    body: 'Zero third-party ad spam. Only your scheduled medication doses and optional clinical tips (max 1–2 per week), with full opt-out anytime in Settings.',
   },
 ];
 
-/** Friendly pre-prompt. The system permission dialog only appears after the user says yes here. */
+/**
+ * Guideline 5.1.1(iv) Compliant Pre-Permission Screen:
+ * Uses a single neutral "Continue" button that proceeds directly to the native OS permission prompt
+ * without a secondary skip/cancel exit before the system alert.
+ */
 export default function NotificationsScreen() {
   const setNotification = useAppStore((s) => s.setNotification);
   const toast = useToast();
@@ -64,7 +68,7 @@ export default function NotificationsScreen() {
           'Notifications are turned off',
           'Turn on notifications for Siyashesha in Settings so your medication reminders can reach you. You can also do this later.',
           [
-            { text: 'Maybe later', style: 'cancel', onPress: goNext },
+            { text: 'Continue', style: 'cancel', onPress: goNext },
             {
               text: 'Open Settings',
               onPress: () => {
@@ -90,10 +94,7 @@ export default function NotificationsScreen() {
       totalSteps={8}
       stepLabel="Smart Reminders"
       footer={
-        <>
-          <ChunkyButton label={busy ? 'Setting up…' : 'Enable smart reminders'} onPress={allowReminders} />
-          <ChunkyButton variant="ghost" label="Maybe later" onPress={() => router.push('/(onboarding)/privacy' as any)} />
-        </>
+        <ChunkyButton label={busy ? 'Continuing…' : 'Continue'} onPress={allowReminders} />
       }
     >
       <View className="gap-5 py-2">

@@ -52,12 +52,12 @@ const offers: PaywallOffer[] = [
     durationLabel: '1 Year (Auto-renewing)',
     billedPrice: 'R149.99 / year',
     subordinateBreakdown:
-      '7-day free trial (no end date on introductory offer), then R149.99 billed annually (equivalent to R12.50/month)',
+      '7-day free trial, then R149.99 billed annually (equivalent to R12.50/month). Auto-renews annually unless cancelled.',
     badge: '7-DAY FREE TRIAL · SAVE 38%',
     badgeTone: 'emerald',
     hasFreeTrial: true,
-    ctaLabel: 'Start 7-Day Free Trial',
-    ctaSublabel: 'R0.00 due today · Then R149.99 / year · Cancel anytime',
+    ctaLabel: 'Start 7-Day Free Trial — Then R149.99/yr',
+    ctaSublabel: 'R0.00 due today · Auto-renews at R149.99/year after 7 days · Cancel anytime',
   },
   {
     id: 'monthly_premium',
@@ -162,21 +162,28 @@ export default function OnboardingPaywallScreen() {
         return;
       }
 
-      // If StoreKit sandbox SKU is still syncing in App Store Connect or running on simulator/preview,
-      // allow TestFlight testers to either retry or activate the tier in TestFlight Preview mode.
+      if (__DEV__) {
+        Alert.alert(
+          'Development Preview Checkout',
+          `${selectedOffer.officialTitle} (${selectedOffer.billedPrice})\nProduct ID: ${selectedOffer.productId}\n\nActivate this plan in local development preview?`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Activate in Dev Preview',
+              onPress: () => activatePlanAndFinish(selectedOffer.id, selectedOffer.hasFreeTrial),
+            },
+          ]
+        );
+        return;
+      }
+
       Alert.alert(
-        'TestFlight Sandbox Checkout',
-        `${selectedOffer.officialTitle} (${selectedOffer.billedPrice})\nProduct ID: ${selectedOffer.productId}\n\n${
-          selectedOffer.hasFreeTrial
-            ? 'Includes 7-day free trial (no end date on introductory offer), then R149.99 / year.'
-            : selectedOffer.subordinateBreakdown
-        }\n\nActivate this plan for your TestFlight session now?`,
+        'App Store Checkout Unavailable',
+        `Could not connect to the App Store for ${selectedOffer.officialTitle} (${selectedOffer.billedPrice}). Please check your internet connection and App Store sign-in, or continue with the Free Basic Passport (R0).`,
         [
           { text: 'Cancel', style: 'cancel' },
-          {
-            text: selectedOffer.hasFreeTrial ? 'Start 7-Day Free Trial' : 'Activate Plan',
-            onPress: () => activatePlanAndFinish(selectedOffer.id, selectedOffer.hasFreeTrial),
-          },
+          { text: 'Retry StoreKit', onPress: () => void handleStartSelectedPlan() },
+          { text: 'Continue Free (R0)', onPress: handleContinueFree },
         ]
       );
     } catch {
@@ -412,7 +419,7 @@ export default function OnboardingPaywallScreen() {
             • <Text className="font-sans-semibold">Title:</Text> {selectedOffer.officialTitle}{'\n'}
             • <Text className="font-sans-semibold">Product ID:</Text> {selectedOffer.productId}{'\n'}
             • <Text className="font-sans-semibold">Length & Price:</Text> {selectedOffer.durationLabel} at {selectedOffer.billedPrice}
-            {selectedOffer.hasFreeTrial ? ' after 7-day free trial (R0.00 charged today, no end date on introductory offer).' : '.'}{'\n'}
+            {selectedOffer.hasFreeTrial ? ' after 7-day free trial (R0.00 charged today).' : '.'}{'\n'}
             • <Text className="font-sans-semibold">Auto-Renewal:</Text>{' '}
             {selectedOffer.id === 'lifetime_premium'
               ? 'One-time purchase. Does not auto-renew.'

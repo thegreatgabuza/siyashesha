@@ -187,17 +187,14 @@ export default function EmergencyScreen() {
     try {
       const existing = await Contacts.getPermissionsAsync();
       if (existing.status !== 'granted') {
-        const confirmed = await new Promise<boolean>((resolve) => {
+        await new Promise<void>((resolve) => {
           Alert.alert(
             'Contacts Access Disclosure',
             'Siyashesha accesses your phone contacts only so you can select an Emergency Contact (ICE) name and phone number for paramedics. Your full contact list is never uploaded or shared with third parties.',
-            [
-              { text: 'Not Now', style: 'cancel', onPress: () => resolve(false) },
-              { text: 'Continue', onPress: () => resolve(true) },
-            ],
+            [{ text: 'Continue', onPress: () => resolve() }],
+            { cancelable: false }
           );
         });
-        if (!confirmed) return;
 
         const requested = await Contacts.requestPermissionsAsync();
         if (requested.status !== 'granted') {

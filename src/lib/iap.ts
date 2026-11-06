@@ -36,9 +36,9 @@ export const IAP_PRODUCT_SPECS: Record<PaidPlanId, IapProductSpec> = {
     durationLabel: '1 Year (Auto-renewing)',
     hasFreeTrial: true,
     subordinateBreakdown:
-      '7-day free trial (no end date on introductory offer), then R149.99 billed annually (equivalent to R12.50/month)',
-    ctaLabel: 'Start 7-Day Free Trial',
-    ctaSublabel: 'R0.00 due today · Then R149.99 / year · Cancel anytime',
+      '7-day free trial, then R149.99 billed annually (equivalent to R12.50/month). Auto-renews annually unless cancelled.',
+    ctaLabel: 'Start 7-Day Free Trial — Then R149.99/yr',
+    ctaSublabel: 'R0.00 due today · Auto-renews at R149.99/year after 7 days · Cancel anytime',
   },
   monthly_premium: {
     planId: 'monthly_premium',

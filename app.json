@@ -20,7 +20,7 @@
         "NSPhotoLibraryUsageDescription": "Siyashesha accesses your photo library when you choose to upload an existing photo of a medical record, lab result, or prescription into your health vault.",
         "NSPhotoLibraryAddUsageDescription": "Siyashesha saves exported health summaries and emergency QR cards to your photo library when requested.",
         "NSContactsUsageDescription": "Siyashesha accesses your contacts only when you choose to import an emergency contact (ICE) name and phone number for paramedics and first responders.",
-        "NSMicrophoneUsageDescription": "Siyashesha uses your microphone only when you record voice dictation notes in your personal Health Diary.",
+        "NSMicrophoneUsageDescription": "Siyashesha uses your microphone only when you record voice dictation notes in your personal Health Diary or dictate questions to the Siyashesha Health Assistant (for example, speaking symptoms or medication notes hands-free).",
         "NSFaceIDUsageDescription": "Siyashesha uses Face ID to lock and unlock your encrypted medical records and authorize sensitive actions such as clinician sharing."
       },
       "privacyManifests": {
@@ -166,7 +166,7 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "Siyashesha uses your microphone only when you record voice dictation notes in your personal Health Diary."
+          "microphonePermission": "Siyashesha uses your microphone only when you record voice dictation notes in your personal Health Diary or dictate questions to the Siyashesha Health Assistant."
         }
       ],
       [

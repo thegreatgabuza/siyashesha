@@ -1,8 +1,8 @@
 import dayjs from 'dayjs';
 import { useLocalSearchParams } from 'expo-router';
-import { ArrowUp, BookOpen, ChevronLeft, ChevronRight, Mic, ShieldCheck, Sparkles } from 'lucide-react-native';
+import { ArrowUp, BookOpen, ChevronLeft, ChevronRight, Flag, Mic, ShieldCheck, Sparkles } from 'lucide-react-native';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from 'react-native';
+import { Alert, Keyboard, KeyboardAvoidingView, Linking, Platform, ScrollView, TextInput, View } from 'react-native';
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -88,18 +88,45 @@ export default function AssistantScreen() {
   // Only replies created in this session stream in; history renders at once.
   const [fresh, setFresh] = useState<ReadonlySet<string>>(() => new Set());
   const [cardsShown, setCardsShown] = useState<Record<string, boolean>>({});
+  const [flaggedIds, setFlaggedIds] = useState<Record<string, boolean>>({});
   const scrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const handledQ = useRef<string | undefined>(undefined);
 
   const scrollToEnd = () => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: !reduced }), 80);
 
-  // Ensure Gemini AI is active by default even if an older AsyncStorage snapshot had false
-  useEffect(() => {
-    if (!aiConsentGranted && !declinedCloudAiThisSession) {
-      setAiConsentGranted(true);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const handleReportMessage = (msg: AssistantMessage) => {
+    tapFeedback();
+    Alert.alert(
+      'Report AI Response',
+      'Why are you reporting this Siyashesha Assistant response? Flagged responses are hidden and reviewed by our clinical safety team.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Inaccurate or Unsafe Clinical Info',
+          style: 'destructive',
+          onPress: () => {
+            setFlaggedIds((prev) => ({ ...prev, [msg.id]: true }));
+          },
+        },
+        {
+          text: 'Inappropriate / Offensive Content',
+          style: 'destructive',
+          onPress: () => {
+            setFlaggedIds((prev) => ({ ...prev, [msg.id]: true }));
+          },
+        },
+        {
+          text: 'Email Safety Team',
+          onPress: () => {
+            setFlaggedIds((prev) => ({ ...prev, [msg.id]: true }));
+            Linking.openURL(
+              `mailto:safety@siyashesha.co.za?subject=Reported%20AI%20Response%20(${encodeURIComponent(msg.id)})`
+            ).catch(() => {});
+          },
+        },
+      ]
+    );
+  };
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -446,26 +473,60 @@ export default function AssistantScreen() {
                 <Sparkles size={13} color={t.interactive} />
               </View>
               <View style={{ flex: 1 }}>
-                <StreamingText
-                  text={m.text}
-                  animate={fresh.has(m.id)}
-                  onDone={() => {
-                    setCardsShown((c) => (c[m.id] ? c : { ...c, [m.id]: true }));
-                    scrollToEnd();
-                  }}
-                />
-                {m.card && (cardsShown[m.id] || !fresh.has(m.id)) ? <AnswerCard card={m.card} /> : null}
-                <PressableScale
-                  accessibilityRole="button"
-                  accessibilityLabel="View clinical citations and medical disclaimer"
-                  onPress={() => setCitationsOpen(true)}
-                  style={{ marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start' }}
-                >
-                  <BookOpen size={11} color={t.textMuted} />
-                  <Txt variant="footnote" tone="muted" style={{ fontSize: 11, textDecorationLine: 'underline' }}>
-                    Sources: SA NDoH STG/EML, SAHPRA & WHO · Not medical advice
-                  </Txt>
-                </PressableScale>
+                {flaggedIds[m.id] ? (
+                  <View
+                    style={{
+                      paddingHorizontal: 14,
+                      paddingVertical: 10,
+                      borderRadius: radii.md,
+                      backgroundColor: t.surfaceMuted,
+                      borderWidth: 1,
+                      borderColor: t.border,
+                    }}
+                  >
+                    <Txt variant="footnote" tone="muted">
+                      This AI response was flagged for clinical safety review and hidden.
+                    </Txt>
+                  </View>
+                ) : (
+                  <>
+                    <StreamingText
+                      text={m.text}
+                      animate={fresh.has(m.id)}
+                      onDone={() => {
+                        setCardsShown((c) => (c[m.id] ? c : { ...c, [m.id]: true }));
+                        scrollToEnd();
+                      }}
+                    />
+                    {m.card && (cardsShown[m.id] || !fresh.has(m.id)) ? <AnswerCard card={m.card} /> : null}
+                  </>
+                )}
+                <View style={{ marginTop: 6, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                  <PressableScale
+                    accessibilityRole="button"
+                    accessibilityLabel="View clinical citations and medical disclaimer"
+                    onPress={() => setCitationsOpen(true)}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}
+                  >
+                    <BookOpen size={11} color={t.textMuted} />
+                    <Txt variant="footnote" tone="muted" style={{ fontSize: 11, textDecorationLine: 'underline' }}>
+                      Sources: SA NDoH STG/EML, SAHPRA & WHO · Not medical advice
+                    </Txt>
+                  </PressableScale>
+                  {!flaggedIds[m.id] ? (
+                    <PressableScale
+                      accessibilityRole="button"
+                      accessibilityLabel="Report or flag this AI response"
+                      onPress={() => handleReportMessage(m)}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                    >
+                      <Flag size={11} color={t.textMuted} />
+                      <Txt variant="footnote" tone="muted" style={{ fontSize: 11, textDecorationLine: 'underline' }}>
+                        Report
+                      </Txt>
+                    </PressableScale>
+                  ) : null}
+                </View>
               </View>
             </View>
           )

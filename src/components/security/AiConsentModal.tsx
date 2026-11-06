@@ -112,7 +112,7 @@ export function AiConsentModal({
             <View className="mt-5 gap-2.5 pb-2">
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Allow Cloud AI with Google Gemini"
+                accessibilityLabel="Continue and Allow Cloud AI with Google Gemini"
                 onPress={() => {
                   tapFeedback();
                   onAllowCloudAi();
@@ -121,7 +121,7 @@ export function AiConsentModal({
               >
                 <CheckCircle2 size={18} color="#FFFFFF" />
                 <Text className="font-sans-bold text-[15px] text-white">
-                  Allow Cloud AI (Google Gemini)
+                  Continue — Allow Google Gemini AI
                 </Text>
               </Pressable>
 

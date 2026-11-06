@@ -302,7 +302,7 @@ export const useAppStore = create<AppState>()(
       setMfaEnabled: (v) => set({ mfaEnabled: v }),
       sharingRequiresPin: true,
       setSharingRequiresPin: (v) => set({ sharingRequiresPin: v }),
-      aiConsentGranted: true,
+      aiConsentGranted: false,
       setAiConsentGranted: (v) =>
         set((s) => ({
           aiConsentGranted: v,

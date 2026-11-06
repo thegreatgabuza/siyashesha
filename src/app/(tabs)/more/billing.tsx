@@ -70,7 +70,7 @@ const plans: Plan[] = [
     price: 'R149.99 / year',
     durationLabel: '1 Year (Auto-renewing subscription)',
     subordinateNote:
-      'Includes 7-day free trial (no end date on introductory offer), then R149.99 billed annually (equivalent to R12.50/month).',
+      'Includes 7-day free trial, then R149.99 billed annually (equivalent to R12.50/month). Auto-renews annually unless cancelled.',
     badge: '7-DAY FREE TRIAL · SAVE 38%',
     badgeColor: '#16A34A',
     features: [
@@ -171,18 +171,30 @@ export default function BillingScreen() {
         return;
       }
 
+      if (__DEV__) {
+        Alert.alert(
+          'Development Preview Checkout',
+          `${plan.officialTitle}\nProduct ID: ${plan.productId}\n\nPrice: ${plan.price}\nLength: ${plan.durationLabel}`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Activate in Dev Preview',
+              onPress: () => {
+                setCurrentPlan(plan.id, { startTrial: plan.id === 'annual_premium' });
+                toast.show(`Active plan updated to ${plan.name}`, 'success');
+              },
+            },
+          ]
+        );
+        return;
+      }
+
       Alert.alert(
-        'Confirm Subscription Plan',
-        `${plan.officialTitle}\nProduct ID: ${plan.productId}\n\nPrice: ${plan.price}\nLength: ${plan.durationLabel}\n\n${plan.subordinateNote}`,
+        'Store Checkout Unavailable',
+        `Could not reach ${storeLabel} to purchase ${plan.officialTitle} (${plan.price}). Please check your internet connection and ${storeAccountLabel}, then try again.`,
         [
           { text: 'Cancel', style: 'cancel' },
-          {
-            text: plan.id === 'annual_premium' ? 'Start 7-Day Free Trial' : 'Confirm Plan',
-            onPress: () => {
-              setCurrentPlan(plan.id, { startTrial: plan.id === 'annual_premium' });
-              toast.show(`Active plan updated to ${plan.name}`, 'success');
-            },
-          },
+          { text: 'Try Again', onPress: () => void handleChangePlan(plan) },
         ]
       );
     } catch {

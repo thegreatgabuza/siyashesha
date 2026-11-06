@@ -20,6 +20,7 @@ import { Alert, Linking, View } from 'react-native';
 
 import { AccountDeletionModal } from '@/components/security/AccountDeletionModal';
 import { DsarExportModal } from '@/components/security/DsarExportModal';
+import { LegalDocumentModal, type LegalDocKind } from '@/components/security/LegalDocumentModal';
 import { Avatar } from '@/components/ui/Avatar';
 import { BrandLockup } from '@/components/ui/BrandLockup';
 import { PressableScale } from '@/components/ui/PressableScale';
@@ -66,6 +67,31 @@ export default function MoreScreen() {
   const { signOut: clerkSignOut } = useSafeClerk();
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [dsarVisible, setDsarVisible] = useState(false);
+  const [legalDoc, setLegalDoc] = useState<LegalDocKind>(null);
+
+  const contactSupport = () => {
+    Alert.alert(
+      'Contact Support & Report an Issue',
+      'Need help with your Health Passport, subscription, or want to report a safety/content issue? Our clinical support team responds within 24 hours.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Email Support',
+          onPress: () =>
+            Linking.openURL(
+              'mailto:support@siyashesha.co.za?subject=Siyashesha%20Health%20Passport%20Support'
+            ).catch(() => {}),
+        },
+        {
+          text: 'Report Safety Issue',
+          onPress: () =>
+            Linking.openURL(
+              'mailto:safety@siyashesha.co.za?subject=Siyashesha%20Safety%20%2F%20AI%20Report'
+            ).catch(() => {}),
+        },
+      ]
+    );
+  };
 
   const planSummary =
     subscriptionPlan === 'annual_premium'
@@ -209,6 +235,35 @@ export default function MoreScreen() {
           tint: '#2563EB',
           badge: languageNames[language] || 'English',
           badgeTone: 'muted',
+        },
+      ],
+    },
+    {
+      title: 'Legal, Privacy & Support',
+      items: [
+        {
+          id: 'privacy_policy',
+          label: 'Privacy Policy (POPIA)',
+          subtitle: 'Data protection, AI consent & static web policy',
+          icon: ShieldAlert,
+          onPress: () => setLegalDoc('privacy'),
+          tint: '#0284C7',
+        },
+        {
+          id: 'terms_eula',
+          label: 'Terms of Use (EULA)',
+          subtitle: 'Subscription terms & Apple Standard EULA',
+          icon: FileText,
+          onPress: () => setLegalDoc('terms'),
+          tint: '#0B2559',
+        },
+        {
+          id: 'contact_support',
+          label: 'Contact Support & Report Issue',
+          subtitle: 'Report content, AI responses, or billing questions',
+          icon: Globe,
+          onPress: contactSupport,
+          tint: '#0D7C66',
         },
       ],
     },
@@ -417,6 +472,7 @@ export default function MoreScreen() {
         onClose={() => setDeleteModalVisible(false)}
         onOpenDsarExport={() => setDsarVisible(true)}
       />
+      <LegalDocumentModal visibleDoc={legalDoc} onClose={() => setLegalDoc(null)} />
     </Screen>
   );
 }

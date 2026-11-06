@@ -1,8 +1,12 @@
-import { Lock } from 'lucide-react-native';
-import { Modal, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { ExternalLink, Lock } from 'lucide-react-native';
+import { Linking, Modal, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export type LegalDocKind = 'terms' | 'privacy' | null;
+
+export const STATIC_PRIVACY_URL = 'https://siyashesha.co.za/privacy';
+export const STATIC_TERMS_URL = 'https://siyashesha.co.za/terms';
+export const APPLE_STANDARD_EULA_URL = 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';
 
 interface LegalDocumentModalProps {
   visibleDoc: LegalDocKind;
@@ -11,7 +15,8 @@ interface LegalDocumentModalProps {
 
 /**
  * Reusable platform-aware in-app viewer for Siyashesha's Terms of Use (EULA + Subscription Terms)
- * and Privacy Policy (POPIA, HIPAA, Third-Party AI Consent & Right to Erasure).
+ * and Privacy Policy (POPIA, HIPAA, Third-Party AI Consent & Right to Erasure), with direct
+ * links to the static HTML web documents and Apple's Standard Licensed Application EULA.
  */
 export function LegalDocumentModal({ visibleDoc, onClose }: LegalDocumentModalProps) {
   const insets = useSafeAreaInsets();
@@ -21,6 +26,10 @@ export function LegalDocumentModal({ visibleDoc, onClose }: LegalDocumentModalPr
   const biometricHardwareName = isAndroid
     ? 'Android Biometrics & Hardware Keystore'
     : 'Face ID / Touch ID & Secure Enclave';
+
+  const openExternalUrl = (url: string) => {
+    Linking.openURL(url).catch(() => {});
+  };
 
   return (
     <Modal
@@ -48,6 +57,39 @@ export function LegalDocumentModal({ visibleDoc, onClose }: LegalDocumentModalPr
         </View>
 
         <ScrollView className="flex-1 px-5 py-4" contentContainerStyle={{ paddingBottom: 40 }}>
+          {/* Direct Static Web HTML Link Banner (App Store Review Requirement) */}
+          <View className="mb-4 flex-row flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white p-3.5 dark:border-slate-800 dark:bg-canvasdark-card">
+            <View className="flex-1">
+              <Text className="font-sans-bold text-[12px] text-ink dark:text-slate-100">
+                {visibleDoc === 'terms' ? 'Official Web Terms & Apple EULA' : 'Official Static Web Privacy Policy'}
+              </Text>
+              <Text className="font-sans text-[11px] text-ink-muted dark:text-slate-400">
+                {visibleDoc === 'terms' ? STATIC_TERMS_URL : STATIC_PRIVACY_URL}
+              </Text>
+            </View>
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel="Open static web document in browser"
+              onPress={() => openExternalUrl(visibleDoc === 'terms' ? STATIC_TERMS_URL : STATIC_PRIVACY_URL)}
+              className="flex-row items-center gap-1.5 rounded-xl bg-ink px-3 py-2 dark:bg-brand-500"
+            >
+              <ExternalLink size={13} color="#FFFFFF" />
+              <Text className="font-sans-semibold text-[11px] text-white">Open Web HTML</Text>
+            </Pressable>
+          </View>
+          {visibleDoc === 'terms' && !isAndroid ? (
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel="Open Apple Standard End User License Agreement"
+              onPress={() => openExternalUrl(APPLE_STANDARD_EULA_URL)}
+              className="mb-4 flex-row items-center justify-between rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 dark:border-slate-800 dark:bg-canvasdark-card"
+            >
+              <Text className="font-sans-semibold text-[12px] text-brand-700 dark:text-brand-300">
+                View Apple Standard Licensed Application EULA
+              </Text>
+              <ExternalLink size={13} color="#0284C7" />
+            </Pressable>
+          ) : null}
           {visibleDoc === 'terms' ? (
             <View className="gap-4">
               <Text className="font-sans-bold text-[15px] text-ink dark:text-slate-50">
@@ -61,7 +103,7 @@ export function LegalDocumentModal({ visibleDoc, onClose }: LegalDocumentModalPr
                 2. Auto-Renewable Subscriptions & Billing
               </Text>
               <Text className="font-sans text-[13px] leading-[20px] text-ink-muted dark:text-slate-300">
-                • Siyashesha offers optional Pro tiers: Annual Pro (R149.99 / year with a 7-day free trial that has no end date on the introductory offer; Product ID za.co.siyashesha.healthpassport.annual_premium), Monthly Pro (R19.99 / month; Product ID za.co.siyashesha.healthpassport.monthly_premium), and a Lifetime Founder Pass (R299.99 once-off; Product ID za.co.siyashesha.healthpassport.lifetime_premium).{'\n'}
+                • Siyashesha offers optional Pro tiers: Annual Pro (R149.99 / year after a 7-day free trial; Product ID za.co.siyashesha.healthpassport.annual_premium), Monthly Pro (R19.99 / month; Product ID za.co.siyashesha.healthpassport.monthly_premium), and a Lifetime Founder Pass (R299.99 once-off; Product ID za.co.siyashesha.healthpassport.lifetime_premium).{'\n'}
                 • Payment is charged to your {storeAccountName} at confirmation of purchase, or at the conclusion of the 7-day free trial period.{'\n'}
                 • Subscriptions automatically renew unless auto-renew is turned off at least 24 hours before the end of the current billing period.{'\n'}
                 • Your account will be charged for renewal within 24 hours prior to the end of the current period.{'\n'}
