@@ -1,4 +1,4 @@
-import { ShieldCheck, Sparkles, X } from 'lucide-react-native';
+import { CheckCircle2, ShieldCheck, Sparkles, X } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -6,12 +6,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Pill } from '@/components/ui/Pill';
 import type { MedicalRecord } from '@/data/records';
 import { languageNames, type LanguageCode } from '@/i18n/translations';
+import { tapFeedback } from '@/lib/feedback';
 import {
   translateRecordNotes,
   translateRecordNotesWithGemini,
   translationSafetyNotice,
 } from '@/lib/translate';
 import { useAccent } from '@/hooks/useAccent';
+import { useAppStore } from '@/store/useAppStore';
 
 type ViewMode = 'side-by-side' | 'translated' | 'original';
 
@@ -30,6 +32,8 @@ export function TranslationSheet({
 }) {
   const { accent } = useAccent();
   const insets = useSafeAreaInsets();
+  const aiConsentGranted = useAppStore((s) => s.aiConsentGranted);
+  const setAiConsentGranted = useAppStore((s) => s.setAiConsentGranted);
   const [mode, setMode] = useState<ViewMode>('side-by-side');
   const [lang, setLang] = useState<LanguageCode>(
     availableLanguages.includes(defaultLanguage) ? defaultLanguage : 'zu'
@@ -40,10 +44,11 @@ export function TranslationSheet({
   const syncCached = translateRecordNotes(record, lang);
   const hasResolved = Object.prototype.hasOwnProperty.call(resolvedMap, requestKey);
   const translated = syncCached ?? (hasResolved ? resolvedMap[requestKey] : null);
-  const loading = visible && !syncCached && !hasResolved;
+  const needsConsent = !syncCached && !aiConsentGranted;
+  const loading = visible && !syncCached && aiConsentGranted && !hasResolved;
 
   useEffect(() => {
-    if (!visible || syncCached || hasResolved) return;
+    if (!visible || syncCached || !aiConsentGranted || hasResolved) return;
     let cancelled = false;
     translateRecordNotesWithGemini(record, lang)
       .then((res) => {
@@ -59,7 +64,7 @@ export function TranslationSheet({
     return () => {
       cancelled = true;
     };
-  }, [visible, record, lang, requestKey, syncCached, hasResolved]);
+  }, [visible, record, lang, requestKey, syncCached, aiConsentGranted, hasResolved]);
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -116,7 +121,30 @@ export function TranslationSheet({
                     {languageNames[lang]}
                   </Text>
                 </View>
-                {loading ? (
+                {needsConsent ? (
+                  <View className="mt-1 gap-2.5 rounded-2xl border border-sky-200 bg-sky-50/80 p-3.5 dark:border-sky-500/30 dark:bg-sky-950/30">
+                    <Text className="font-sans-bold text-[13px] text-ink dark:text-slate-100">
+                      AI Translation Privacy & Permission (Guideline 5.1.2(i))
+                    </Text>
+                    <Text className="font-sans text-[12px] leading-[17px] text-ink-muted dark:text-slate-300">
+                      To translate this record into {languageNames[lang]}, its clinical notes are securely processed by Google LLC (Google Gemini API) while preserving medication names, dosages, and lab numbers verbatim.
+                    </Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Continue and allow Google Gemini AI translation"
+                      onPress={() => {
+                        tapFeedback();
+                        setAiConsentGranted(true);
+                      }}
+                      className="flex-row items-center justify-center gap-2 rounded-xl bg-ink py-2.5 dark:bg-brand-500"
+                    >
+                      <CheckCircle2 size={15} color="#FFFFFF" />
+                      <Text className="font-sans-bold text-[13px] text-white">
+                        Continue — Allow Google Gemini AI
+                      </Text>
+                    </Pressable>
+                  </View>
+                ) : loading ? (
                   <View className="flex-row items-center gap-2.5 py-3">
                     <ActivityIndicator size="small" color={accent} />
                     <Text className="font-sans text-[13px] text-ink-muted dark:text-slate-400">

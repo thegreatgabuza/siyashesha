@@ -2,6 +2,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 
 import { GEMINI_API_KEY } from '@/lib/geminiAssistant';
+import { useAppStore } from '@/store/useAppStore';
 
 const STALLED_MODELS = new Set([
   'gemini-3.8-flash',
@@ -100,6 +101,9 @@ export async function transcribeAudioWithGemini(
   audioUri: string,
   preferredLanguage: string = 'en-ZA'
 ): Promise<string> {
+  if (!useAppStore.getState().aiConsentGranted) {
+    throw new Error('Explicit AI consent is required before sending voice audio to Google Gemini.');
+  }
   if (!GEMINI_API_KEY) {
     throw new Error('Google Gemini API key is not configured.');
   }

@@ -2,8 +2,10 @@ import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { safeBack } from '@/lib/navigation';
 import { BookHeart } from 'lucide-react-native';
-import { Text, View } from 'react-native';
+import { useState } from 'react';
+import { Linking, Pressable, Text, View } from 'react-native';
 
+import { ClinicalCitationsModal } from '@/components/security/ClinicalCitationsModal';
 import { healthDayIcons } from '@/lib/healthDayIcons';
 import { heroShadow } from '@/components/ui/HeroAction';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
@@ -17,6 +19,7 @@ import { useAccent } from '@/hooks/useAccent';
 export default function HealthDayDetailScreen() {
   const { accent } = useAccent();
   const { day } = useLocalSearchParams<{ day: string }>();
+  const [citationsOpen, setCitationsOpen] = useState(false);
   const card = healthDays.find((d) => d.id === day);
 
   if (!card) {
@@ -75,11 +78,39 @@ export default function HealthDayDetailScreen() {
           </View>
         </View>
 
-        <Text className="px-1 pb-4 text-center font-sans text-[11px] leading-[16px] text-ink-muted dark:text-slate-500">
-          Source: World Health Organization (who.int and regional WHO sites).
-          {'\n'}This page is for patient education and does not replace advice from a healthcare professional.
-        </Text>
+        <View className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-canvasdark-card dark:bg-canvasdark-card">
+          <Text className="font-sans-bold text-[12px] text-ink dark:text-slate-100">
+            Clinical Reference & Medical Disclaimer (Guideline 1.4.1)
+          </Text>
+          <Text className="mt-1 font-sans text-[12px] leading-[17px] text-ink-muted dark:text-slate-400">
+            Source: World Health Organization (WHO) & South African National Department of Health (NDoH). This page is for patient education and does not replace advice from a qualified physician or healthcare professional.
+          </Text>
+          <View className="mt-2 flex-row flex-wrap items-center gap-x-4 gap-y-1">
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel="Open World Health Organization official health campaigns website"
+              onPress={() => Linking.openURL('https://www.who.int/campaigns').catch(() => {})}
+              className="py-1"
+            >
+              <Text className="font-sans-semibold text-[12px] underline text-brand-500 dark:text-brand-300">
+                Official WHO Campaigns (who.int) →
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="View all clinical guidelines and citations"
+              onPress={() => setCitationsOpen(true)}
+              className="py-1"
+            >
+              <Text className="font-sans-semibold text-[12px] underline text-brand-500 dark:text-brand-300">
+                SA NDoH & SAHPRA Sources →
+              </Text>
+            </Pressable>
+          </View>
+        </View>
       </View>
+
+      <ClinicalCitationsModal visible={citationsOpen} onClose={() => setCitationsOpen(false)} />
     </Screen>
   );
 }

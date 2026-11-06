@@ -12,6 +12,7 @@ import { OnboardingShell } from '@/components/onboarding/OnboardingShell';
 import { OptionCard } from '@/components/onboarding/OptionCard';
 import { RewardModal } from '@/components/onboarding/RewardModal';
 import { SpeechBubble } from '@/components/onboarding/SpeechBubble';
+import { AiConsentModal } from '@/components/security/AiConsentModal';
 import type { MedicalRecord } from '@/data/records';
 import type { StampId } from '@/store/useAppStore';
 import { saveOriginal } from '@/lib/documents';
@@ -54,11 +55,19 @@ function resolveDocumentMime(name: string, reportedMime?: string | null): string
 export default function RecordsOnboardingScreen() {
   const addRecord = useAppStore((s) => s.addRecord);
   const earnStamp = useAppStore((s) => s.earnStamp);
+  const aiConsentGranted = useAppStore((s) => s.aiConsentGranted);
+  const setAiConsentGranted = useAppStore((s) => s.setAiConsentGranted);
   const [added, setAdded] = useState<string | null>(null);
   const [savedRecordSummary, setSavedRecordSummary] = useState<MedicalRecord | null>(null);
   const [reward, setReward] = useState<StampId | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [aiConsentVisible, setAiConsentVisible] = useState(false);
+  const [pendingRecordInput, setPendingRecordInput] = useState<{
+    title: string;
+    sourceType: MedicalRecord['sourceType'];
+    file: { uri: string; name: string; mimeType: string };
+  } | null>(null);
 
   const next = () => router.push('/(onboarding)/notifications' as any);
 
@@ -132,6 +141,19 @@ export default function RecordsOnboardingScreen() {
     if (earnStamp('record')) setReward('record');
   };
 
+  const handleIncomingDocument = (
+    title: string,
+    sourceType: MedicalRecord['sourceType'],
+    file: { uri: string; name: string; mimeType: string }
+  ) => {
+    if (!aiConsentGranted) {
+      setPendingRecordInput({ title, sourceType, file });
+      setAiConsentVisible(true);
+      return;
+    }
+    void saveRecord(title, sourceType, file);
+  };
+
   const pickFile = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -144,7 +166,7 @@ export default function RecordsOnboardingScreen() {
         const resolvedMime = resolveDocumentMime(asset.name, asset.mimeType);
         const cleanName = asset.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
 
-        saveRecord(cleanName || 'Uploaded document', 'Upload', {
+        handleIncomingDocument(cleanName || 'Uploaded document', 'Upload', {
           uri: asset.uri,
           name: asset.name,
           mimeType: resolvedMime,
@@ -165,7 +187,7 @@ export default function RecordsOnboardingScreen() {
     const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
     if (result.canceled || !result.assets || !result.assets[0]) return;
     const asset = result.assets[0];
-    saveRecord(`Scanned document ${dayjs().format('D MMM YYYY')}`, 'Scan', {
+    handleIncomingDocument(`Scanned document ${dayjs().format('D MMM YYYY')}`, 'Scan', {
       uri: asset.uri,
       name: `Scanned document ${dayjs().format('YYYY-MM-DD')}.jpg`,
       mimeType: 'image/jpeg',
@@ -307,6 +329,32 @@ export default function RecordsOnboardingScreen() {
         onDone={() => {
           setReward(null);
           next();
+        }}
+      />
+      <AiConsentModal
+        visible={aiConsentVisible}
+        featureTitle="Smart Medical Document OCR & Prefill"
+        onAllowCloudAi={() => {
+          setAiConsentGranted(true);
+          setAiConsentVisible(false);
+          if (pendingRecordInput) {
+            const pending = pendingRecordInput;
+            setPendingRecordInput(null);
+            void saveRecord(pending.title, pending.sourceType, pending.file);
+          }
+        }}
+        onUseOnDeviceOnly={() => {
+          setAiConsentGranted(false);
+          setAiConsentVisible(false);
+          if (pendingRecordInput) {
+            const pending = pendingRecordInput;
+            setPendingRecordInput(null);
+            void saveRecord(pending.title, pending.sourceType, pending.file);
+          }
+        }}
+        onClose={() => {
+          setAiConsentVisible(false);
+          setPendingRecordInput(null);
         }}
       />
     </OnboardingShell>

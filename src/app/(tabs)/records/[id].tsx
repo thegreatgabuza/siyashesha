@@ -15,6 +15,7 @@ import { useToast } from '@/components/ui/Toast';
 import { RecordThumb } from '@/components/records/RecordThumb';
 import { springs } from '@/design/tokens';
 import Animated, { ZoomIn } from 'react-native-reanimated';
+import { ClinicalCitationsModal } from '@/components/security/ClinicalCitationsModal';
 import { TranslationSheet } from '@/components/TranslationSheet';
 import { removeOriginal } from '@/lib/documents';
 import { deleteRecordFromDatabase } from '@/lib/supabase';
@@ -34,6 +35,7 @@ export default function RecordDetailScreen() {
   const deleteRecord = useAppStore((s) => s.deleteRecord);
   const language = useAppStore((s) => s.language);
   const [translateOpen, setTranslateOpen] = useState(false);
+  const [citationsOpen, setCitationsOpen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
 
   const record = records.find((r) => r.id === id);
@@ -258,6 +260,24 @@ export default function RecordDetailScreen() {
             </Text>
           )}
         </DetailCard>
+
+        {/* Apple Guideline 1.4.1 Clinical Citations & Physician Consultation Disclaimer */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="View clinical guidelines, verifiable citations and medical disclaimer"
+          onPress={() => setCitationsOpen(true)}
+          className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-canvasdark-card dark:bg-canvasdark-card"
+        >
+          <Text className="font-sans-bold text-[12px] text-ink dark:text-slate-100">
+            Clinical Disclaimer & Reference Sources (Guideline 1.4.1)
+          </Text>
+          <Text className="mt-1 font-sans text-[12px] leading-[17px] text-ink-muted dark:text-slate-400">
+            This record summary is for personal health organization and does not replace professional medical advice. Always consult a qualified physician before making medical decisions.
+          </Text>
+          <Text className="mt-1.5 font-sans-semibold text-[12px] underline text-brand-500 dark:text-brand-300">
+            View SA NDoH STG/EML, SAHPRA & WHO Clinical Citations →
+          </Text>
+        </Pressable>
       </ScreenScroll>
 
       <TranslationSheet
@@ -266,6 +286,7 @@ export default function RecordDetailScreen() {
         record={record}
         defaultLanguage={language}
       />
+      <ClinicalCitationsModal visible={citationsOpen} onClose={() => setCitationsOpen(false)} />
     </Screen>
   );
 }

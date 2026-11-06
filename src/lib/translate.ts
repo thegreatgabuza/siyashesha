@@ -2,6 +2,7 @@ import { languageNames, type LanguageCode } from '@/i18n/translations';
 import type { MedicalRecord } from '@/data/records';
 import { recordTranslationsAf, recordTranslationsZu } from '@/data/recordTranslations';
 import { GEMINI_API_KEY } from '@/lib/geminiAssistant';
+import { useAppStore } from '@/store/useAppStore';
 
 const dynamicTranslationCache = new Map<string, string>();
 
@@ -34,6 +35,7 @@ export async function translateRecordNotesWithGemini(
 ): Promise<string | null> {
   const existing = translateRecordNotes(record, lang);
   if (existing) return existing;
+  if (!useAppStore.getState().aiConsentGranted) return null;
   if (!record.clinicalNotes?.trim()) return null;
 
   const targetLanguage = languageNames[lang] || lang;

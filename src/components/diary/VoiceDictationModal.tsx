@@ -31,6 +31,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AiConsentModal } from '@/components/security/AiConsentModal';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Txt } from '@/components/ui/Txt';
 import { useToast } from '@/components/ui/Toast';
@@ -44,6 +45,7 @@ import {
   startVoiceDictation,
   stopVoiceDictation,
 } from '@/lib/voiceDictation';
+import { useAppStore } from '@/store/useAppStore';
 
 interface VoiceDictationModalProps {
   visible: boolean;
@@ -95,12 +97,15 @@ function VoiceDictationSheet({
   const t = useTokens();
   const toast = useToast();
   const insets = useSafeAreaInsets();
+  const setAiConsentGranted = useAppStore((s) => s.setAiConsentGranted);
   const [transcript, setTranscript] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [selectedLanguage, setSelectedLanguage] = useState('en-ZA');
   const [recordedAudioUri, setRecordedAudioUri] = useState<string | null>(null);
+  const [aiConsentModalOpen, setAiConsentModalOpen] = useState(false);
+  const [pendingAudioUriForTranscription, setPendingAudioUriForTranscription] = useState<string | null>(null);
 
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -279,6 +284,11 @@ function VoiceDictationSheet({
 
         if (uri) {
           setRecordedAudioUri(uri);
+          if (!useAppStore.getState().aiConsentGranted) {
+            setPendingAudioUriForTranscription(uri);
+            setAiConsentModalOpen(true);
+            return { uri, text: latestTranscriptRef.current };
+          }
           setIsTranscribing(true);
           try {
             const transcribed = await transcribeAudioWithGemini(uri, selectedLanguage);
@@ -746,6 +756,49 @@ function VoiceDictationSheet({
           )}
         </View>
       </View>
+
+      <AiConsentModal
+        visible={aiConsentModalOpen}
+        featureTitle="Voice Dictation & Medical Speech-to-Text"
+        onAllowCloudAi={() => {
+          setAiConsentGranted(true);
+          setAiConsentModalOpen(false);
+          const pendingUri = pendingAudioUriForTranscription;
+          setPendingAudioUriForTranscription(null);
+          if (pendingUri) {
+            setIsTranscribing(true);
+            transcribeAudioWithGemini(pendingUri, selectedLanguage)
+              .then((transcribed) => {
+                if (transcribed) {
+                  const base = latestTranscriptRef.current.trim();
+                  const combined = base ? `${base}\n${transcribed}` : transcribed;
+                  updateTranscript(combined);
+                  impactFeedback('medium');
+                  toast.show('Voice note transcribed', 'success');
+                }
+              })
+              .catch(() => {
+                toast.show(
+                  'Voice note recorded! Could not auto-transcribe right now — you can save the voice note or type below.',
+                  'warning'
+                );
+              })
+              .finally(() => {
+                setIsTranscribing(false);
+              });
+          }
+        }}
+        onUseOnDeviceOnly={() => {
+          setAiConsentGranted(false);
+          setAiConsentModalOpen(false);
+          setPendingAudioUriForTranscription(null);
+          toast.show('Voice note kept on-device. You can attach the audio or type your summary below.', 'info');
+        }}
+        onClose={() => {
+          setAiConsentModalOpen(false);
+          setPendingAudioUriForTranscription(null);
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }
