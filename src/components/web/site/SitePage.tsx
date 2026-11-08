@@ -129,17 +129,18 @@ export function CtaButton({ label, onPress, secondary }: { label: string; onPres
       accessibilityRole="button"
       onPress={onPress}
       style={{
-        height: 48,
-        paddingHorizontal: 24,
-        borderRadius: 999,
+        height: 42,
+        paddingHorizontal: 20,
+        borderRadius: 10,
         justifyContent: 'center',
+        alignItems: 'center',
         alignSelf: 'flex-start',
         backgroundColor: secondary ? 'transparent' : NAVY,
         borderWidth: secondary ? 1 : 0,
         borderColor: LINE,
       }}
     >
-      <Text style={{ fontFamily: sans(600), fontSize: 15, color: secondary ? NAVY : '#FFFFFF' }}>{label}</Text>
+      <Text style={{ fontFamily: sans(600), fontSize: 14, color: secondary ? NAVY : '#FFFFFF' }}>{label}</Text>
     </Pressable>
   );
 }
