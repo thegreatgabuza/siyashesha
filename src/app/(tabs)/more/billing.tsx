@@ -120,8 +120,11 @@ export default function BillingScreen() {
   const toast = useToast();
   const currentPlan = useAppStore((s) => s.subscriptionPlan);
   const trialEndsAt = useAppStore((s) => s.subscriptionTrialEndsAt);
+  const subscriptionExpiresAt = useAppStore((s) => s.subscriptionExpiresAt);
+  const subscriptionTransactionId = useAppStore((s) => s.subscriptionTransactionId);
   const recordCount = useAppStore((s) => s.records.length);
   const setCurrentPlan = useAppStore((s) => s.setSubscriptionPlan);
+  const verifySubscriptionStatus = useAppStore((s) => s.verifySubscriptionStatus);
   const entitlements = getPlanEntitlements(currentPlan);
 
   const [restoring, setRestoring] = useState(false);
@@ -130,7 +133,8 @@ export default function BillingScreen() {
 
   useEffect(() => {
     void fetchStoreKitCatalog();
-  }, []);
+    void verifySubscriptionStatus();
+  }, [verifySubscriptionStatus]);
 
   const activePlanData = plans.find((p) => p.id === currentPlan) ?? plans[0];
   const hasActiveTrial = Boolean(trialEndsAt && dayjs(trialEndsAt).isAfter(dayjs()));
@@ -165,7 +169,12 @@ export default function BillingScreen() {
       setPurchasingPlanId(null);
 
       if (result.status === 'purchased') {
-        setCurrentPlan(result.planId, { startTrial: result.planId === 'annual_premium' });
+        setCurrentPlan(result.planId, {
+          startTrial: result.planId === 'annual_premium',
+          expiresAt: result.expiresAt,
+          productId: result.productId,
+          transactionId: result.transactionId,
+        });
         toast.show(`Active plan updated to ${plan.name}`, 'success');
         return;
       }
@@ -183,7 +192,10 @@ export default function BillingScreen() {
             {
               text: 'Activate in Dev Preview',
               onPress: () => {
-                setCurrentPlan(plan.id, { startTrial: plan.id === 'annual_premium' });
+                setCurrentPlan(plan.id, {
+                  startTrial: plan.id === 'annual_premium',
+                  productId: plan.productId,
+                });
                 toast.show(`Active plan updated to ${plan.name}`, 'success');
               },
             },
@@ -210,11 +222,16 @@ export default function BillingScreen() {
     tapFeedback();
     setRestoring(true);
     try {
-      const { restoredPlan } = await restoreStoreKitPurchases();
+      const { restoredPlan, productId, transactionId, expiresAt } = await restoreStoreKitPurchases();
       setRestoring(false);
       if (restoredPlan) {
         const matched = plans.find((p) => p.id === restoredPlan);
-        setCurrentPlan(restoredPlan, { startTrial: false });
+        setCurrentPlan(restoredPlan, {
+          startTrial: false,
+          expiresAt,
+          productId,
+          transactionId,
+        });
         toast.show(`Restored ${matched?.name ?? 'Pro Plan'}`, 'success');
         return;
       }
@@ -306,6 +323,18 @@ export default function BillingScreen() {
           {hasActiveTrial && trialEndsAt ? (
             <Txt variant="footnote" color="#38BDF8" style={{ marginTop: 4 }}>
               7-day free trial ends {dayjs(trialEndsAt).format('D MMM YYYY')}
+            </Txt>
+          ) : !hasActiveTrial &&
+            subscriptionExpiresAt &&
+            currentPlan !== 'free' &&
+            currentPlan !== 'lifetime_premium' ? (
+            <Txt variant="footnote" color="#38BDF8" style={{ marginTop: 4 }}>
+              Renews / valid until {dayjs(subscriptionExpiresAt).format('D MMM YYYY')}
+            </Txt>
+          ) : null}
+          {subscriptionTransactionId && entitlements.isPro ? (
+            <Txt variant="footnote" color="#94A3B8" style={{ marginTop: 2 }}>
+              Verified {storeLabel} receipt · Cloud entitlement synced
             </Txt>
           ) : null}
 

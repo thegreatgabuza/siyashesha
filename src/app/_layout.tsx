@@ -37,13 +37,15 @@ export default function RootLayout() {
   const isDark = colorScheme === 'dark';
   useSyncColorScheme();
 
-  // Two-way cloud hydration & sync on app launch and foreground resume
+  // Two-way cloud hydration, sync & subscription entitlement verification on launch and foreground resume
   useEffect(() => {
     if (!isSignedIn || !hasCompletedOnboarding) return;
+    void useAppStore.getState().verifySubscriptionStatus();
     void useAppStore.getState().hydrateFromCloud();
 
     const sub = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'active') {
+        void useAppStore.getState().verifySubscriptionStatus();
         const lastSync = useAppStore.getState().lastCloudSyncAt;
         const elapsedMs = lastSync ? Date.now() - new Date(lastSync).getTime() : Infinity;
         if (elapsedMs > 2 * 60 * 1000) {

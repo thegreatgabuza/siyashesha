@@ -1387,6 +1387,102 @@ export async function verifySharedLinkWithPin(
   return { ok: false, error: 'Unable to verify share link in cloud.' };
 }
 
+export interface CloudSubscriptionEntitlement {
+  plan: 'free' | 'monthly_premium' | 'annual_premium' | 'lifetime_premium';
+  trialEndsAt?: string;
+  expiresAt?: string;
+  productId?: string;
+  transactionId?: string;
+  updatedAt: string;
+}
+
+/**
+ * Syncs the current user's subscription entitlement and StoreKit / Google Play receipt metadata
+ * to Supabase so subscription status, trial expiry, and Founder Pass badges persist across devices.
+ */
+export async function syncSubscriptionToDatabase(
+  entitlement: CloudSubscriptionEntitlement
+): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
+
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) return false;
+
+    const row = {
+      id: toScopedRowId(userId, 'sub_entitlement'),
+      user_id: userId,
+      patient_id: userId,
+      reminder_type: 'subscription_entitlement',
+      title: entitlement.plan,
+      body: entitlement.productId ?? entitlement.plan,
+      scheduled_time: entitlement.expiresAt || entitlement.trialEndsAt || '9999-12-31T23:59:59Z',
+      recurrence: entitlement.trialEndsAt ? 'trial' : 'subscription',
+      status: entitlement.plan === 'free' ? 'free' : 'active',
+      metadata: {
+        plan: entitlement.plan,
+        trialEndsAt: entitlement.trialEndsAt ?? null,
+        expiresAt: entitlement.expiresAt ?? null,
+        productId: entitlement.productId ?? null,
+        transactionId: entitlement.transactionId ?? null,
+        updatedAt: entitlement.updatedAt,
+      } as unknown as Json,
+      synced_at: entitlement.updatedAt,
+    };
+
+    const { error } = await supabase.from('scheduled_reminders_sync').upsert(row);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Fetches the authenticated user's persisted subscription entitlement from Supabase.
+ */
+export async function fetchSubscriptionFromDatabase(): Promise<CloudSubscriptionEntitlement | null> {
+  if (!isSupabaseConfigured) return null;
+
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) return null;
+
+    const { data, error } = await supabase
+      .from('scheduled_reminders_sync')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('reminder_type', 'subscription_entitlement')
+      .order('synced_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !data) return null;
+
+    const meta =
+      data.metadata && typeof data.metadata === 'object' && !Array.isArray(data.metadata)
+        ? (data.metadata as Record<string, any>)
+        : {};
+
+    const rawPlan = meta.plan || data.title;
+    const validPlans = ['free', 'monthly_premium', 'annual_premium', 'lifetime_premium'];
+    const plan = (validPlans.includes(rawPlan) ? rawPlan : 'free') as CloudSubscriptionEntitlement['plan'];
+
+    return {
+      plan,
+      trialEndsAt: typeof meta.trialEndsAt === 'string' ? meta.trialEndsAt : undefined,
+      expiresAt: typeof meta.expiresAt === 'string' ? meta.expiresAt : undefined,
+      productId: typeof meta.productId === 'string' ? meta.productId : undefined,
+      transactionId: typeof meta.transactionId === 'string' ? meta.transactionId : undefined,
+      updatedAt:
+        typeof meta.updatedAt === 'string'
+          ? meta.updatedAt
+          : data.synced_at || new Date().toISOString(),
+    };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Registers / syncs the device Expo push token to Supabase for native background alerts (Spec §4.6 & §8.2).
  */

@@ -17,6 +17,7 @@ import { sharingHistorySeed, type SharedLink, type ShareDuration } from '@/data/
 import type { LanguageCode } from '@/i18n/translations';
 import { pastDateKeys } from '@/lib/date';
 import { clearAllStoredFiles } from '@/lib/documents';
+import { verifyActiveStoreKitEntitlements } from '@/lib/iap';
 import { clearEnclaveKeys } from '@/lib/security/enclaveSecurity';
 import {
   deleteAppointmentFromDatabase,
@@ -30,6 +31,7 @@ import {
   fetchPatientProfileFromDatabase,
   fetchRecordsFromDatabase,
   fetchSharedLinksFromDatabase,
+  fetchSubscriptionFromDatabase,
   isSupabaseConfigured,
   revokeSharedLinkInDatabase,
   setSupabaseAuthContext,
@@ -44,6 +46,8 @@ import {
   syncRecords,
   syncSharedLinkToDatabase,
   syncSharedLinks,
+  syncSubscriptionToDatabase,
+  type CloudSubscriptionEntitlement,
   type SharedLinkSnapshot,
 } from '@/lib/supabase';
 
@@ -301,7 +305,25 @@ interface AppState {
   // Subscription & Billing
   subscriptionPlan: SubscriptionPlanId;
   subscriptionTrialEndsAt?: string;
-  setSubscriptionPlan: (plan: SubscriptionPlanId, options?: { startTrial?: boolean }) => void;
+  subscriptionExpiresAt?: string;
+  subscriptionProductId?: string;
+  subscriptionTransactionId?: string;
+  subscriptionUpdatedAt?: string;
+  setSubscriptionPlan: (
+    plan: SubscriptionPlanId,
+    options?: {
+      startTrial?: boolean;
+      expiresAt?: string;
+      productId?: string;
+      transactionId?: string;
+      silentSync?: boolean;
+    }
+  ) => void;
+  verifySubscriptionStatus: () => Promise<{
+    plan: SubscriptionPlanId;
+    expired: boolean;
+    restoredFromStore: boolean;
+  }>;
 
   // Guided onboarding
   onboardingDraft: OnboardingDraft;
@@ -317,7 +339,13 @@ interface AppState {
   setAppLocked: (locked: boolean) => void;
   unlockApp: () => void;
   lockApp: () => void;
-  finishOnboarding: (options?: { plan?: SubscriptionPlanId; startTrial?: boolean }) => void;
+  finishOnboarding: (options?: {
+    plan?: SubscriptionPlanId;
+    startTrial?: boolean;
+    expiresAt?: string;
+    productId?: string;
+    transactionId?: string;
+  }) => void;
 
   // Cloud Hydration & Two-Way Sync
   isSyncingCloud: boolean;
@@ -364,6 +392,8 @@ export const useAppStore = create<AppState>()(
               hasCompletedOnboarding: true,
               clerkFlow: 'demo',
               clerkSessionId: options?.clerkSessionId ?? s.clerkSessionId,
+              subscriptionPlan: s.subscriptionPlan === 'free' ? 'monthly_premium' : s.subscriptionPlan,
+              sharingRequiresPin: true,
               patientProfile: shouldRestoreDemo
                 ? patient
                 : email
@@ -844,25 +874,64 @@ export const useAppStore = create<AppState>()(
           onboardingDraft: emptyOnboardingDraft,
         }),
 
-      subscriptionPlan: 'monthly_premium',
+      subscriptionPlan: 'free',
       subscriptionTrialEndsAt: undefined,
+      subscriptionExpiresAt: undefined,
+      subscriptionProductId: undefined,
+      subscriptionTransactionId: undefined,
+      subscriptionUpdatedAt: undefined,
       setSubscriptionPlan: (plan, options) =>
         set((s) => {
           const isFree = plan === 'free';
+          const nowIso = new Date().toISOString();
           const trialEnd = options?.startTrial
             ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
             : undefined;
+          const expiresAt = isFree
+            ? undefined
+            : plan === 'lifetime_premium'
+            ? undefined
+            : options?.expiresAt ??
+              (options?.startTrial
+                ? undefined
+                : new Date(
+                    Date.now() +
+                      (plan === 'annual_premium' ? 365 : 31) * 24 * 60 * 60 * 1000
+                  ).toISOString());
+          const productId = isFree ? undefined : options?.productId ?? s.subscriptionProductId;
+          const transactionId = isFree
+            ? undefined
+            : options?.transactionId ?? s.subscriptionTransactionId;
+
           const event: AuditEvent = {
             id: makeId('audit'),
             type: 'profile',
             description: options?.startTrial
               ? `Started 7-day free trial for ${plan}`
               : `Updated subscription plan to ${plan}`,
-            timestamp: new Date().toISOString(),
+            timestamp: nowIso,
           };
+
+          const activeEmail = s.patientProfile.email || s.pendingEmail;
+          const isDemo = s.clerkFlow === 'demo' || isDemoAccountEmail(activeEmail);
+          if (!options?.silentSync && !isDemo) {
+            syncSubscriptionToDatabase({
+              plan,
+              trialEndsAt: trialEnd,
+              expiresAt,
+              productId,
+              transactionId,
+              updatedAt: nowIso,
+            }).catch(() => {});
+          }
+
           return {
             subscriptionPlan: plan,
             subscriptionTrialEndsAt: trialEnd,
+            subscriptionExpiresAt: expiresAt,
+            subscriptionProductId: productId,
+            subscriptionTransactionId: transactionId,
+            subscriptionUpdatedAt: nowIso,
             ...(isFree
               ? {
                   biometricLock: false,
@@ -876,6 +945,117 @@ export const useAppStore = create<AppState>()(
             auditEvents: [event, ...s.auditEvents],
           };
         }),
+
+      verifySubscriptionStatus: async () => {
+        const s = get();
+        const activeEmail = s.patientProfile.email || s.pendingEmail;
+        const isDemo = s.clerkFlow === 'demo' || isDemoAccountEmail(activeEmail);
+        if (isDemo) {
+          return { plan: s.subscriptionPlan, expired: false, restoredFromStore: false };
+        }
+
+        // 1. Check native StoreKit 2 / Google Play Billing active entitlements
+        const storeEntitlement = await verifyActiveStoreKitEntitlements();
+        if (storeEntitlement.activePlan) {
+          const prevPlan = s.subscriptionPlan;
+          const nowIso = new Date().toISOString();
+          const changed =
+            prevPlan !== storeEntitlement.activePlan ||
+            s.subscriptionTransactionId !== storeEntitlement.transactionId;
+
+          if (changed) {
+            set((curr) => ({
+              subscriptionPlan: storeEntitlement.activePlan!,
+              subscriptionTrialEndsAt: undefined,
+              subscriptionExpiresAt: storeEntitlement.expiresAt,
+              subscriptionProductId: storeEntitlement.productId,
+              subscriptionTransactionId: storeEntitlement.transactionId,
+              subscriptionUpdatedAt: nowIso,
+              sharingRequiresPin: true,
+              auditEvents:
+                prevPlan !== storeEntitlement.activePlan
+                  ? [
+                      {
+                        id: makeId('audit'),
+                        type: 'profile',
+                        description: `Verified active StoreKit / Play Billing entitlement (${storeEntitlement.activePlan})`,
+                        timestamp: nowIso,
+                      },
+                      ...curr.auditEvents,
+                    ]
+                  : curr.auditEvents,
+            }));
+
+            syncSubscriptionToDatabase({
+              plan: storeEntitlement.activePlan,
+              trialEndsAt: undefined,
+              expiresAt: storeEntitlement.expiresAt,
+              productId: storeEntitlement.productId,
+              transactionId: storeEntitlement.transactionId,
+              updatedAt: nowIso,
+            }).catch(() => {});
+          }
+
+          return {
+            plan: storeEntitlement.activePlan,
+            expired: false,
+            restoredFromStore: prevPlan !== storeEntitlement.activePlan,
+          };
+        }
+
+        // 2. Check if 7-day free trial or billing period has expired
+        const nowMs = Date.now();
+        const latest = get();
+        const trialExpired = Boolean(
+          latest.subscriptionPlan !== 'free' &&
+            latest.subscriptionTrialEndsAt &&
+            new Date(latest.subscriptionTrialEndsAt).getTime() <= nowMs
+        );
+        const periodExpired = Boolean(
+          latest.subscriptionPlan !== 'free' &&
+            latest.subscriptionPlan !== 'lifetime_premium' &&
+            latest.subscriptionExpiresAt &&
+            new Date(latest.subscriptionExpiresAt).getTime() <= nowMs
+        );
+
+        if (trialExpired || periodExpired) {
+          const nowIso = new Date().toISOString();
+          const reason = trialExpired
+            ? '7-day free trial expired — reverted to Free Basic plan'
+            : 'Subscription billing period expired — reverted to Free Basic plan';
+
+          set((curr) => ({
+            subscriptionPlan: 'free',
+            subscriptionTrialEndsAt: undefined,
+            subscriptionExpiresAt: undefined,
+            subscriptionProductId: undefined,
+            subscriptionTransactionId: undefined,
+            subscriptionUpdatedAt: nowIso,
+            biometricLock: false,
+            isAppLocked: false,
+            sharingRequiresPin: false,
+            aiConsentGranted: false,
+            auditEvents: [
+              {
+                id: makeId('audit'),
+                type: 'profile',
+                description: reason,
+                timestamp: nowIso,
+              },
+              ...curr.auditEvents,
+            ],
+          }));
+
+          syncSubscriptionToDatabase({
+            plan: 'free',
+            updatedAt: nowIso,
+          }).catch(() => {});
+
+          return { plan: 'free', expired: true, restoredFromStore: false };
+        }
+
+        return { plan: latest.subscriptionPlan, expired: false, restoredFromStore: false };
+      },
 
       onboardingDraft: emptyOnboardingDraft,
       updateOnboardingDraft: (patch) => set((s) => ({ onboardingDraft: { ...s.onboardingDraft, ...patch } })),
@@ -1027,11 +1207,32 @@ export const useAppStore = create<AppState>()(
           }
 
           const mergedProfile = { ...baseProfile, ...patch };
+          const isFree = chosenPlan === 'free';
+          const nowIso = new Date().toISOString();
+          const finalTrialEnd = isFree ? undefined : trialEnd;
+          const finalExpiresAt =
+            isFree || chosenPlan === 'lifetime_premium'
+              ? undefined
+              : options?.expiresAt ??
+                (options?.startTrial
+                  ? undefined
+                  : new Date(
+                      Date.now() +
+                        (chosenPlan === 'annual_premium' ? 365 : 31) * 24 * 60 * 60 * 1000
+                    ).toISOString());
+
           syncPatientProfile(mergedProfile).catch(() => {});
           syncMedications(mergedMeds).catch(() => {});
           syncRecords(nonDemoRecords).catch(() => {});
+          syncSubscriptionToDatabase({
+            plan: chosenPlan,
+            trialEndsAt: finalTrialEnd,
+            expiresAt: finalExpiresAt,
+            productId: isFree ? undefined : options?.productId,
+            transactionId: isFree ? undefined : options?.transactionId,
+            updatedAt: nowIso,
+          }).catch(() => {});
 
-          const isFree = chosenPlan === 'free';
           return {
             hasCompletedOnboarding: true,
             isSignedIn: true,
@@ -1040,7 +1241,11 @@ export const useAppStore = create<AppState>()(
             isAppLocked: false,
             sharingRequiresPin: !isFree,
             subscriptionPlan: chosenPlan,
-            subscriptionTrialEndsAt: isFree ? undefined : trialEnd,
+            subscriptionTrialEndsAt: finalTrialEnd,
+            subscriptionExpiresAt: finalExpiresAt,
+            subscriptionProductId: isFree ? undefined : options?.productId,
+            subscriptionTransactionId: isFree ? undefined : options?.transactionId,
+            subscriptionUpdatedAt: nowIso,
             records: nonDemoRecords,
             medications: mergedMeds,
             appointments: nonDemoAppts,
@@ -1074,6 +1279,7 @@ export const useAppStore = create<AppState>()(
             remoteAppointments,
             remoteDiaryNotes,
             remoteSharedLinks,
+            remoteSubscription,
           ] = await Promise.all([
             fetchPatientProfileFromDatabase(),
             fetchRecordsFromDatabase(),
@@ -1081,6 +1287,7 @@ export const useAppStore = create<AppState>()(
             fetchAppointmentsFromDatabase(),
             fetchDiaryNotesFromDatabase(),
             fetchSharedLinksFromDatabase(),
+            fetchSubscriptionFromDatabase(),
           ]);
 
           const current = get();
@@ -1290,6 +1497,76 @@ export const useAppStore = create<AppState>()(
             syncPatientProfile(baseLocalProfile).catch(() => {});
           }
 
+          // 7. Two-way merge & expiry validation of Subscription Entitlement
+          let nextSubPlan = current.subscriptionPlan;
+          let nextTrialEndsAt = current.subscriptionTrialEndsAt;
+          let nextSubExpiresAt = current.subscriptionExpiresAt;
+          let nextSubProductId = current.subscriptionProductId;
+          let nextSubTxId = current.subscriptionTransactionId;
+          let nextSubUpdatedAt = current.subscriptionUpdatedAt;
+
+          if (!isDemo) {
+            const normalizeEntitlement = (
+              ent: CloudSubscriptionEntitlement
+            ): CloudSubscriptionEntitlement => {
+              const trialDone = Boolean(
+                ent.plan !== 'free' &&
+                  ent.trialEndsAt &&
+                  new Date(ent.trialEndsAt).getTime() <= nowMs
+              );
+              const periodDone = Boolean(
+                ent.plan !== 'free' &&
+                  ent.plan !== 'lifetime_premium' &&
+                  ent.expiresAt &&
+                  new Date(ent.expiresAt).getTime() <= nowMs
+              );
+              if (trialDone || periodDone) {
+                return {
+                  plan: 'free',
+                  updatedAt: new Date(nowMs).toISOString(),
+                };
+              }
+              return ent;
+            };
+
+            if (remoteSubscription) {
+              const validRemote = normalizeEntitlement(remoteSubscription);
+              const remoteMs = validRemote.updatedAt
+                ? new Date(validRemote.updatedAt).getTime()
+                : 0;
+              const localMs = nextSubUpdatedAt ? new Date(nextSubUpdatedAt).getTime() : 0;
+
+              if (remoteMs >= localMs) {
+                nextSubPlan = validRemote.plan;
+                nextTrialEndsAt = validRemote.trialEndsAt;
+                nextSubExpiresAt = validRemote.expiresAt;
+                nextSubProductId = validRemote.productId;
+                nextSubTxId = validRemote.transactionId;
+                nextSubUpdatedAt = validRemote.updatedAt;
+              } else {
+                syncSubscriptionToDatabase({
+                  plan: nextSubPlan,
+                  trialEndsAt: nextTrialEndsAt,
+                  expiresAt: nextSubExpiresAt,
+                  productId: nextSubProductId,
+                  transactionId: nextSubTxId,
+                  updatedAt: nextSubUpdatedAt || new Date(nowMs).toISOString(),
+                }).catch(() => {});
+              }
+            } else if (nextSubPlan !== 'free' || nextSubUpdatedAt) {
+              syncSubscriptionToDatabase({
+                plan: nextSubPlan,
+                trialEndsAt: nextTrialEndsAt,
+                expiresAt: nextSubExpiresAt,
+                productId: nextSubProductId,
+                transactionId: nextSubTxId,
+                updatedAt: nextSubUpdatedAt || new Date(nowMs).toISOString(),
+              }).catch(() => {});
+            }
+          }
+
+          const isEffectiveFree = nextSubPlan === 'free';
+
           set({
             records: mergedRecords,
             medications: mergedMeds,
@@ -1298,6 +1575,22 @@ export const useAppStore = create<AppState>()(
             diaryNotes: mergedNotes,
             sharedLinks: mergedShares,
             patientProfile: mergedProfile,
+            subscriptionPlan: nextSubPlan,
+            subscriptionTrialEndsAt: nextTrialEndsAt,
+            subscriptionExpiresAt: nextSubExpiresAt,
+            subscriptionProductId: nextSubProductId,
+            subscriptionTransactionId: nextSubTxId,
+            subscriptionUpdatedAt: nextSubUpdatedAt,
+            ...(isEffectiveFree
+              ? {
+                  biometricLock: false,
+                  isAppLocked: false,
+                  sharingRequiresPin: false,
+                  aiConsentGranted: false,
+                }
+              : {
+                  sharingRequiresPin: true,
+                }),
             isSyncingCloud: false,
             lastCloudSyncAt: new Date().toISOString(),
           });
@@ -1342,6 +1635,12 @@ export const useAppStore = create<AppState>()(
           biometricLock: false,
           isAppLocked: false,
           aiConsentGranted: false,
+          subscriptionPlan: 'free',
+          subscriptionTrialEndsAt: undefined,
+          subscriptionExpiresAt: undefined,
+          subscriptionProductId: undefined,
+          subscriptionTransactionId: undefined,
+          subscriptionUpdatedAt: undefined,
           records: [],
           medications: [],
           userMedications: [],
@@ -1388,6 +1687,10 @@ export const useAppStore = create<AppState>()(
 
       resetToDemoPatient: () => {
         set({
+          subscriptionPlan: 'monthly_premium',
+          subscriptionTrialEndsAt: undefined,
+          subscriptionExpiresAt: undefined,
+          sharingRequiresPin: true,
           records: medicalRecords,
           medications: medicationsSeed,
           userMedications: [],

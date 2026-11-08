@@ -168,9 +168,83 @@ export async function fetchStoreKitCatalog(): Promise<StoreKitProductMap> {
 }
 
 export type PurchaseResult =
-  | { status: 'purchased'; planId: PaidPlanId; productId: string; transactionId?: string }
+  | {
+      status: 'purchased';
+      planId: PaidPlanId;
+      productId: string;
+      transactionId?: string;
+      purchasedAt?: string;
+      expiresAt?: string;
+    }
   | { status: 'cancelled' }
   | { status: 'store_unavailable'; reason: string };
+
+export interface ActiveStoreKitEntitlement {
+  storeReachable: boolean;
+  activePlan: PaidPlanId | null;
+  productId?: string;
+  transactionId?: string;
+  purchasedAt?: string;
+  expiresAt?: string;
+}
+
+function extractPurchaseMetadata(
+  purchase: any,
+  planId: PaidPlanId
+): {
+  transactionId?: string;
+  purchasedAt: string;
+  expiresAt?: string;
+  isExpiredInStore: boolean;
+} {
+  const nowMs = Date.now();
+  const txId: string | undefined =
+    purchase?.id ||
+    purchase?.transactionId ||
+    purchase?.purchaseToken ||
+    undefined;
+
+  const rawTxDate = purchase?.transactionDate;
+  const purchasedMs =
+    typeof rawTxDate === 'number' && rawTxDate > 0
+      ? rawTxDate < 1e12
+        ? rawTxDate * 1000
+        : rawTxDate
+      : nowMs;
+  const purchasedAt = new Date(purchasedMs).toISOString();
+
+  if (planId === 'lifetime_premium') {
+    return {
+      transactionId: txId,
+      purchasedAt,
+      expiresAt: undefined,
+      isExpiredInStore: false,
+    };
+  }
+
+  const rawExpIos = purchase?.expirationDateIOS;
+  if (typeof rawExpIos === 'number' && rawExpIos > 0) {
+    const expMs = rawExpIos < 1e12 ? rawExpIos * 1000 : rawExpIos;
+    return {
+      transactionId: txId,
+      purchasedAt,
+      expiresAt: new Date(expMs).toISOString(),
+      isExpiredInStore: expMs <= nowMs,
+    };
+  }
+
+  const defaultDurationMs =
+    planId === 'annual_premium'
+      ? 365 * 24 * 60 * 60 * 1000
+      : 31 * 24 * 60 * 60 * 1000;
+
+  return {
+    transactionId: txId,
+    purchasedAt,
+    expiresAt: new Date(purchasedMs + defaultDurationMs).toISOString(),
+    isExpiredInStore: false,
+  };
+}
 
 /**
  * Launches the native Apple StoreKit 2 (TestFlight / App Store) or Google Play purchase sheet
@@ -246,11 +320,14 @@ export async function purchasePlanWithStoreKit(planId: PaidPlanId): Promise<Purc
         } catch (err) {
           console.warn('[IAP] finishTransaction warning:', err);
         }
+        const meta = extractPurchaseMetadata(purchase, matchedPlan);
         finish({
           status: 'purchased',
           planId: matchedPlan,
           productId: purchase?.productId || spec.productId,
-          transactionId: purchase?.id,
+          transactionId: meta.transactionId,
+          purchasedAt: meta.purchasedAt,
+          expiresAt: meta.expiresAt,
         });
       });
 
@@ -299,11 +376,14 @@ export async function purchasePlanWithStoreKit(planId: PaidPlanId): Promise<Purc
                 try {
                   await iap.finishTransaction({ purchase: purchaseItem, isConsumable: false });
                 } catch {}
+                const meta = extractPurchaseMetadata(purchaseItem, matchedPlan);
                 finish({
                   status: 'purchased',
                   planId: matchedPlan,
                   productId: purchaseItem.productId || spec.productId,
-                  transactionId: purchaseItem.id,
+                  transactionId: meta.transactionId,
+                  purchasedAt: meta.purchasedAt,
+                  expiresAt: meta.expiresAt,
                 });
               } else {
                 finish({ status: 'cancelled' });
@@ -340,6 +420,9 @@ export async function purchasePlanWithStoreKit(planId: PaidPlanId): Promise<Purc
 export async function restoreStoreKitPurchases(): Promise<{
   restoredPlan: PaidPlanId | null;
   productId?: string;
+  transactionId?: string;
+  purchasedAt?: string;
+  expiresAt?: string;
 }> {
   const iap = await ensureIapConnection();
   if (!iap) {
@@ -352,20 +435,38 @@ export async function restoreStoreKitPurchases(): Promise<{
 
     // Priority order: Lifetime -> Annual -> Monthly
     const priority: PaidPlanId[] = ['lifetime_premium', 'annual_premium', 'monthly_premium'];
-    const foundPlans = new Map<PaidPlanId, string>();
+    const foundPlans = new Map<
+      PaidPlanId,
+      { productId: string; transactionId?: string; purchasedAt?: string; expiresAt?: string }
+    >();
 
     for (const p of purchases ?? []) {
       const sku = p?.productId || (p as any)?.id;
       const matched = planIdFromProductId(sku);
       if (matched) {
-        foundPlans.set(matched, sku);
+        const meta = extractPurchaseMetadata(p, matched);
+        if (!meta.isExpiredInStore) {
+          foundPlans.set(matched, {
+            productId: sku,
+            transactionId: meta.transactionId,
+            purchasedAt: meta.purchasedAt,
+            expiresAt: meta.expiresAt,
+          });
+        }
         await iap.finishTransaction({ purchase: p, isConsumable: false }).catch(() => {});
       }
     }
 
     for (const pId of priority) {
-      if (foundPlans.has(pId)) {
-        return { restoredPlan: pId, productId: foundPlans.get(pId) };
+      const match = foundPlans.get(pId);
+      if (match) {
+        return {
+          restoredPlan: pId,
+          productId: match.productId,
+          transactionId: match.transactionId,
+          purchasedAt: match.purchasedAt,
+          expiresAt: match.expiresAt,
+        };
       }
     }
   } catch (err) {
@@ -373,4 +474,59 @@ export async function restoreStoreKitPurchases(): Promise<{
   }
 
   return { restoredPlan: null };
+}
+
+/**
+ * Silently inspects active StoreKit 2 / Google Play Billing entitlements on app startup
+ * and foreground resume without triggering interactive Apple ID / Play Store login dialogs.
+ */
+export async function verifyActiveStoreKitEntitlements(): Promise<ActiveStoreKitEntitlement> {
+  const iap = await ensureIapConnection();
+  if (!iap) {
+    return { storeReachable: false, activePlan: null };
+  }
+
+  try {
+    const purchases = await iap.getAvailablePurchases();
+    const priority: PaidPlanId[] = ['lifetime_premium', 'annual_premium', 'monthly_premium'];
+    const foundPlans = new Map<
+      PaidPlanId,
+      { productId: string; transactionId?: string; purchasedAt?: string; expiresAt?: string }
+    >();
+
+    for (const p of purchases ?? []) {
+      const sku = p?.productId || (p as any)?.id;
+      const matched = planIdFromProductId(sku);
+      if (matched) {
+        const meta = extractPurchaseMetadata(p, matched);
+        if (!meta.isExpiredInStore) {
+          foundPlans.set(matched, {
+            productId: sku,
+            transactionId: meta.transactionId,
+            purchasedAt: meta.purchasedAt,
+            expiresAt: meta.expiresAt,
+          });
+        }
+        await iap.finishTransaction({ purchase: p, isConsumable: false }).catch(() => {});
+      }
+    }
+
+    for (const pId of priority) {
+      const match = foundPlans.get(pId);
+      if (match) {
+        return {
+          storeReachable: true,
+          activePlan: pId,
+          productId: match.productId,
+          transactionId: match.transactionId,
+          purchasedAt: match.purchasedAt,
+          expiresAt: match.expiresAt,
+        };
+      }
+    }
+
+    return { storeReachable: true, activePlan: null };
+  } catch {
+    return { storeReachable: false, activePlan: null };
+  }
 }

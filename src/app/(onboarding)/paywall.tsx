@@ -131,7 +131,11 @@ export default function OnboardingPaywallScreen() {
   const storeAccountName = Platform.OS === 'android' ? 'Google Play account' : 'Apple ID / App Store account';
   const storeSettingsLabel = Platform.OS === 'android' ? 'Google Play Subscriptions' : 'Account Settings';
 
-  const activatePlanAndFinish = (planId: Exclude<SubscriptionPlanId, 'free'>, startTrial: boolean) => {
+  const activatePlanAndFinish = (
+    planId: Exclude<SubscriptionPlanId, 'free'>,
+    startTrial: boolean,
+    receipt?: { productId?: string; transactionId?: string; expiresAt?: string }
+  ) => {
     toast.show(
       startTrial
         ? '7-Day Free Trial activated! Welcome to Siyashesha Pro.'
@@ -141,6 +145,9 @@ export default function OnboardingPaywallScreen() {
     finishOnboarding({
       plan: planId,
       startTrial,
+      productId: receipt?.productId ?? selectedOffer.productId,
+      transactionId: receipt?.transactionId,
+      expiresAt: receipt?.expiresAt,
     });
   };
 
@@ -154,7 +161,11 @@ export default function OnboardingPaywallScreen() {
       setProcessing(false);
 
       if (result.status === 'purchased') {
-        activatePlanAndFinish(result.planId, selectedOffer.hasFreeTrial);
+        activatePlanAndFinish(result.planId, selectedOffer.hasFreeTrial, {
+          productId: result.productId,
+          transactionId: result.transactionId,
+          expiresAt: result.expiresAt,
+        });
         return;
       }
 
@@ -204,12 +215,18 @@ export default function OnboardingPaywallScreen() {
     tapFeedback();
     setRestoring(true);
     try {
-      const { restoredPlan } = await restoreStoreKitPurchases();
+      const { restoredPlan, productId, transactionId, expiresAt } = await restoreStoreKitPurchases();
       setRestoring(false);
       if (restoredPlan) {
         const matchedOffer = offers.find((o) => o.id === restoredPlan);
         toast.show(`Restored ${matchedOffer?.shortName ?? 'Siyashesha Pro'}!`, 'success');
-        finishOnboarding({ plan: restoredPlan, startTrial: false });
+        finishOnboarding({
+          plan: restoredPlan,
+          startTrial: false,
+          productId,
+          transactionId,
+          expiresAt,
+        });
         return;
       }
       Alert.alert(
