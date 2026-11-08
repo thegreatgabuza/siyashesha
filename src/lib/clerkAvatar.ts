@@ -201,11 +201,11 @@ export function useClerkAvatarSync(): string | undefined {
     const clerkEmail = user?.primaryEmailAddress?.emailAddress;
 
     const currentProfile = useAppStore.getState().patientProfile;
-    if (clerkFirstName && (!currentProfile.firstName || currentProfile.firstName === 'Jessica')) {
+    if (clerkFirstName && !currentProfile.firstName) {
       patch.firstName = clerkFirstName;
       patch.preferredName = clerkFirstName;
     }
-    if (clerkLastName && (!currentProfile.lastName || currentProfile.lastName === 'Tebatso')) {
+    if (clerkLastName && !currentProfile.lastName) {
       patch.lastName = clerkLastName;
     }
     if (clerkEmail && !currentProfile.email) {

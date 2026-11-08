@@ -135,14 +135,6 @@ export default function SignInScreen() {
     }
   };
 
-  const handleDemoSignIn = () => {
-    completeSignIn({
-      email: 'jessica.tebatso@example.co.za',
-    });
-    toast.show('Signed in as Jessica Tebatso (Demo)', 'success');
-    router.replace('/(tabs)');
-  };
-
   return (
     <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <GradientBackground variant="hero">
@@ -184,7 +176,7 @@ export default function SignInScreen() {
               <TextInput
                 value={email}
                 onChangeText={setEmail}
-                placeholder="tebatso@example.co.za"
+                placeholder="name@example.com"
                 placeholderTextColor="#8C98B8"
                 keyboardType="email-address"
                 autoCapitalize="none"
@@ -214,30 +206,17 @@ export default function SignInScreen() {
             />
           </View>
 
-          {/* Quick 1-Tap Demo Access */}
+          {/* Guided Onboarding Entry */}
           <View className="mt-8 rounded-3xl border border-white/60 bg-white/60 p-4">
             <View className="flex-row items-center justify-between">
               <View className="flex-row items-center gap-2">
                 <Sparkles size={16} color="#0D7C66" />
-                <Text className="font-sans-semibold text-[13px] text-brand-700">Offline & Review Testing</Text>
+                <Text className="font-sans-semibold text-[13px] text-brand-700">Guided Passport Setup</Text>
               </View>
-              <Text className="font-sans text-[11px] uppercase tracking-wide text-ink-muted">1-Tap</Text>
             </View>
             <Text className="mt-1 font-sans text-[12px] text-ink-muted">
-              Skip code delivery and immediately launch the pre-seeded clinical passport for Jessica Tebatso.
+              Create your personal Health Passport & Emergency ICE profile step by step.
             </Text>
-            <Pressable
-              onPress={handleDemoSignIn}
-              accessibilityRole="button"
-              accessibilityLabel="1-Tap Demo Sign In as Jessica Tebatso"
-              className="mt-3 flex-row items-center justify-between rounded-xl bg-ink px-4 py-3"
-            >
-              <View>
-                <Text className="font-sans-semibold text-[13px] text-white">1-Tap Demo Sign In</Text>
-                <Text className="font-sans text-[11px] text-white/70">Jessica Tebatso (Seed Patient)</Text>
-              </View>
-              <ArrowRight size={16} color="#FFFFFF" />
-            </Pressable>
 
             <Pressable
               onPress={() => {
@@ -246,7 +225,7 @@ export default function SignInScreen() {
               }}
               accessibilityRole="button"
               accessibilityLabel="Build a new health passport with guided onboarding"
-              className="mt-2.5 flex-row items-center justify-between rounded-xl border border-ink/20 bg-white px-4 py-3"
+              className="mt-3 flex-row items-center justify-between rounded-xl border border-ink/20 bg-white px-4 py-3"
             >
               <View>
                 <Text className="font-sans-bold text-[13px] text-ink">New here? Build my Health Passport</Text>

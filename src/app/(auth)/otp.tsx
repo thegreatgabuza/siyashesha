@@ -150,9 +150,8 @@ export default function OtpScreen() {
           throw new Error(`Verification status: ${result.status}`);
         }
       } else {
-        // Demo fallback
         completeSignIn({
-          email: pendingEmail || 'jessica.tebatso@example.co.za',
+          email: pendingEmail,
         });
         toast.show('Signed in successfully', 'success');
         router.replace('/(tabs)');

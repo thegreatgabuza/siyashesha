@@ -3,19 +3,18 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import type { AssistantMessage } from '@/data/assistant';
-import { auditSeed, type AuditEvent, type AuditEventType } from '@/data/audit';
-import { appointmentsSeed, type Appointment } from '@/data/appointments';
-import { diaryNotesSeed, type DiaryNote } from '@/data/diarySeed';
+import type { AuditEvent, AuditEventType } from '@/data/audit';
+import type { Appointment } from '@/data/appointments';
+import type { DiaryNote } from '@/data/diarySeed';
 import {
   defaultEmergencyVisibility,
   type EmergencyFieldKey,
 } from '@/data/emergencyProfile';
-import { activeMedications, medicationsSeed, todaysReminders, type Medication } from '@/data/medications';
-import { patient, type EmergencyContact, type PatientProfile } from '@/data/patient';
-import { medicalRecords, type MedicalRecord } from '@/data/records';
-import { sharingHistorySeed, type SharedLink, type ShareDuration } from '@/data/sharing';
+import { todaysReminders, type Medication } from '@/data/medications';
+import type { EmergencyContact, PatientProfile } from '@/data/patient';
+import type { MedicalRecord } from '@/data/records';
+import type { SharedLink, ShareDuration } from '@/data/sharing';
 import type { LanguageCode } from '@/i18n/translations';
-import { pastDateKeys } from '@/lib/date';
 import { clearAllStoredFiles } from '@/lib/documents';
 import { verifyActiveStoreKitEntitlements } from '@/lib/iap';
 import { clearEnclaveKeys } from '@/lib/security/enclaveSecurity';
@@ -51,15 +50,46 @@ import {
   type SharedLinkSnapshot,
 } from '@/lib/supabase';
 
-const DEMO_RECORD_IDS = new Set(medicalRecords.map((r) => r.id));
-const DEMO_MED_IDS = new Set(medicationsSeed.map((m) => m.id));
-const DEMO_APPT_IDS = new Set(appointmentsSeed.map((a) => a.id));
-const DEMO_DIARY_IDS = new Set(diaryNotesSeed.map((n) => n.id));
-const DEMO_SHARE_IDS = new Set(sharingHistorySeed.map((l) => l.id));
-
-const IS_MOCK_DATA_ENABLED =
-  process.env.EXPO_PUBLIC_USE_MOCK_DATA === 'true' &&
-  process.env.EXPO_PUBLIC_APP_ENV !== 'production';
+const DEMO_RECORD_IDS = new Set([
+  'rec-001',
+  'rec-002',
+  'rec-003',
+  'rec-004',
+  'rec-005',
+  'rec-006',
+  'rec-007',
+  'rec-008',
+  'rec-009',
+  'rec-010',
+  'rec-011',
+  'rec-012',
+]);
+const DEMO_MED_IDS = new Set([
+  'med-metformin',
+  'med-amlodipine',
+  'med-atorvastatin',
+  'med-aspirin',
+  'med-enalapril',
+]);
+const DEMO_APPT_IDS = new Set([
+  'appt-001',
+  'appt-002',
+  'appt-003',
+  'appt-004',
+  'appt-005',
+]);
+const DEMO_DIARY_IDS = new Set(['diary-001', 'diary-002', 'diary-003', 'diary-004']);
+const DEMO_SHARE_IDS = new Set(['share-001', 'share-002', 'share-003']);
+const DEMO_AUDIT_IDS = new Set([
+  'audit-001',
+  'audit-002',
+  'audit-003',
+  'audit-004',
+  'audit-005',
+  'audit-006',
+  'audit-007',
+  'audit-008',
+]);
 
 const emptyPatientProfile: PatientProfile = {
   firstName: '',
@@ -86,49 +116,23 @@ const emptyPatientProfile: PatientProfile = {
   memberSince: new Date().toISOString().slice(0, 10),
 };
 
-export function isDemoAccountEmail(email?: string | null): boolean {
-  if (!email) return false;
-  const lower = email.trim().toLowerCase();
-  return (
-    lower === 'jessica.tebatso@gmail.com' ||
-    lower === 'jessica.tebatso@example.co.za' ||
-    lower === 'demo@siyashesha.co.za'
-  );
+export function isDemoAccountEmail(_email?: string | null): boolean {
+  return false;
 }
 
 function stripDemoSeedProfile(current: PatientProfile): PatientProfile {
-  const isUntouchedDemoProfile =
-    current.idNumber === patient.idNumber &&
-    (current.email === patient.email || !current.email);
+  const isLegacySeedProfile =
+    current.idNumber === '7804125800080' ||
+    current.email === 'jessica.tebatso@gmail.com' ||
+    current.email === 'jessica.tebatso@example.co.za';
 
-  if (!isUntouchedDemoProfile) {
+  if (!isLegacySeedProfile) {
     return current;
   }
 
   return {
-    firstName: current.firstName === patient.firstName ? '' : current.firstName,
-    lastName: current.lastName === patient.lastName ? '' : current.lastName,
-    preferredName: current.preferredName === patient.preferredName ? '' : current.preferredName,
+    ...emptyPatientProfile,
     avatarUrl: current.avatarUrl,
-    dateOfBirth: current.dateOfBirth === patient.dateOfBirth ? '' : current.dateOfBirth,
-    idNumber: '',
-    gender: '',
-    phone: '',
-    email: current.email === patient.email ? '' : current.email,
-    address: '',
-    province: 'Gauteng',
-    bloodGroup: current.bloodGroup === patient.bloodGroup ? '' : current.bloodGroup,
-    allergies: [],
-    chronicConditions: [],
-    previousProcedures: [],
-    medicalDevices: [],
-    emergencyContact: {
-      name: '',
-      relationship: '',
-      phone: '',
-    },
-    emergencyContacts: [],
-    memberSince: new Date().toISOString().slice(0, 10),
   };
 }
 
@@ -154,20 +158,6 @@ function buildShareSnapshot(
 
 function makeId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-}
-
-function buildSeedAdherenceLog(): Record<string, boolean> {
-  const reminders = todaysReminders();
-  const days = pastDateKeys(6);
-  const log: Record<string, boolean> = {};
-  days.forEach((day, dayIndex) => {
-    reminders.forEach((reminder) => {
-      // Last 5 completed days fully adherent, the 6th (oldest) day missed —
-      // gives a clean 5-day streak and a realistic ~83% seven-day adherence rate.
-      log[`${reminder.id}__${day}`] = dayIndex < 5;
-    });
-  });
-  return log;
 }
 
 export type ThemePreference = 'system' | 'light' | 'dark';
@@ -407,44 +397,10 @@ export const useAppStore = create<AppState>()(
             type: 'login',
             description: isClerk
               ? `Signed in with Clerk email OTP verification${email ? ` (${email})` : ''}`
-              : 'Signed in with demo verification',
+              : `Signed in${email ? ` (${email})` : ''}`,
             timestamp: new Date().toISOString(),
           };
-          const isDemo =
-            !isClerk &&
-            (s.clerkFlow === 'demo' || !email || isDemoAccountEmail(email));
 
-          if (isDemo) {
-            const shouldRestoreDemo = s.records.length === 0;
-            return {
-              isSignedIn: true,
-              hasCompletedOnboarding: true,
-              clerkFlow: 'demo',
-              clerkSessionId: options?.clerkSessionId ?? s.clerkSessionId,
-              subscriptionPlan: s.subscriptionPlan === 'free' ? 'monthly_premium' : s.subscriptionPlan,
-              sharingRequiresPin: true,
-              patientProfile: shouldRestoreDemo
-                ? patient
-                : email
-                ? { ...s.patientProfile, email }
-                : s.patientProfile,
-              records: shouldRestoreDemo ? medicalRecords : s.records,
-              medications: shouldRestoreDemo ? medicationsSeed : s.medications,
-              appointments: shouldRestoreDemo ? appointmentsSeed : s.appointments,
-              diaryNotes: shouldRestoreDemo ? diaryNotesSeed : s.diaryNotes,
-              sharedLinks: shouldRestoreDemo ? sharingHistorySeed : s.sharedLinks,
-              takenLog: shouldRestoreDemo ? buildSeedAdherenceLog() : s.takenLog,
-              medicationReminderEnabled: shouldRestoreDemo
-                ? activeMedications.reduce(
-                    (acc, m) => ({ ...acc, [m.id]: true }),
-                    {} as Record<string, boolean>
-                  )
-                : s.medicationReminderEnabled,
-              auditEvents: [event, ...(shouldRestoreDemo ? auditSeed : s.auditEvents)],
-            };
-          }
-
-          // Real authenticated user: strip any untouched Jessica Tebatso demo seed items
           const cleanedBaseProfile = stripDemoSeedProfile(s.patientProfile);
           const nextProfile: PatientProfile = {
             ...cleanedBaseProfile,
@@ -455,11 +411,13 @@ export const useAppStore = create<AppState>()(
           const cleanedAppts = s.appointments.filter((a) => !DEMO_APPT_IDS.has(a.id));
           const cleanedNotes = s.diaryNotes.filter((n) => !DEMO_DIARY_IDS.has(n.id));
           const cleanedShares = s.sharedLinks.filter((l) => !DEMO_SHARE_IDS.has(l.id));
+          const cleanedAudits = s.auditEvents.filter((a) => !DEMO_AUDIT_IDS.has(a.id));
           const hadOnlyDemoMeds = cleanedMeds.length === 0 && s.medications.length > 0;
 
           return {
             isSignedIn: true,
             hasCompletedOnboarding: true,
+            clerkFlow: 'sign_in',
             clerkSessionId: options?.clerkSessionId ?? s.clerkSessionId,
             patientProfile: nextProfile,
             records: cleanedRecords,
@@ -468,7 +426,7 @@ export const useAppStore = create<AppState>()(
             diaryNotes: cleanedNotes,
             sharedLinks: cleanedShares,
             ...(hadOnlyDemoMeds ? { takenLog: {}, skippedLog: {}, medicationReminderEnabled: {} } : {}),
-            auditEvents: [event, ...s.auditEvents],
+            auditEvents: [event, ...cleanedAudits],
           };
         });
 
@@ -537,12 +495,12 @@ export const useAppStore = create<AppState>()(
       setNotification: (key, value) =>
         set((s) => ({ notifications: { ...s.notifications, [key]: value } })),
 
-      takenLog: IS_MOCK_DATA_ENABLED ? buildSeedAdherenceLog() : {},
+      takenLog: {},
       toggleTaken: (reminderId, dateKey) =>
         set((s) => {
           const logKey = `${reminderId}__${dateKey}`;
           const nowTaken = !s.takenLog[logKey];
-          const reminder = todaysReminders().find((r) => r.id === reminderId);
+          const reminder = todaysReminders(s.medications).find((r) => r.id === reminderId);
           const auditEntry: AuditEvent | null =
             nowTaken && reminder
               ? {
@@ -572,18 +530,13 @@ export const useAppStore = create<AppState>()(
       addCustomReminder: (reminder) =>
         set((s) => ({ customReminders: [...s.customReminders, { ...reminder, id: makeId('reminder') }] })),
       removeCustomReminder: (id) => set((s) => ({ customReminders: s.customReminders.filter((r) => r.id !== id) })),
-      medicationReminderEnabled: IS_MOCK_DATA_ENABLED
-        ? activeMedications.reduce(
-            (acc, m) => ({ ...acc, [m.id]: true }),
-            {} as Record<string, boolean>
-          )
-        : {},
+      medicationReminderEnabled: {},
       setMedicationReminderEnabled: (medicationId, value) =>
         set((s) => ({
           medicationReminderEnabled: { ...s.medicationReminderEnabled, [medicationId]: value },
         })),
 
-      medications: IS_MOCK_DATA_ENABLED ? medicationsSeed : [],
+      medications: [],
       addMedication: (med) => {
         const id = makeId('med');
         const newMed: Medication = { ...med, id };
@@ -668,7 +621,7 @@ export const useAppStore = create<AppState>()(
           return { medications: nextMeds };
         }),
 
-      appointments: IS_MOCK_DATA_ENABLED ? appointmentsSeed : [],
+      appointments: [],
       addAppointment: (appt) => {
         const id = makeId('appt');
         const newAppt: Appointment = { ...appt, id };
@@ -725,7 +678,7 @@ export const useAppStore = create<AppState>()(
           return { appointments: nextAppts };
         }),
 
-      records: IS_MOCK_DATA_ENABLED ? medicalRecords : [],
+      records: [],
       addRecord: (record) =>
         set((s) => {
           if (s.subscriptionPlan === 'free' && s.records.length >= 10) {
@@ -771,7 +724,7 @@ export const useAppStore = create<AppState>()(
       setEmergencyVisible: (key, value) =>
         set((s) => ({ emergencyVisibility: { ...s.emergencyVisibility, [key]: value } })),
 
-      sharedLinks: IS_MOCK_DATA_ENABLED ? sharingHistorySeed : [],
+      sharedLinks: [],
       createShare: ({ recipientName, recipientFacility, recordIds, diaryNoteIds, duration, pin }) => {
         const now = new Date();
         const expires = new Date(now.getTime() + duration.hours * 60 * 60 * 1000);
@@ -829,7 +782,7 @@ export const useAppStore = create<AppState>()(
           };
         }),
 
-      diaryNotes: IS_MOCK_DATA_ENABLED ? diaryNotesSeed : [],
+      diaryNotes: [],
       diaryDraft: null,
       addDiaryNote: (note) => {
         const id = makeId('diary');
@@ -893,7 +846,7 @@ export const useAppStore = create<AppState>()(
           assistantThreads: { ...s.assistantThreads, [day]: [...(s.assistantThreads[day] ?? []), message] },
         })),
 
-      auditEvents: IS_MOCK_DATA_ENABLED ? auditSeed : [],
+      auditEvents: [],
       logAudit: (type, description) =>
         set((s) => ({
           auditEvents: [
@@ -1641,7 +1594,7 @@ export const useAppStore = create<AppState>()(
         }
       },
 
-      patientProfile: IS_MOCK_DATA_ENABLED ? patient : emptyPatientProfile,
+      patientProfile: emptyPatientProfile,
       updatePatientProfile: (patch) =>
         set((s) => {
           const nextProfile = { ...s.patientProfile, ...patch };
@@ -1696,56 +1649,72 @@ export const useAppStore = create<AppState>()(
               timestamp: new Date().toISOString(),
             },
           ],
-          patientProfile: {
-            firstName: '',
-            lastName: '',
-            preferredName: '',
-            dateOfBirth: '',
-            idNumber: '',
-            gender: '',
-            phone: '',
-            email: '',
-            address: '',
-            province: 'Gauteng',
-            bloodGroup: '',
-            allergies: [],
-            chronicConditions: [],
-            previousProcedures: [],
-            medicalDevices: [],
-            emergencyContact: {
-              name: '',
-              relationship: '',
-              phone: '',
-            },
-            memberSince: new Date().toISOString(),
-          },
+          patientProfile: emptyPatientProfile,
           emergencyVisibility: defaultEmergencyVisibility,
         });
       },
 
       resetToDemoPatient: () => {
         set({
-          subscriptionPlan: 'monthly_premium',
+          subscriptionPlan: 'free',
           subscriptionTrialEndsAt: undefined,
           subscriptionExpiresAt: undefined,
-          sharingRequiresPin: true,
-          records: medicalRecords,
-          medications: medicationsSeed,
+          sharingRequiresPin: false,
+          records: [],
+          medications: [],
           userMedications: [],
-          takenLog: buildSeedAdherenceLog(),
+          takenLog: {},
           skippedLog: {},
-          diaryNotes: diaryNotesSeed,
-          appointments: appointmentsSeed,
-          sharedLinks: sharingHistorySeed,
-          auditEvents: auditSeed,
-          patientProfile: patient,
+          diaryNotes: [],
+          appointments: [],
+          sharedLinks: [],
+          auditEvents: [],
+          patientProfile: emptyPatientProfile,
           emergencyVisibility: defaultEmergencyVisibility,
         });
       },
     }),
     {
       name: 'siyashesha-app-store',
+      version: 2,
       storage: createJSONStorage(() => AsyncStorage),
+      migrate: (persistedState: any) => {
+        if (!persistedState || typeof persistedState !== 'object') {
+          return persistedState;
+        }
+        const cleanedRecords = Array.isArray(persistedState.records)
+          ? persistedState.records.filter((r: any) => !DEMO_RECORD_IDS.has(r?.id))
+          : [];
+        const cleanedMeds = Array.isArray(persistedState.medications)
+          ? persistedState.medications.filter((m: any) => !DEMO_MED_IDS.has(m?.id))
+          : [];
+        const cleanedAppts = Array.isArray(persistedState.appointments)
+          ? persistedState.appointments.filter((a: any) => !DEMO_APPT_IDS.has(a?.id))
+          : [];
+        const cleanedNotes = Array.isArray(persistedState.diaryNotes)
+          ? persistedState.diaryNotes.filter((n: any) => !DEMO_DIARY_IDS.has(n?.id))
+          : [];
+        const cleanedShares = Array.isArray(persistedState.sharedLinks)
+          ? persistedState.sharedLinks.filter((l: any) => !DEMO_SHARE_IDS.has(l?.id))
+          : [];
+        const cleanedAudits = Array.isArray(persistedState.auditEvents)
+          ? persistedState.auditEvents.filter((a: any) => !DEMO_AUDIT_IDS.has(a?.id))
+          : [];
+        const cleanedProfile = persistedState.patientProfile
+          ? stripDemoSeedProfile(persistedState.patientProfile)
+          : emptyPatientProfile;
+
+        return {
+          ...persistedState,
+          records: cleanedRecords,
+          medications: cleanedMeds,
+          appointments: cleanedAppts,
+          diaryNotes: cleanedNotes,
+          sharedLinks: cleanedShares,
+          auditEvents: cleanedAudits,
+          patientProfile: cleanedProfile,
+        };
+      },
       partialize: (state) => {
         const { isAppLocked, isSyncingCloud, ...rest } = state;
         return rest;

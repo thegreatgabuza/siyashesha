@@ -5,10 +5,20 @@ import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import type { MedicalRecord } from '@/data/records';
+import { medicalRecords } from '@/data/records';
+import { medicationsSeed } from '@/data/medications';
+import { appointmentsSeed } from '@/data/appointments';
+import { diaryNotesSeed } from '@/data/diarySeed';
+import { sharingHistorySeed } from '@/data/sharing';
+import { auditSeed } from '@/data/audit';
+import { patient } from '@/data/patient';
 import {
   categoryToTimelineType,
   deriveHba1cSeries,
+  hba1cSeries,
+  HISTORICAL_HBA1C_BASELINE,
   recordToTimelineSummary,
+  timelineEvents,
 } from '@/data/timeline';
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -92,5 +102,20 @@ describe('Clinical Timeline derivation & API Key Hardening (#4)', () => {
         );
       }
     }
+  });
+
+  it('enforces zero pre-seeded mock data across all production data modules', () => {
+    assert.equal(patient.firstName, '');
+    assert.equal(patient.lastName, '');
+    assert.equal(patient.idNumber, '');
+    assert.equal(medicalRecords.length, 0);
+    assert.equal(medicationsSeed.length, 0);
+    assert.equal(appointmentsSeed.length, 0);
+    assert.equal(diaryNotesSeed.length, 0);
+    assert.equal(sharingHistorySeed.length, 0);
+    assert.equal(auditSeed.length, 0);
+    assert.equal(timelineEvents.length, 0);
+    assert.equal(hba1cSeries.length, 0);
+    assert.equal(HISTORICAL_HBA1C_BASELINE.length, 0);
   });
 });
