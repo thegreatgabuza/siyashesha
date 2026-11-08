@@ -1,10 +1,18 @@
 import { Tabs } from 'expo-router';
+import { View } from 'react-native';
 
 import { TabBar } from '@/components/TabBar';
+import { WebSidebar } from '@/components/web/WebSidebar';
+import { useIsWebDesktop } from '@/hooks/useIsWebDesktop';
 
 export default function TabsLayout() {
-  return (
-    <Tabs tabBar={(props: any) => <TabBar {...props} />} screenOptions={{ headerShown: false }}>
+  const desktop = useIsWebDesktop();
+
+  const tabs = (
+    <Tabs
+      tabBar={desktop ? () => null : (props: any) => <TabBar {...props} />}
+      screenOptions={{ headerShown: false }}
+    >
       <Tabs.Screen name="index" />
       <Tabs.Screen name="records" />
       <Tabs.Screen name="assistant" />
@@ -13,5 +21,14 @@ export default function TabsLayout() {
       <Tabs.Screen name="diary" />
       <Tabs.Screen name="more" />
     </Tabs>
+  );
+
+  if (!desktop) return tabs;
+
+  return (
+    <View style={{ flex: 1, flexDirection: 'row', backgroundColor: '#F8FAFC' }}>
+      <WebSidebar />
+      <View style={{ flex: 1 }}>{tabs}</View>
+    </View>
   );
 }

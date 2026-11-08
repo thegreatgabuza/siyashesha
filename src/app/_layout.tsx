@@ -167,14 +167,15 @@ export default function RootLayout() {
         <ToastProvider>
           <BiometricGate>
             <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Protected guard={!hasCompletedOnboarding}>
+              {/* Landing / sign up → onboarding (once) → app */}
+              <Stack.Protected guard={!isSignedIn}>
+                <Stack.Screen name="(auth)" />
+              </Stack.Protected>
+              <Stack.Protected guard={isSignedIn && !hasCompletedOnboarding}>
                 <Stack.Screen name="(onboarding)" />
               </Stack.Protected>
-              <Stack.Protected guard={hasCompletedOnboarding && isSignedIn}>
+              <Stack.Protected guard={isSignedIn && hasCompletedOnboarding}>
                 <Stack.Screen name="(tabs)" />
-              </Stack.Protected>
-              <Stack.Protected guard={hasCompletedOnboarding && !isSignedIn}>
-                <Stack.Screen name="(auth)" />
               </Stack.Protected>
             </Stack>
           </BiometricGate>

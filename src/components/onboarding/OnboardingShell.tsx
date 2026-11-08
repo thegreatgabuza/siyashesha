@@ -3,6 +3,7 @@ import { ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { WebColumn } from '@/components/web/WebColumn';
 import { ProgressBar } from './ProgressBar';
 import { safeBack } from '@/lib/navigation';
 import { completionPercent } from '@/lib/passport';
@@ -37,9 +38,10 @@ export function OnboardingShell({
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1 }}
+      style={{ flex: 1, backgroundColor: '#F8FAFC' }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      <WebColumn>
       <View className="flex-1 bg-slate-50 dark:bg-canvasdark" style={{ paddingTop: insets.top + 8 }}>
         {!hideProgress || showBack ? (
           <View className="flex-row items-center gap-3 px-5 pb-3">
@@ -79,6 +81,7 @@ export function OnboardingShell({
           {footer}
         </View>
       </View>
+      </WebColumn>
     </KeyboardAvoidingView>
   );
 }

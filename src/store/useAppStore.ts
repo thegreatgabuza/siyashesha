@@ -416,7 +416,8 @@ export const useAppStore = create<AppState>()(
 
           return {
             isSignedIn: true,
-            hasCompletedOnboarding: true,
+            // New sign-ups run guided onboarding exactly once; returning users skip it.
+            hasCompletedOnboarding: s.hasCompletedOnboarding || s.clerkFlow !== 'sign_up',
             clerkFlow: 'sign_in',
             clerkSessionId: options?.clerkSessionId ?? s.clerkSessionId,
             patientProfile: nextProfile,
@@ -1559,6 +1560,8 @@ export const useAppStore = create<AppState>()(
           const isEffectiveFree = nextSubPlan === 'free';
 
           set({
+            // An existing cloud profile means this account already onboarded elsewhere.
+            ...(hasRemoteProfile ? { hasCompletedOnboarding: true } : {}),
             records: mergedRecords,
             medications: mergedMeds,
             medicationReminderEnabled: nextReminderEnabled,

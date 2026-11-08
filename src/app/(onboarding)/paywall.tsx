@@ -16,6 +16,7 @@ import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, Text, View }
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LegalDocumentModal, type LegalDocKind } from '@/components/security/LegalDocumentModal';
+import { WebColumn } from '@/components/web/WebColumn';
 import { useToast } from '@/components/ui/Toast';
 import { tapFeedback } from '@/lib/feedback';
 import {
@@ -240,6 +241,8 @@ export default function OnboardingPaywallScreen() {
   };
 
   return (
+    <View style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
+    <WebColumn maxWidth={640}>
     <View className="flex-1 bg-slate-50 dark:bg-canvasdark" style={{ paddingTop: insets.top + 6 }}>
       {/* Top Bar: Back + Trust Pill + Clear Close/Skip to Free */}
       <View className="flex-row items-center justify-between px-5 pb-2.5">
@@ -539,6 +542,8 @@ export default function OnboardingPaywallScreen() {
       </View>
 
       <LegalDocumentModal visibleDoc={legalDoc} onClose={() => setLegalDoc(null)} />
+    </View>
+    </WebColumn>
     </View>
   );
 }

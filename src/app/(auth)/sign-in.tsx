@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { ArrowRight, Mail, ShieldCheck, Sparkles } from 'lucide-react-native';
+import { Mail, ShieldCheck } from 'lucide-react-native';
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -25,7 +25,6 @@ export default function SignInScreen() {
   const toast = useToast();
   const signInWithEmail = useAppStore((s) => s.signInWithEmail);
   const completeSignIn = useAppStore((s) => s.completeSignIn);
-  const restartOnboarding = useAppStore((s) => s.restartOnboarding);
   const updatePatientProfile = useAppStore((s) => s.updatePatientProfile);
 
   const { isLoaded: isSignInLoaded, signIn } = useSafeSignIn();
@@ -50,7 +49,7 @@ export default function SignInScreen() {
       updatePatientProfile({ email: cleanEmail });
       completeSignIn();
       toast.show('Signed in to your Health Passport', 'success');
-      router.replace('/(tabs)');
+      router.replace('/');
       return;
     }
 
@@ -143,6 +142,9 @@ export default function SignInScreen() {
             paddingTop: insets.top + 32,
             paddingBottom: insets.bottom + 32,
             paddingHorizontal: 24,
+            width: '100%',
+            maxWidth: 480,
+            alignSelf: 'center',
           }}
           keyboardShouldPersistTaps="handled"
         >
@@ -204,35 +206,6 @@ export default function SignInScreen() {
               onPress={handleContinue}
               disabled={!emailValid || isSubmitting}
             />
-          </View>
-
-          {/* Guided Onboarding Entry */}
-          <View className="mt-8 rounded-3xl border border-white/60 bg-white/60 p-4">
-            <View className="flex-row items-center justify-between">
-              <View className="flex-row items-center gap-2">
-                <Sparkles size={16} color="#0D7C66" />
-                <Text className="font-sans-semibold text-[13px] text-brand-700">Guided Passport Setup</Text>
-              </View>
-            </View>
-            <Text className="mt-1 font-sans text-[12px] text-ink-muted">
-              Create your personal Health Passport & Emergency ICE profile step by step.
-            </Text>
-
-            <Pressable
-              onPress={() => {
-                restartOnboarding();
-                router.replace('/(onboarding)' as any);
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Build a new health passport with guided onboarding"
-              className="mt-3 flex-row items-center justify-between rounded-xl border border-ink/20 bg-white px-4 py-3"
-            >
-              <View>
-                <Text className="font-sans-bold text-[13px] text-ink">New here? Build my Health Passport</Text>
-                <Text className="font-sans text-[11px] text-ink-muted">Start the 8-step guided setup & Pro paywall</Text>
-              </View>
-              <ArrowRight size={16} color="#0B2559" />
-            </Pressable>
           </View>
 
           {/* Apple Guideline 5.1.1(i) Pre-Authentication Terms of Use & Privacy Policy Links */}

@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { navy, red } from '@/design/tokens';
 import { useTabBarInset } from '@/hooks/useTabBarInset';
+import { useIsWebDesktop } from '@/hooks/useIsWebDesktop';
 
 /**
  * Page shell. The scroll content always clears the floating tab bar. `bottomInset`, when given,
@@ -41,7 +42,9 @@ export function Screen({
 } & ScrollViewProps) {
   const safe = useSafeAreaInsets();
   const insets = headerOwnsTopInset ? { ...safe, top: 0 } : safe;
-  const tabInset = useTabBarInset(bottomInset);
+  const desktop = useIsWebDesktop();
+  const mobileInset = useTabBarInset(bottomInset);
+  const tabInset = desktop ? 48 + bottomInset : mobileInset;
   const [refreshing, setRefreshing] = useState(false);
 
   const handleRefresh = onRefresh
@@ -68,7 +71,10 @@ export function Screen({
       {refreshing ? <RefreshMark /> : null}
       <ScrollView
         className={contentClassName}
-        contentContainerStyle={{ paddingBottom: tabInset }}
+        contentContainerStyle={{
+          paddingBottom: tabInset,
+          ...(desktop ? { width: '100%', maxWidth: 1040, alignSelf: 'center', paddingTop: 16 } : null),
+        }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           handleRefresh ? (

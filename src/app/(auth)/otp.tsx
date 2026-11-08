@@ -118,7 +118,7 @@ export default function OtpScreen() {
             email: pendingEmail,
           });
           toast.show('Signed in successfully!', 'success');
-          router.replace('/(tabs)');
+          router.replace('/');
           return;
         } else if (result.status === 'needs_second_factor') {
           router.push('/two-factor');
@@ -144,7 +144,7 @@ export default function OtpScreen() {
             email: pendingEmail,
           });
           toast.show('Account verified & signed in!', 'success');
-          router.replace('/(tabs)');
+          router.replace('/');
           return;
         } else {
           throw new Error(`Verification status: ${result.status}`);
@@ -154,7 +154,7 @@ export default function OtpScreen() {
           email: pendingEmail,
         });
         toast.show('Signed in successfully', 'success');
-        router.replace('/(tabs)');
+        router.replace('/');
       }
     } catch (err: any) {
       console.error('[Clerk OTP Verification] Error:', err);
@@ -217,6 +217,9 @@ export default function OtpScreen() {
             paddingTop: insets.top + 32,
             paddingBottom: insets.bottom + 32,
             paddingHorizontal: 24,
+            width: '100%',
+            maxWidth: 480,
+            alignSelf: 'center',
           }}
           keyboardShouldPersistTaps="handled"
         >
