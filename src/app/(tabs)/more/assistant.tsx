@@ -1,6 +1,6 @@
 import dayjs from 'dayjs';
-import { useLocalSearchParams } from 'expo-router';
-import { ArrowUp, BookOpen, ChevronLeft, ChevronRight, Flag, Mic, ShieldCheck, Sparkles } from 'lucide-react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { ArrowUp, BookOpen, ChevronLeft, ChevronRight, Flag, Lock, Mic, ShieldCheck, Sparkles } from 'lucide-react-native';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Keyboard, KeyboardAvoidingView, Linking, Platform, ScrollView, TextInput, View } from 'react-native';
 import Animated, {
@@ -30,6 +30,7 @@ import { useAboveTabBar } from '@/hooks/useTabBarInset';
 import { askAssistant } from '@/lib/assistantEngine';
 import { todayKey } from '@/lib/date';
 import { tapFeedback } from '@/lib/feedback';
+import { getPlanEntitlements, promptPlanUpgrade } from '@/lib/subscription';
 import { useAppStore } from '@/store/useAppStore';
 
 function makeId() {
@@ -54,6 +55,8 @@ export default function AssistantScreen() {
   const params = useLocalSearchParams<{ q?: string }>();
   const patient = useAppStore((s) => s.patientProfile);
   const recordCount = useAppStore((s) => s.records.length);
+  const subscriptionPlan = useAppStore((s) => s.subscriptionPlan);
+  const entitlements = getPlanEntitlements(subscriptionPlan);
   const threads = useAppStore((s) => s.assistantThreads);
   const addMessage = useAppStore((s) => s.addAssistantMessage);
   const aiConsentGranted = useAppStore((s) => s.aiConsentGranted);
@@ -189,6 +192,16 @@ export default function AssistantScreen() {
   const send = async (raw: string) => {
     const value = raw.trim();
     if (!value || thinking) return;
+
+    if (!entitlements.canUseClinicalAssistant) {
+      promptPlanUpgrade({
+        title: 'Siyashesha Clinical Assistant (Pro)',
+        message:
+          '24/7 Siyashesha Clinical Assistant and plain-language lab explanations are included in Monthly Pro, Annual Pro, and Lifetime Founder Pass.',
+        ctaLabel: 'Upgrade to Pro',
+      });
+      return;
+    }
 
     // Numbered shortcuts 1-5 run 100% on-device with zero external AI calls
     const isQuickNumber = /^[1-5]$/.test(value);
@@ -332,12 +345,23 @@ export default function AssistantScreen() {
         <PressableScale
           accessibilityRole="button"
           accessibilityLabel={aiConsentGranted ? 'Cloud AI active. Tap to manage privacy' : 'On-device mode active. Tap to enable Cloud AI'}
-          onPress={() => setAiConsentModalOpen(true)}
+          onPress={() => {
+            if (!entitlements.canUseClinicalAssistant) {
+              promptPlanUpgrade({
+                title: 'Siyashesha Clinical Assistant (Pro)',
+                message:
+                  'Siyashesha Clinical Assistant with lab explanations is included in Monthly Pro, Annual Pro, and Lifetime Founder Pass.',
+                ctaLabel: 'Upgrade to Pro',
+              });
+              return;
+            }
+            setAiConsentModalOpen(true);
+          }}
           style={{
             paddingHorizontal: 8,
             paddingVertical: 3,
             borderRadius: radii.pill,
-            backgroundColor: aiConsentGranted ? 'rgba(2, 132, 199, 0.12)' : t.surface,
+            backgroundColor: aiConsentGranted && entitlements.canUseClinicalAssistant ? 'rgba(2, 132, 199, 0.12)' : t.surface,
             borderWidth: 1,
             borderColor: t.border,
             flexDirection: 'row',
@@ -345,16 +369,55 @@ export default function AssistantScreen() {
             gap: 4,
           }}
         >
-          <ShieldCheck size={11} color={aiConsentGranted ? '#0284C7' : t.textMuted} />
+          <ShieldCheck size={11} color={aiConsentGranted && entitlements.canUseClinicalAssistant ? '#0284C7' : t.textMuted} />
           <Txt
             variant="footnote"
-            color={aiConsentGranted ? '#0284C7' : t.textMuted}
+            color={aiConsentGranted && entitlements.canUseClinicalAssistant ? '#0284C7' : t.textMuted}
             style={{ fontFamily: fonts.semibold, fontSize: 10 }}
           >
-            {aiConsentGranted ? 'Gemini AI' : 'On-Device'}
+            {!entitlements.canUseClinicalAssistant ? 'Pro Only' : aiConsentGranted ? 'Gemini AI' : 'On-Device'}
           </Txt>
         </PressableScale>
       </View>
+
+      {!entitlements.canUseClinicalAssistant ? (
+        <View
+          style={{
+            marginHorizontal: 16,
+            marginTop: 10,
+            paddingHorizontal: 14,
+            paddingVertical: 10,
+            borderRadius: radii.lg,
+            backgroundColor: '#0B1E40',
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 10,
+          }}
+        >
+          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Lock size={15} color="#FBBF24" />
+            <Txt variant="footnote" tone="onNavy" style={{ flex: 1, lineHeight: 16 }}>
+              Clinical Assistant & Lab Explainer requires Siyashesha Pro.
+            </Txt>
+          </View>
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel="Upgrade to Siyashesha Pro"
+            onPress={() => router.push('/(tabs)/more/billing')}
+            style={{
+              backgroundColor: '#38BDF8',
+              paddingHorizontal: 12,
+              paddingVertical: 6,
+              borderRadius: radii.pill,
+            }}
+          >
+            <Txt variant="footnote" color="#0B1E40" style={{ fontFamily: fonts.bold, fontSize: 11 }}>
+              Upgrade
+            </Txt>
+          </PressableScale>
+        </View>
+      ) : null}
 
       {/* Messages */}
       <ScrollView
@@ -612,6 +675,15 @@ export default function AssistantScreen() {
               onPress={() => {
                 tapFeedback();
                 Keyboard.dismiss();
+                if (!entitlements.canUseClinicalAssistant) {
+                  promptPlanUpgrade({
+                    title: 'Siyashesha Clinical Assistant (Pro)',
+                    message:
+                      'Voice dictation and 24/7 Siyashesha Clinical Assistant are included in Monthly Pro, Annual Pro, and Lifetime Founder Pass.',
+                    ctaLabel: 'Upgrade to Pro',
+                  });
+                  return;
+                }
                 setVoiceModalOpen(true);
               }}
               scaleTo={0.9}

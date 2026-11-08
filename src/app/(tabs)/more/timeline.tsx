@@ -1,9 +1,9 @@
 import dayjs from 'dayjs';
 import { router } from 'expo-router';
 import { safeBack } from '@/lib/navigation';
-import { Activity, Clock, Plus, TrendingDown, TrendingUp } from 'lucide-react-native';
+import { Activity, Clock, Lock, Plus, TrendingDown, TrendingUp } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { LineChart } from 'react-native-gifted-charts';
 
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -22,11 +22,14 @@ import {
   type TimelineEvent,
 } from '@/data/timeline';
 import { useAccent } from '@/hooks/useAccent';
+import { FREE_RECORD_LIMIT, getPlanEntitlements, promptPlanUpgrade } from '@/lib/subscription';
 import { useAppStore } from '@/store/useAppStore';
 
 export default function TimelineScreen() {
   const { accent, accentSoft } = useAccent();
   const records = useAppStore((s) => s.records);
+  const subscriptionPlan = useAppStore((s) => s.subscriptionPlan);
+  const entitlements = getPlanEntitlements(subscriptionPlan);
 
   const [providerFilter, setProviderFilter] = useState<string | 'All'>('All');
   const [typeFilter, setTypeFilter] = useState<string | 'All'>('All');
@@ -81,7 +84,18 @@ export default function TimelineScreen() {
         right={
           <IconButton
             accessibilityLabel="Upload medical record"
-            onPress={() => router.push('/records/upload')}
+            onPress={() => {
+              if (!entitlements.isPro && records.length >= FREE_RECORD_LIMIT) {
+                promptPlanUpgrade({
+                  title: `Free Vault Limit Reached (${FREE_RECORD_LIMIT}/${FREE_RECORD_LIMIT})`,
+                  message:
+                    'The Free Basic plan includes up to 10 stored health documents in your vault. Upgrade to Siyashesha Pro for unlimited records.',
+                  ctaLabel: 'Upgrade to Pro',
+                });
+                return;
+              }
+              router.push('/records/upload');
+            }}
           >
             <Plus size={18} color="#5B6478" />
           </IconButton>
@@ -112,108 +126,136 @@ export default function TimelineScreen() {
           </Text>
         </View>
 
-        {/* Trend */}
-        <View className="mt-5 rounded-3xl border border-slate-200 bg-white p-4 dark:border-canvasdark-card dark:bg-canvasdark-card">
-          <View className="flex-row items-center justify-between mb-1">
-            <Text className="font-sans-bold text-[14px] text-ink dark:text-slate-50">HbA1c trend</Text>
-            {latest ? (
-              <View className="flex-row items-center gap-1">
-                {change !== null && change <= 0 ? (
-                  <TrendingDown size={14} color="#16A34A" />
-                ) : change !== null ? (
-                  <TrendingUp size={14} color="#DC1F26" />
+        {/* Trend & Filters (Pro Clinical Analytics vs Free Basic Timeline) */}
+        {entitlements.canUseAdvancedTimeline ? (
+          <>
+            <View className="mt-5 rounded-3xl border border-slate-200 bg-white p-4 dark:border-canvasdark-card dark:bg-canvasdark-card">
+              <View className="flex-row items-center justify-between mb-1">
+                <Text className="font-sans-bold text-[14px] text-ink dark:text-slate-50">HbA1c trend</Text>
+                {latest ? (
+                  <View className="flex-row items-center gap-1">
+                    {change !== null && change <= 0 ? (
+                      <TrendingDown size={14} color="#16A34A" />
+                    ) : change !== null ? (
+                      <TrendingUp size={14} color="#DC1F26" />
+                    ) : null}
+                    <Text className="font-sans-medium text-[11px] text-ink-muted dark:text-slate-400">
+                      {hba1cPoints.length} test{hba1cPoints.length === 1 ? '' : 's'} recorded
+                    </Text>
+                  </View>
                 ) : null}
-                <Text className="font-sans-medium text-[11px] text-ink-muted dark:text-slate-400">
-                  {hba1cPoints.length} test{hba1cPoints.length === 1 ? '' : 's'} recorded
-                </Text>
               </View>
-            ) : null}
-          </View>
-          <Text className="mb-3 font-sans text-[12px] text-ink-muted dark:text-slate-400">
-            {chartData.length > 0
-              ? 'Each point is one clinical test result derived from your records.'
-              : 'Upload a laboratory report with HbA1c to automatically visualize your trend.'}
-          </Text>
-
-          {chartData.length > 0 ? (
-            <LineChart
-              data={chartData}
-              curved
-              areaChart
-              color={accent}
-              startFillColor={accent}
-              endFillColor={accent}
-              startOpacity={0.3}
-              endOpacity={0.02}
-              thickness={2.5}
-              dataPointsColor="#0B2559"
-              dataPointsRadius={4}
-              textColor1="#0B2559"
-              textFontSize={11}
-              textShiftY={-8}
-              yAxisTextStyle={{ color: '#5B6478', fontSize: 10 }}
-              xAxisLabelTextStyle={{ color: '#5B6478', fontSize: 10 }}
-              rulesColor="#E3E8F0"
-              yAxisColor="transparent"
-              xAxisColor="#E3E8F0"
-              noOfSections={4}
-              spacing={chartData.length > 4 ? 54 : 64}
-              initialSpacing={24}
-              height={160}
-              maxValue={Math.max(10, Math.ceil(Math.max(...hba1cPoints.map((p) => p.value)) + 0.5))}
-            />
-          ) : (
-            <View className="items-center justify-center py-8 rounded-2xl bg-slate-50 dark:bg-canvasdark">
-              <Activity size={24} color={accentSoft} />
-              <Text className="mt-2 font-sans text-[12px] text-ink-muted dark:text-slate-400">
-                No HbA1c laboratory data found in records
+              <Text className="mb-3 font-sans text-[12px] text-ink-muted dark:text-slate-400">
+                {chartData.length > 0
+                  ? 'Each point is one clinical test result derived from your records.'
+                  : 'Upload a laboratory report with HbA1c to automatically visualize your trend.'}
               </Text>
-            </View>
-          )}
-        </View>
 
-        {/* Filters */}
-        <View className="pt-6">
-          <SectionHeader title="Provider" />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
-            <View className="flex-row gap-2">
-              <Pill
-                label="All"
-                selected={effectiveProviderFilter === 'All'}
-                onPress={() => setProviderFilter('All')}
-              />
-              {providers.map((p) => (
-                <Pill
-                  key={p}
-                  label={p}
-                  selected={effectiveProviderFilter === p}
-                  onPress={() => setProviderFilter(p)}
+              {chartData.length > 0 ? (
+                <LineChart
+                  data={chartData}
+                  curved
+                  areaChart
+                  color={accent}
+                  startFillColor={accent}
+                  endFillColor={accent}
+                  startOpacity={0.3}
+                  endOpacity={0.02}
+                  thickness={2.5}
+                  dataPointsColor="#0B2559"
+                  dataPointsRadius={4}
+                  textColor1="#0B2559"
+                  textFontSize={11}
+                  textShiftY={-8}
+                  yAxisTextStyle={{ color: '#5B6478', fontSize: 10 }}
+                  xAxisLabelTextStyle={{ color: '#5B6478', fontSize: 10 }}
+                  rulesColor="#E3E8F0"
+                  yAxisColor="transparent"
+                  xAxisColor="#E3E8F0"
+                  noOfSections={4}
+                  spacing={chartData.length > 4 ? 54 : 64}
+                  initialSpacing={24}
+                  height={160}
+                  maxValue={Math.max(10, Math.ceil(Math.max(...hba1cPoints.map((p) => p.value)) + 0.5))}
                 />
-              ))}
-            </View>
-          </ScrollView>
-
-          <SectionHeader title="Event type" />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-5">
-            <View className="flex-row gap-2">
-              <Pill
-                label="All"
-                selected={effectiveTypeFilter === 'All'}
-                onPress={() => setTypeFilter('All')}
-              />
-              {(availableEventTypes.length > 0 ? availableEventTypes : timelineEventTypes).map(
-                (t) => (
-                  <Pill
-                    key={t}
-                    label={t}
-                    selected={effectiveTypeFilter === t}
-                    onPress={() => setTypeFilter(t)}
-                  />
-                )
+              ) : (
+                <View className="items-center justify-center py-8 rounded-2xl bg-slate-50 dark:bg-canvasdark">
+                  <Activity size={24} color={accentSoft} />
+                  <Text className="mt-2 font-sans text-[12px] text-ink-muted dark:text-slate-400">
+                    No HbA1c laboratory data found in records
+                  </Text>
+                </View>
               )}
             </View>
-          </ScrollView>
-        </View>
+
+            {/* Filters */}
+            <View className="pt-6">
+              <SectionHeader title="Provider" />
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
+                <View className="flex-row gap-2">
+                  <Pill
+                    label="All"
+                    selected={effectiveProviderFilter === 'All'}
+                    onPress={() => setProviderFilter('All')}
+                  />
+                  {providers.map((p) => (
+                    <Pill
+                      key={p}
+                      label={p}
+                      selected={effectiveProviderFilter === p}
+                      onPress={() => setProviderFilter(p)}
+                    />
+                  ))}
+                </View>
+              </ScrollView>
+
+              <SectionHeader title="Event type" />
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-5">
+                <View className="flex-row gap-2">
+                  <Pill
+                    label="All"
+                    selected={effectiveTypeFilter === 'All'}
+                    onPress={() => setTypeFilter('All')}
+                  />
+                  {(availableEventTypes.length > 0 ? availableEventTypes : timelineEventTypes).map(
+                    (t) => (
+                      <Pill
+                        key={t}
+                        label={t}
+                        selected={effectiveTypeFilter === t}
+                        onPress={() => setTypeFilter(t)}
+                      />
+                    )
+                  )}
+                </View>
+              </ScrollView>
+            </View>
+          </>
+        ) : (
+          <View className="mt-5 mb-5 flex-row items-center justify-between rounded-3xl border border-slate-200 bg-white p-4 dark:border-canvasdark-card dark:bg-canvasdark-card">
+            <View className="flex-1 flex-row items-center gap-3 pr-3">
+              <View className="h-10 w-10 items-center justify-center rounded-2xl bg-brand-50 dark:bg-brand-500/15">
+                <Lock size={18} color={accent} />
+              </View>
+              <View className="flex-1">
+                <Text className="font-sans-bold text-[13px] text-ink dark:text-slate-50">
+                  Basic Clinical Visit Timeline Active
+                </Text>
+                <Text className="mt-0.5 font-sans text-[11px] leading-[16px] text-ink-muted dark:text-slate-400">
+                  Upgrade to Pro to unlock interactive HbA1c lab trend charts and multi-provider timeline filters.
+                </Text>
+              </View>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Upgrade to Pro for lab trend charts"
+              onPress={() => router.push('/(tabs)/more/billing')}
+              className="rounded-full bg-ink px-3.5 py-2 dark:bg-brand-500"
+            >
+              <Text className="font-sans-bold text-[11px] text-white">Upgrade</Text>
+            </Pressable>
+          </View>
+        )}
 
         {/* Events */}
         <Text className="mb-3 font-sans text-[12px] text-ink-muted dark:text-slate-400">

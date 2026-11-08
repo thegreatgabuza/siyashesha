@@ -29,6 +29,7 @@ import { elevation, fonts, navy, radii } from '@/design/tokens';
 import { useTokens } from '@/design/useTokens';
 import { exportDsarArchive, type DsarExportResult } from '@/lib/dsarExport';
 import { exportMedicalSummaryPdf } from '@/lib/pdf';
+import { getPlanEntitlements, promptPlanUpgrade } from '@/lib/subscription';
 import { useAppStore } from '@/store/useAppStore';
 
 interface DsarExportModalProps {
@@ -58,12 +59,24 @@ function DsarExportContent({ onClose }: { onClose: () => void }) {
   const appointments = useAppStore((s) => s.appointments);
   const sharedLinks = useAppStore((s) => s.sharedLinks);
   const auditEvents = useAppStore((s) => s.auditEvents);
+  const subscriptionPlan = useAppStore((s) => s.subscriptionPlan);
+  const entitlements = getPlanEntitlements(subscriptionPlan);
 
   const [exporting, setExporting] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [lastResult, setLastResult] = useState<DsarExportResult | null>(null);
 
   const handleExportJson = async () => {
+    if (!entitlements.canExportFullAnnualPdfAndDsar) {
+      promptPlanUpgrade({
+        title: 'DSAR Archive Export (Annual Pro / Founder)',
+        message:
+          'Full annual health record PDF & DSAR archive export is included in Annual Pro (R149.99/yr) and the Lifetime Founder Pass (R299.99).',
+        ctaLabel: 'Upgrade Plan',
+        onBeforeNavigate: onClose,
+      });
+      return;
+    }
     setExporting(true);
     try {
       const result = await exportDsarArchive();
@@ -81,6 +94,16 @@ function DsarExportContent({ onClose }: { onClose: () => void }) {
   };
 
   const handleExportPdf = async () => {
+    if (!entitlements.canExportFullAnnualPdfAndDsar) {
+      promptPlanUpgrade({
+        title: 'Full Annual Health Record PDF',
+        message:
+          'Full annual health record PDF & DSAR archive export is included in Annual Pro (R149.99/yr) and the Lifetime Founder Pass (R299.99).',
+        ctaLabel: 'Upgrade Plan',
+        onBeforeNavigate: onClose,
+      });
+      return;
+    }
     setExportingPdf(true);
     try {
       await exportMedicalSummaryPdf(

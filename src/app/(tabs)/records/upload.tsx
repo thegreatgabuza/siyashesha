@@ -47,6 +47,7 @@ import {
   type ExtractionSource,
 } from '@/lib/ocr/documentExtractor';
 import { syncRecordToDatabase } from '@/lib/supabase';
+import { FREE_RECORD_LIMIT, getPlanEntitlements, promptPlanUpgrade } from '@/lib/subscription';
 import { useAppStore } from '@/store/useAppStore';
 
 type Method = 'upload' | 'scan' | 'manual';
@@ -109,6 +110,7 @@ export default function UploadRecordScreen() {
   const addRecord = useAppStore((s) => s.addRecord);
   const recordCount = useAppStore((s) => s.records.length);
   const subscriptionPlan = useAppStore((s) => s.subscriptionPlan);
+  const entitlements = getPlanEntitlements(subscriptionPlan);
   const aiConsentGranted = useAppStore((s) => s.aiConsentGranted);
   const setAiConsentGranted = useAppStore((s) => s.setAiConsentGranted);
 
@@ -228,6 +230,15 @@ export default function UploadRecordScreen() {
 
         setPicked(pickedDoc);
 
+        if (!entitlements.canUseSmartOcr) {
+          if (!title.trim()) {
+            const cleanName = asset.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').trim();
+            if (cleanName) setTitle(cleanName);
+          }
+          toast.show('File attached. Upgrade to Pro for Smart OCR auto-extraction.', 'info');
+          return;
+        }
+
         if (!aiConsentGranted) {
           setPendingDocForOcr(pickedDoc);
           setAiConsentVisible(true);
@@ -275,6 +286,13 @@ export default function UploadRecordScreen() {
         size: asset.fileSize,
       };
       setPicked(pickedDoc);
+      if (!entitlements.canUseSmartOcr) {
+        if (!title.trim()) {
+          setTitle(`Scanned document ${dayjs().format('D MMM YYYY')}`);
+        }
+        toast.show('Scan attached. Upgrade to Pro for Smart OCR auto-extraction.', 'info');
+        return;
+      }
       if (!aiConsentGranted) {
         setPendingDocForOcr(pickedDoc);
         setAiConsentVisible(true);
@@ -382,6 +400,43 @@ export default function UploadRecordScreen() {
     >
       <ScreenHeader title="Add a medical record" onBack={() => safeBack('/(tabs)/records')} />
       <ScreenScroll className="flex-1 px-5">
+        {!entitlements.isPro ? (
+          <View
+            className={`mb-4 flex-row items-center justify-between rounded-2xl border px-4 py-3 ${
+              recordCount >= FREE_RECORD_LIMIT
+                ? 'border-emergency-500/40 bg-emergency-50 dark:bg-emergency-500/15'
+                : 'border-brand-200 bg-brand-50/80 dark:border-brand-500/30 dark:bg-brand-500/10'
+            }`}
+          >
+            <View className="flex-1 pr-3">
+              <Text
+                className={`font-sans-bold text-[12px] ${
+                  recordCount >= FREE_RECORD_LIMIT
+                    ? 'text-emergency-600 dark:text-emergency-400'
+                    : 'text-brand-800 dark:text-brand-200'
+                }`}
+              >
+                {recordCount >= FREE_RECORD_LIMIT
+                  ? `Free Vault Limit Reached (${recordCount}/${FREE_RECORD_LIMIT} records)`
+                  : `Free Basic Plan · ${recordCount} of ${FREE_RECORD_LIMIT} vault records used`}
+              </Text>
+              <Text className="mt-0.5 font-sans text-[11px] text-ink-muted dark:text-slate-300">
+                {recordCount >= FREE_RECORD_LIMIT
+                  ? 'Upgrade to Siyashesha Pro for unlimited records and Smart OCR.'
+                  : 'Upgrade to Pro for unlimited documents & Smart OCR auto-extraction.'}
+              </Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Upgrade to Siyashesha Pro"
+              onPress={() => router.push('/(tabs)/more/billing')}
+              className="rounded-full bg-ink px-3.5 py-1.5 dark:bg-brand-500"
+            >
+              <Text className="font-sans-bold text-[11px] text-white">Upgrade</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
         {/* Method Chips */}
         <View className="mb-5 flex-row gap-2">
           <MethodChip
@@ -457,7 +512,18 @@ export default function UploadRecordScreen() {
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Re-analyze document"
-                  onPress={() => runOcrExtraction(picked.uri, picked.name, picked.mimeType)}
+                  onPress={() => {
+                    if (!entitlements.canUseSmartOcr) {
+                      promptPlanUpgrade({
+                        title: 'Smart OCR Auto-Extraction (Pro)',
+                        message:
+                          'Automatic OCR extraction of clinical lab values, diagnoses, and encounter details is included in Monthly Pro, Annual Pro, and Lifetime Founder Pass.',
+                        ctaLabel: 'Upgrade to Pro',
+                      });
+                      return;
+                    }
+                    runOcrExtraction(picked.uri, picked.name, picked.mimeType);
+                  }}
                   disabled={extracting}
                   className="h-9 w-9 items-center justify-center rounded-full bg-slate-100 dark:bg-canvasdark"
                 >
@@ -474,6 +540,26 @@ export default function UploadRecordScreen() {
                 </Pressable>
               </View>
             </View>
+            {!entitlements.canUseSmartOcr ? (
+              <View className="mt-3 flex-row items-center justify-between rounded-2xl bg-slate-50 px-3 py-2.5 dark:bg-canvasdark">
+                <View className="flex-1 flex-row items-center gap-2 pr-2">
+                  <Sparkles size={14} color={accent} />
+                  <Text className="flex-1 font-sans text-[11px] text-ink-muted dark:text-slate-300">
+                    Smart OCR auto-fill is a Pro feature. Enter details manually or upgrade to auto-extract.
+                  </Text>
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Unlock Smart OCR with Pro"
+                  onPress={() => router.push('/(tabs)/more/billing')}
+                  className="rounded-full bg-brand-50 px-2.5 py-1 dark:bg-brand-500/20"
+                >
+                  <Text className="font-sans-bold text-[10px] text-brand-700 dark:text-brand-300">
+                    Unlock OCR
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
           </View>
         ) : null}
 

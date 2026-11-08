@@ -43,6 +43,7 @@ import {
   sortRecords,
   type RecordSort,
 } from '@/lib/recordSearch';
+import { FREE_RECORD_LIMIT, getPlanEntitlements, promptPlanUpgrade } from '@/lib/subscription';
 import { useAppStore } from '@/store/useAppStore';
 
 const HERO_HEIGHT = 164;
@@ -53,6 +54,8 @@ export default function RecordsScreen() {
   const toast = useToast();
   const records = useAppStore((s) => s.records);
   const patient = useAppStore((s) => s.patientProfile);
+  const subscriptionPlan = useAppStore((s) => s.subscriptionPlan);
+  const entitlements = getPlanEntitlements(subscriptionPlan);
   const logAudit = useAppStore((s) => s.logAudit);
   const deleteRecord = useAppStore((s) => s.deleteRecord);
 
@@ -126,8 +129,31 @@ export default function RecordsScreen() {
   const filtersActive = search.trim() !== '' || category !== 'All';
   const sortLabel = recordSortOptions.find((o) => o.key === sort)?.label ?? 'Newest first';
 
+  const handleAddRecordPress = () => {
+    tapFeedback();
+    if (!entitlements.isPro && records.length >= FREE_RECORD_LIMIT) {
+      promptPlanUpgrade({
+        title: `Free Vault Limit Reached (${FREE_RECORD_LIMIT}/${FREE_RECORD_LIMIT})`,
+        message:
+          'The Free Basic plan includes up to 10 stored health documents in your vault. Upgrade to Siyashesha Pro for unlimited encrypted medical records & smart OCR.',
+        ctaLabel: 'Upgrade to Pro',
+      });
+      return;
+    }
+    router.push('/records/upload');
+  };
+
   const handleDownloadSingle = async (record: MedicalRecord) => {
     tapFeedback();
+    if (!entitlements.canExportRecords) {
+      promptPlanUpgrade({
+        title: 'Pro PDF Export Required',
+        message:
+          'Downloading clinical record PDFs is included in Siyashesha Pro (Monthly Pro, Annual Pro, or Lifetime Founder Pass).',
+        ctaLabel: 'Upgrade to Pro',
+      });
+      return;
+    }
     try {
       await exportSingleRecordPdf(record, patient, 'download');
       logAudit('export', `Downloaded record PDF: ${record.title}`);
@@ -166,11 +192,38 @@ export default function RecordsScreen() {
         >
           {/* 0: header */}
           <View className="flex-row items-center justify-between pb-4">
-            <View>
+            <View className="flex-1 pr-2">
               <Text style={{ color: RecordsTokens.text, fontSize: RecordsTokens.type.title, fontFamily: RecordsTokens.fonts.bold }}>Medical Records</Text>
-              <Text style={{ color: RecordsTokens.textMuted, fontSize: RecordsTokens.type.meta }}>
-                {records.length} {records.length === 1 ? 'record' : 'records'}
-              </Text>
+              <View className="flex-row items-center gap-2">
+                <Text style={{ color: RecordsTokens.textMuted, fontSize: RecordsTokens.type.meta }}>
+                  {entitlements.isPro
+                    ? `${records.length} ${records.length === 1 ? 'record' : 'records'} · Unlimited Vault`
+                    : `${records.length} / ${FREE_RECORD_LIMIT} free records`}
+                </Text>
+                {!entitlements.isPro ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Upgrade to Pro for unlimited medical records"
+                    onPress={() => router.push('/(tabs)/more/billing')}
+                    style={{
+                      paddingHorizontal: 8,
+                      paddingVertical: 2,
+                      borderRadius: 999,
+                      backgroundColor: records.length >= FREE_RECORD_LIMIT ? '#FEE2E2' : RecordsTokens.accentSoft,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: records.length >= FREE_RECORD_LIMIT ? '#DC1F26' : RecordsTokens.accent,
+                        fontSize: 10,
+                        fontFamily: RecordsTokens.fonts.bold,
+                      }}
+                    >
+                      {records.length >= FREE_RECORD_LIMIT ? 'LIMIT REACHED · UPGRADE' : 'UPGRADE'}
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
             </View>
             <View className="flex-row items-center gap-2">
               <PressableScale
@@ -331,7 +384,7 @@ export default function RecordsScreen() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Add a record"
-                onPress={() => router.push('/records/upload')}
+                onPress={handleAddRecordPress}
                 className="min-h-[44px] justify-center rounded-full px-6"
                 style={{ backgroundColor: RecordsTokens.accent }}
               >
@@ -399,7 +452,7 @@ export default function RecordsScreen() {
           accessibilityLabel="Add record"
           haptic="impact"
           scaleTo={0.92}
-          onPress={() => router.push('/records/upload')}
+          onPress={handleAddRecordPress}
           style={{
             width: 64,
             height: 64,

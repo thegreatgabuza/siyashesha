@@ -473,18 +473,23 @@ export const useAppStore = create<AppState>()(
 
       records: medicalRecords,
       addRecord: (record) =>
-        set((s) => ({
-          records: [record, ...s.records],
-          auditEvents: [
-            {
-              id: makeId('audit'),
-              type: 'upload',
-              description: `Uploaded ${record.title}`,
-              timestamp: new Date().toISOString(),
-            },
-            ...s.auditEvents,
-          ],
-        })),
+        set((s) => {
+          if (s.subscriptionPlan === 'free' && s.records.length >= 10) {
+            return {};
+          }
+          return {
+            records: [record, ...s.records],
+            auditEvents: [
+              {
+                id: makeId('audit'),
+                type: 'upload',
+                description: `Uploaded ${record.title}`,
+                timestamp: new Date().toISOString(),
+              },
+              ...s.auditEvents,
+            ],
+          };
+        }),
       updateRecord: (id, patch) =>
         set((s) => ({
           records: s.records.map((r) => (r.id === id ? { ...r, ...patch } : r)),
@@ -604,6 +609,7 @@ export const useAppStore = create<AppState>()(
       subscriptionTrialEndsAt: undefined,
       setSubscriptionPlan: (plan, options) =>
         set((s) => {
+          const isFree = plan === 'free';
           const trialEnd = options?.startTrial
             ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
             : undefined;
@@ -618,6 +624,16 @@ export const useAppStore = create<AppState>()(
           return {
             subscriptionPlan: plan,
             subscriptionTrialEndsAt: trialEnd,
+            ...(isFree
+              ? {
+                  biometricLock: false,
+                  isAppLocked: false,
+                  sharingRequiresPin: false,
+                  aiConsentGranted: false,
+                }
+              : {
+                  sharingRequiresPin: true,
+                }),
             auditEvents: [event, ...s.auditEvents],
           };
         }),
@@ -766,12 +782,16 @@ export const useAppStore = create<AppState>()(
           syncPatientProfile(mergedProfile).catch(() => {});
           syncMedications(mergedMeds).catch(() => {});
 
+          const isFree = chosenPlan === 'free';
           return {
             hasCompletedOnboarding: true,
             isSignedIn: true,
-            aiConsentGranted: true,
+            aiConsentGranted: !isFree,
+            biometricLock: isFree ? false : s.biometricLock,
+            isAppLocked: false,
+            sharingRequiresPin: !isFree,
             subscriptionPlan: chosenPlan,
-            subscriptionTrialEndsAt: trialEnd,
+            subscriptionTrialEndsAt: isFree ? undefined : trialEnd,
             medications: mergedMeds,
             medicationReminderEnabled: nextMedReminders,
             patientProfile: mergedProfile,

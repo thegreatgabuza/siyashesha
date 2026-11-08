@@ -38,10 +38,13 @@ import {
   getOrCreateEnclaveKey,
   type BiometricCapabilities,
 } from '@/lib/security/enclaveSecurity';
+import { getPlanEntitlements, promptPlanUpgrade } from '@/lib/subscription';
 
 export default function SettingsScreen() {
   const { accent, accentSoft } = useAccent();
   const toast = useToast();
+  const subscriptionPlan = useAppStore((s) => s.subscriptionPlan);
+  const entitlements = getPlanEntitlements(subscriptionPlan);
   const mfaEnabled = useAppStore((s) => s.mfaEnabled);
   const setMfaEnabled = useAppStore((s) => s.setMfaEnabled);
   const sharingRequiresPin = useAppStore((s) => s.sharingRequiresPin);
@@ -72,6 +75,16 @@ export default function SettingsScreen() {
   }, []);
 
   const toggleBiometric = async (value: boolean) => {
+    if (value && !entitlements.canUseBiometricLock) {
+      promptPlanUpgrade({
+        title: 'Offline Biometric Cryptographic Access (Pro)',
+        message:
+          'Offline biometric cryptographic passport access with Secure Enclave protection is included in Monthly Pro, Annual Pro, and Lifetime Founder Pass.',
+        ctaLabel: 'Upgrade to Pro',
+      });
+      return;
+    }
+
     if (!value) {
       const verify = await authenticateWithBiometrics('Confirm identity to disable biometric lock');
       if (!verify.success) {
@@ -139,7 +152,7 @@ export default function SettingsScreen() {
         />
         <ToggleRow
           icon={<Lock size={16} color={accent} />}
-          label={`Lock with ${capabilities?.label || 'Face ID / Fingerprint'}`}
+          label={`Lock with ${capabilities?.label || 'Face ID / Fingerprint'}${!entitlements.canUseBiometricLock ? ' (Pro)' : ''}`}
           caption="Enclave-encrypted; prompts on launch and after 15s in background"
           value={biometricLock}
           onValueChange={toggleBiometric}
@@ -163,10 +176,19 @@ export default function SettingsScreen() {
 
         <ToggleRow
           icon={<Sparkles size={16} color={accent} />}
-          label="Cloud AI Assistant & OCR (Google Gemini)"
+          label={`Cloud AI Assistant & OCR (Google Gemini)${!entitlements.canUseClinicalAssistant ? ' (Pro)' : ''}`}
           caption="Explicit permission to process questions & scans with Google Gemini AI"
           value={aiConsentGranted}
           onValueChange={(value) => {
+            if (value && !entitlements.canUseClinicalAssistant) {
+              promptPlanUpgrade({
+                title: 'Cloud AI Assistant & Smart OCR (Pro)',
+                message:
+                  'Siyashesha Clinical Assistant and Smart OCR are included in Monthly Pro, Annual Pro, and Lifetime Founder Pass.',
+                ctaLabel: 'Upgrade to Pro',
+              });
+              return;
+            }
             if (value) {
               setAiConsentModalVisible(true);
             } else {
@@ -178,10 +200,21 @@ export default function SettingsScreen() {
 
         <SectionLabel text="Sharing security" />
         <ToggleRow
-          label="Require access PIN"
+          label={`Require access PIN${!entitlements.canShareWithDoctorPin ? ' (Pro)' : ''}`}
           caption="Recipients need a temporary PIN before opening shared records"
           value={sharingRequiresPin}
-          onValueChange={setSharingRequiresPin}
+          onValueChange={(v) => {
+            if (v && !entitlements.canShareWithDoctorPin) {
+              promptPlanUpgrade({
+                title: 'Doctor & Clinic PIN Sharing (Pro)',
+                message:
+                  'Doctor & clinic PIN-protected QR sharing is included in Monthly Pro, Annual Pro, and Lifetime Founder Pass.',
+                ctaLabel: 'Upgrade to Pro',
+              });
+              return;
+            }
+            setSharingRequiresPin(v);
+          }}
         />
 
         <SectionLabel text="Notifications" />

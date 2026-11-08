@@ -13,6 +13,7 @@ import {
   Trash2,
   UserRound,
   FileText,
+  Flame,
   PhoneCall,
 } from 'lucide-react-native';
 import { useState } from 'react';
@@ -34,6 +35,7 @@ import { useAccent } from '@/hooks/useAccent';
 import { languageNames } from '@/i18n/translations';
 import { bloodGroupLabel } from '@/lib/bloodGroup';
 import { useSafeClerk } from '@/lib/clerkAvatar';
+import { FREE_RECORD_LIMIT, getPlanEntitlements } from '@/lib/subscription';
 import { useAppStore } from '@/store/useAppStore';
 
 interface MenuItem {
@@ -63,6 +65,7 @@ export default function MoreScreen() {
   const activeMedCount = (medications ?? activeMedications).filter((m) => m.status === 'active').length;
   const language = useAppStore((s) => s.language);
   const subscriptionPlan = useAppStore((s) => s.subscriptionPlan);
+  const entitlements = getPlanEntitlements(subscriptionPlan);
   const signOut = useAppStore((s) => s.signOut);
   const { signOut: clerkSignOut } = useSafeClerk();
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
@@ -192,10 +195,14 @@ export default function MoreScreen() {
         {
           id: 'vault',
           label: 'Records Vault',
-          subtitle: `${recordCount} lab reports, imaging & discharge summaries`,
+          subtitle: entitlements.isPro
+            ? `${recordCount} lab reports, imaging & discharge summaries (Unlimited)`
+            : `${recordCount} / ${FREE_RECORD_LIMIT} free records used`,
           icon: FileText,
           route: '/records',
           tint: '#0D9488',
+          badge: entitlements.isPro ? `${recordCount}` : `${recordCount}/${FREE_RECORD_LIMIT}`,
+          badgeTone: !entitlements.isPro && recordCount >= FREE_RECORD_LIMIT ? 'muted' : 'muted',
         },
       ],
     },
@@ -333,9 +340,29 @@ export default function MoreScreen() {
       >
         <Avatar name={patient.preferredName || patient.firstName || '?'} size={50} />
         <View style={{ flex: 1 }}>
-          <Txt variant="bodyStrong">
-            {patient.firstName} {patient.lastName}
-          </Txt>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <Txt variant="bodyStrong">
+              {patient.firstName} {patient.lastName}
+            </Txt>
+            {entitlements.hasFounderBadge ? (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 3,
+                  backgroundColor: '#DC1F26',
+                  paddingHorizontal: 7,
+                  paddingVertical: 2,
+                  borderRadius: radii.pill,
+                }}
+              >
+                <Flame size={10} color="#FBBF24" />
+                <Txt variant="label" color="#FFFFFF" style={{ fontSize: 9, fontFamily: fonts.bold }}>
+                  FOUNDER
+                </Txt>
+              </View>
+            ) : null}
+          </View>
           <Txt variant="footnote" tone="muted" style={{ marginTop: 2 }}>
             National Health ID ···{patient.idNumber.slice(-4)}
           </Txt>

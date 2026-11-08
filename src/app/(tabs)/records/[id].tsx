@@ -21,6 +21,7 @@ import { removeOriginal } from '@/lib/documents';
 import { deleteRecordFromDatabase } from '@/lib/supabase';
 import { formatEventDate, reviewLabel } from '@/lib/recordSearch';
 import { exportSingleRecordPdf } from '@/lib/pdf';
+import { getPlanEntitlements, promptPlanUpgrade } from '@/lib/subscription';
 import { useAppStore } from '@/store/useAppStore';
 import { useAccent } from '@/hooks/useAccent';
 
@@ -30,6 +31,8 @@ export default function RecordDetailScreen() {
   const toast = useToast();
   const records = useAppStore((s) => s.records);
   const patient = useAppStore((s) => s.patientProfile);
+  const subscriptionPlan = useAppStore((s) => s.subscriptionPlan);
+  const entitlements = getPlanEntitlements(subscriptionPlan);
   const logAudit = useAppStore((s) => s.logAudit);
   const updateRecord = useAppStore((s) => s.updateRecord);
   const deleteRecord = useAppStore((s) => s.deleteRecord);
@@ -54,6 +57,15 @@ export default function RecordDetailScreen() {
 
   const handleDownload = async () => {
     if (isDownloading) return;
+    if (!entitlements.canExportRecords) {
+      promptPlanUpgrade({
+        title: 'Pro PDF Export Required',
+        message:
+          'Downloading clinical record PDFs is included in Siyashesha Pro (Monthly Pro, Annual Pro, or Lifetime Founder Pass).',
+        ctaLabel: 'Upgrade to Pro',
+      });
+      return;
+    }
     setIsDownloading(true);
     try {
       await exportSingleRecordPdf(record, patient, 'download');
@@ -134,7 +146,18 @@ export default function RecordDetailScreen() {
             <HeroAction
               label="Share securely"
               icon={<Share2 size={16} color="#FFFFFF" />}
-              onPress={() => router.push({ pathname: '/more/sharing', params: { recordId: record.id } })}
+              onPress={() => {
+                if (!entitlements.canShareWithDoctorPin) {
+                  promptPlanUpgrade({
+                    title: 'Doctor & Clinic PIN Sharing (Pro)',
+                    message:
+                      'Time-limited, PIN-protected QR record sharing for doctors and clinics is included in Siyashesha Pro. Your Emergency ICE Card & QR on the Home screen is always free.',
+                    ctaLabel: 'Upgrade to Pro',
+                  });
+                  return;
+                }
+                router.push({ pathname: '/more/sharing', params: { recordId: record.id } });
+              }}
             />
             <HeroAction
               label={isDownloading ? 'Preparing PDF…' : 'Download PDF'}
@@ -149,6 +172,15 @@ export default function RecordDetailScreen() {
           accessibilityRole="button"
           accessibilityLabel={`Explain ${record.title} in plain language with Siyashesha AI`}
           onPress={() => {
+            if (!entitlements.canUseClinicalAssistant) {
+              promptPlanUpgrade({
+                title: 'Siyashesha Clinical Assistant (Pro)',
+                message:
+                  'Siyashesha Clinical Assistant with plain-language lab explanations is included in Monthly Pro, Annual Pro, and Lifetime Founder Pass.',
+                ctaLabel: 'Upgrade to Pro',
+              });
+              return;
+            }
             const fieldsSummary =
               record.fields && record.fields.length > 0
                 ? ` Results: ${record.fields.map((f) => `${f.label}: ${f.value}`).join(', ')}.`
@@ -162,9 +194,16 @@ export default function RecordDetailScreen() {
             <Sparkles size={17} color="#0284C7" />
           </View>
           <View className="flex-1">
-            <Text className="font-sans-bold text-[13px] text-ink dark:text-slate-50">
-              Explain this record with Siyashesha AI
-            </Text>
+            <View className="flex-row items-center gap-2">
+              <Text className="font-sans-bold text-[13px] text-ink dark:text-slate-50">
+                Explain this record with Siyashesha AI
+              </Text>
+              {!entitlements.canUseClinicalAssistant ? (
+                <View className="rounded-full bg-sky-600 px-2 py-0.5">
+                  <Text className="font-sans-bold text-[9px] text-white">PRO</Text>
+                </View>
+              ) : null}
+            </View>
             <Text className="font-sans text-[11px] leading-[16px] text-ink-muted dark:text-slate-400">
               Get a plain-language breakdown of these clinical findings and results
             </Text>

@@ -30,6 +30,7 @@ import {
   restoreStoreKitPurchases,
 } from '@/lib/iap';
 import { safeBack } from '@/lib/navigation';
+import { FREE_RECORD_LIMIT, getPlanEntitlements } from '@/lib/subscription';
 import { useAppStore, type SubscriptionPlanId } from '@/store/useAppStore';
 
 export type PlanId = SubscriptionPlanId;
@@ -119,7 +120,9 @@ export default function BillingScreen() {
   const toast = useToast();
   const currentPlan = useAppStore((s) => s.subscriptionPlan);
   const trialEndsAt = useAppStore((s) => s.subscriptionTrialEndsAt);
+  const recordCount = useAppStore((s) => s.records.length);
   const setCurrentPlan = useAppStore((s) => s.setSubscriptionPlan);
+  const entitlements = getPlanEntitlements(currentPlan);
 
   const [restoring, setRestoring] = useState(false);
   const [purchasingPlanId, setPurchasingPlanId] = useState<PlanId | null>(null);
@@ -141,7 +144,7 @@ export default function BillingScreen() {
     if (plan.id === 'free') {
       Alert.alert(
         'Switch to Free Basic',
-        'Switch your Health Passport to the Free Basic plan (R0.00)? Your emergency ICE card and existing records remain safe.',
+        'Switch your Health Passport to the Free Basic plan (R0.00)? Your Emergency ICE Card and existing records remain safe, while vault uploads cap at 10 records and Pro features (Smart OCR, Clinical Assistant, PIN sharing, biometric lock & PDF/archive exports) will pause.',
         [
           { text: 'Cancel', style: 'cancel' },
           {
@@ -256,14 +259,20 @@ export default function BillingScreen() {
         >
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Sparkles size={16} color="#FBBF24" />
+              {entitlements.hasFounderBadge ? (
+                <Flame size={16} color="#FBBF24" />
+              ) : (
+                <Sparkles size={16} color="#FBBF24" />
+              )}
               <Txt variant="footnote" color="#FBBF24" style={{ fontFamily: fonts.semibold, letterSpacing: 0.8 }}>
-                CURRENT PLAN
+                {entitlements.hasFounderBadge ? 'FOUNDER PASS' : 'CURRENT PLAN'}
               </Txt>
             </View>
             <View
               style={{
-                backgroundColor: 'rgba(34, 197, 94, 0.2)',
+                backgroundColor: entitlements.hasFounderBadge
+                  ? '#DC1F26'
+                  : 'rgba(34, 197, 94, 0.2)',
                 paddingHorizontal: 8,
                 paddingVertical: 3,
                 borderRadius: radii.pill,
@@ -272,9 +281,13 @@ export default function BillingScreen() {
                 gap: 4,
               }}
             >
-              <CheckCircle2 size={12} color="#4ADE80" />
-              <Txt variant="label" color="#4ADE80">
-                {hasActiveTrial ? 'FREE TRIAL ACTIVE' : 'ACTIVE'}
+              <CheckCircle2 size={12} color={entitlements.hasFounderBadge ? '#FFFFFF' : '#4ADE80'} />
+              <Txt variant="label" color={entitlements.hasFounderBadge ? '#FFFFFF' : '#4ADE80'}>
+                {entitlements.hasFounderBadge
+                  ? 'FOUNDER MEMBER'
+                  : hasActiveTrial
+                  ? 'FREE TRIAL ACTIVE'
+                  : 'ACTIVE'}
               </Txt>
             </View>
           </View>
@@ -285,6 +298,11 @@ export default function BillingScreen() {
           <Txt variant="callout" color="#CBD5E1" style={{ marginTop: 2 }}>
             {activePlanData.price} · {activePlanData.durationLabel}
           </Txt>
+          {!entitlements.isPro ? (
+            <Txt variant="footnote" color="#38BDF8" style={{ marginTop: 4 }}>
+              Vault usage: {recordCount} of {FREE_RECORD_LIMIT} free records stored
+            </Txt>
+          ) : null}
           {hasActiveTrial && trialEndsAt ? (
             <Txt variant="footnote" color="#38BDF8" style={{ marginTop: 4 }}>
               7-day free trial ends {dayjs(trialEndsAt).format('D MMM YYYY')}

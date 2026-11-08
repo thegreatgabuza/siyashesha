@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { ChevronRight, Phone, RotateCcw, ShieldAlert } from 'lucide-react-native';
+import { ChevronRight, Flame, Phone, RotateCcw, ShieldAlert, Sparkles } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Image as RNImage, Linking, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -24,6 +24,8 @@ import { elevation, fonts, gradients, motion, navy, radii, red, springs, type } 
 import { useTokens } from '@/design/useTokens';
 import { useEmergencyCard } from '@/hooks/useEmergencyCard';
 import { impactFeedback } from '@/lib/feedback';
+import { FREE_RECORD_LIMIT, getPlanEntitlements } from '@/lib/subscription';
+import { useAppStore } from '@/store/useAppStore';
 
 /** ID-1 card proportion, the same as a bank card or driving licence. */
 const CARD_RATIO = 1.586;
@@ -43,6 +45,8 @@ export function PassportCard({ recordCount }: { recordCount: number }) {
   const reduced = useReducedMotion();
   const ice = useEmergencyCard();
   const t = useTokens();
+  const subscriptionPlan = useAppStore((s) => s.subscriptionPlan);
+  const entitlements = getPlanEntitlements(subscriptionPlan);
   const [flipped, setFlipped] = useState(false);
 
   // 0 = front, 1 = back.
@@ -167,9 +171,56 @@ export function PassportCard({ recordCount }: { recordCount: number }) {
               </View>
 
               <View style={{ gap: 2 }}>
-                <Txt variant="label" tone="onNavyMuted" style={{ fontSize: 10 }}>
-                  Passport holder
-                </Txt>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Txt variant="label" tone="onNavyMuted" style={{ fontSize: 10 }}>
+                    Passport holder
+                  </Txt>
+                  {entitlements.hasFounderBadge ? (
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 3,
+                        backgroundColor: '#DC1F26',
+                        paddingHorizontal: 7,
+                        paddingVertical: 2,
+                        borderRadius: radii.pill,
+                        borderWidth: 1,
+                        borderColor: 'rgba(251, 191, 36, 0.6)',
+                      }}
+                    >
+                      <Flame size={10} color="#FBBF24" />
+                      <Txt
+                        variant="label"
+                        color="#FFFFFF"
+                        style={{ fontSize: 8.5, lineHeight: 10, fontFamily: fonts.bold, letterSpacing: 0.8 }}
+                      >
+                        FOUNDER MEMBER
+                      </Txt>
+                    </View>
+                  ) : entitlements.isPro ? (
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 3,
+                        backgroundColor: 'rgba(56, 189, 248, 0.22)',
+                        paddingHorizontal: 6,
+                        paddingVertical: 1.5,
+                        borderRadius: radii.pill,
+                      }}
+                    >
+                      <Sparkles size={9} color="#38BDF8" />
+                      <Txt
+                        variant="label"
+                        color="#38BDF8"
+                        style={{ fontSize: 8.5, lineHeight: 10, fontFamily: fonts.bold, letterSpacing: 0.8 }}
+                      >
+                        PRO
+                      </Txt>
+                    </View>
+                  ) : null}
+                </View>
                 <Txt variant="headline" tone="onNavy" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                   {p.firstName} {p.lastName}
                 </Txt>
@@ -179,10 +230,10 @@ export function PassportCard({ recordCount }: { recordCount: number }) {
                 <Embossed text={narrow ? `••••  •${idTail}` : `••••  ••••  •${idTail}`} />
                 <View style={{ alignItems: 'flex-end' }}>
                   <Txt variant="footnote" tone="onNavy" style={{ fontFamily: fonts.bold }}>
-                    {recordCount}
+                    {entitlements.isPro ? recordCount : `${recordCount}/${FREE_RECORD_LIMIT}`}
                   </Txt>
                   <Txt variant="label" tone="onNavyMuted" style={{ fontSize: 9, letterSpacing: 1.4 }}>
-                    {recordCount === 1 ? 'Document' : 'Documents'}
+                    {recordCount === 1 && entitlements.isPro ? 'Document' : 'Documents'}
                   </Txt>
                 </View>
               </View>

@@ -43,6 +43,7 @@ import {
   type ExportFileFormat,
   type ReportType,
 } from '@/lib/pdf';
+import { getPlanEntitlements, promptPlanUpgrade } from '@/lib/subscription';
 import { useAppStore } from '@/store/useAppStore';
 
 type RecordScope = 'all' | 'filtered' | 'selected';
@@ -71,6 +72,8 @@ export function ExportSummaryModal({
   const records = useAppStore((s) => s.records);
   const medications = useAppStore((s) => s.medications);
   const diaryNotes = useAppStore((s) => s.diaryNotes);
+  const subscriptionPlan = useAppStore((s) => s.subscriptionPlan);
+  const entitlements = getPlanEntitlements(subscriptionPlan);
   const logAudit = useAppStore((s) => s.logAudit);
 
   const hasFilterSubset =
@@ -87,7 +90,13 @@ export function ExportSummaryModal({
     }
     return initial;
   });
-  const [reportType, setReportType] = useState<ReportType>(defaultReportType);
+  const [reportType, setReportType] = useState<ReportType>(() =>
+    entitlements.canExportFullAnnualPdfAndDsar
+      ? defaultReportType
+      : entitlements.canExportRecords
+      ? 'discharge'
+      : 'emergency'
+  );
   const [includeDiary, setIncludeDiary] = useState(false);
   const [includeEnclaveSeal, setIncludeEnclaveSeal] = useState(true);
   const [activeAction, setActiveAction] = useState<ExportDeliveryMode | null>(null);
@@ -121,6 +130,51 @@ export function ExportSummaryModal({
   };
 
   const handleRunExport = async (mode: ExportDeliveryMode) => {
+    if (format === 'json' && !entitlements.canExportFullAnnualPdfAndDsar) {
+      promptPlanUpgrade({
+        title: 'DSAR Archive Export (Annual Pro / Founder)',
+        message:
+          'Full annual health record PDF & DSAR archive export is included in Annual Pro (R149.99/yr) and the Lifetime Founder Pass (R299.99).',
+        ctaLabel: 'Upgrade Plan',
+        onBeforeNavigate: onClose,
+      });
+      return;
+    }
+
+    if (format === 'csv' && !entitlements.canExportRecords) {
+      promptPlanUpgrade({
+        title: 'CSV Export (Siyashesha Pro)',
+        message:
+          'Exporting clinical records as CSV spreadsheets is included in Monthly Pro, Annual Pro, and Lifetime Founder Pass.',
+        ctaLabel: 'Upgrade to Pro',
+        onBeforeNavigate: onClose,
+      });
+      return;
+    }
+
+    if (format === 'pdf') {
+      if (reportType === 'comprehensive' && !entitlements.canExportFullAnnualPdfAndDsar) {
+        promptPlanUpgrade({
+          title: 'Full Annual Health Record PDF',
+          message:
+            'Full annual health record PDF & DSAR archive export is included in Annual Pro (R149.99/yr) and the Lifetime Founder Pass (R299.99).',
+          ctaLabel: 'Upgrade Plan',
+          onBeforeNavigate: onClose,
+        });
+        return;
+      }
+      if (!entitlements.canExportRecords) {
+        promptPlanUpgrade({
+          title: 'Clinical PDF Export (Siyashesha Pro)',
+          message:
+            'Certified clinical summary PDFs are included in Siyashesha Pro. Your digital Emergency ICE Card & QR on the Home screen is always free.',
+          ctaLabel: 'Upgrade to Pro',
+          onBeforeNavigate: onClose,
+        });
+        return;
+      }
+    }
+
     if (targetRecords.length === 0 && format !== 'pdf') {
       toast.show('Select at least one medical record to export.', 'warning');
       return;
@@ -382,6 +436,26 @@ export function ExportSummaryModal({
                       accessibilityLabel={`${opt.label} (${opt.subtitle})`}
                       onPress={() => {
                         tapFeedback();
+                        if (opt.id === 'json' && !entitlements.canExportFullAnnualPdfAndDsar) {
+                          promptPlanUpgrade({
+                            title: 'DSAR Archive Export (Annual Pro / Founder)',
+                            message:
+                              'Full annual health record PDF & DSAR archive export is included in Annual Pro (R149.99/yr) and the Lifetime Founder Pass (R299.99).',
+                            ctaLabel: 'Upgrade Plan',
+                            onBeforeNavigate: onClose,
+                          });
+                          return;
+                        }
+                        if (opt.id === 'csv' && !entitlements.canExportRecords) {
+                          promptPlanUpgrade({
+                            title: 'CSV Export (Siyashesha Pro)',
+                            message:
+                              'Exporting clinical records as CSV spreadsheets is included in Siyashesha Pro.',
+                            ctaLabel: 'Upgrade to Pro',
+                            onBeforeNavigate: onClose,
+                          });
+                          return;
+                        }
                         setFormat(opt.id);
                       }}
                       style={{
@@ -631,6 +705,26 @@ export function ExportSummaryModal({
                           key={type.id}
                           onPress={() => {
                             tapFeedback();
+                            if (type.id === 'comprehensive' && !entitlements.canExportFullAnnualPdfAndDsar) {
+                              promptPlanUpgrade({
+                                title: 'Full Annual Health Record PDF',
+                                message:
+                                  'Full annual health record PDF & DSAR archive export is included in Annual Pro (R149.99/yr) and the Lifetime Founder Pass (R299.99).',
+                                ctaLabel: 'Upgrade Plan',
+                                onBeforeNavigate: onClose,
+                              });
+                              return;
+                            }
+                            if (!entitlements.canExportRecords) {
+                              promptPlanUpgrade({
+                                title: 'Clinical PDF Export (Siyashesha Pro)',
+                                message:
+                                  'Certified clinical PDF exports require Siyashesha Pro.',
+                                ctaLabel: 'Upgrade to Pro',
+                                onBeforeNavigate: onClose,
+                              });
+                              return;
+                            }
                             setReportType(type.id);
                           }}
                           accessibilityRole="radio"

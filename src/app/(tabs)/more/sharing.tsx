@@ -1,5 +1,5 @@
 import dayjs from 'dayjs';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { safeBack } from '@/lib/navigation';
 import {
   BookHeart,
@@ -7,6 +7,7 @@ import {
   ChevronRight,
   FileDown,
   History,
+  Lock,
   Share2,
   ShieldCheck,
 } from 'lucide-react-native';
@@ -30,6 +31,7 @@ import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { useToast } from '@/components/ui/Toast';
 import type { MedicalRecord } from '@/data/records';
 import { shareDurations, type ShareDuration, type SharedLink } from '@/data/sharing';
+import { getPlanEntitlements, promptPlanUpgrade } from '@/lib/subscription';
 import { useAppStore } from '@/store/useAppStore';
 import { useAccent } from '@/hooks/useAccent';
 
@@ -42,6 +44,8 @@ export default function SharingScreen() {
   const sharedLinks = useAppStore((s) => s.sharedLinks);
   const records = useAppStore((s) => s.records);
   const diaryNotes = useAppStore((s) => s.diaryNotes);
+  const subscriptionPlan = useAppStore((s) => s.subscriptionPlan);
+  const entitlements = getPlanEntitlements(subscriptionPlan);
   const createShare = useAppStore((s) => s.createShare);
   const revokeShare = useAppStore((s) => s.revokeShare);
 
@@ -86,6 +90,15 @@ export default function SharingScreen() {
           : true;
 
   const handleConfirm = () => {
+    if (!entitlements.canShareWithDoctorPin) {
+      promptPlanUpgrade({
+        title: 'Doctor & Clinic PIN Sharing (Pro)',
+        message:
+          'Doctor & clinic PIN-protected QR sharing is included in Monthly Pro, Annual Pro, and Lifetime Founder Pass. Your Emergency ICE Card & QR on the Home screen is always free.',
+        ctaLabel: 'Upgrade to Pro',
+      });
+      return;
+    }
     const link = createShare({
       recipientName: recipientName.trim(),
       recipientFacility: recipientFacility.trim(),
@@ -220,6 +233,30 @@ export default function SharingScreen() {
       </View>
 
       <ScreenScroll className="flex-1 px-5">
+        {!entitlements.canShareWithDoctorPin ? (
+          <View className="mb-4 flex-row items-center justify-between rounded-2xl border border-amber-500/30 bg-ink p-3.5 dark:bg-brand-900">
+            <View className="flex-1 flex-row items-center gap-2.5 pr-3">
+              <Lock size={16} color="#FBBF24" />
+              <View className="flex-1">
+                <Text className="font-sans-bold text-[12px] text-white">
+                  Doctor & Clinic PIN Sharing · Pro Feature
+                </Text>
+                <Text className="mt-0.5 font-sans text-[11px] text-slate-300">
+                  Upgrade to Pro for time-limited PIN-protected doctor QR shares. Emergency ICE QR is always free.
+                </Text>
+              </View>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Upgrade to Pro for Doctor PIN Sharing"
+              onPress={() => router.push('/(tabs)/more/billing')}
+              className="rounded-full bg-sky-400 px-3 py-1.5"
+            >
+              <Text className="font-sans-bold text-[11px] text-ink">Upgrade</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
         {completedLink ? (
           <ConfirmationView link={completedLink} onDone={() => { resetWizard(); setView('history'); }} />
         ) : step === 0 ? (
@@ -230,7 +267,18 @@ export default function SharingScreen() {
             toggleDiary={toggleDiary}
             diaryNotes={diaryNotes}
             records={records}
-            onOpenPdfExport={() => setShowExportModal(true)}
+            onOpenPdfExport={() => {
+              if (!entitlements.canExportRecords) {
+                promptPlanUpgrade({
+                  title: 'Certified Medical Summary PDF (Pro)',
+                  message:
+                    'Generating certified clinical summary PDFs is included in Siyashesha Pro.',
+                  ctaLabel: 'Upgrade to Pro',
+                });
+                return;
+              }
+              setShowExportModal(true);
+            }}
           />
         ) : step === 1 ? (
           <RecipientStep

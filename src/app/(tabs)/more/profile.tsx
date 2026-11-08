@@ -1,8 +1,9 @@
 import { safeBack } from '@/lib/navigation';
-import { Archive, ShieldCheck, Trash2 } from 'lucide-react-native';
+import { Archive, Flame, ShieldCheck, Sparkles, Trash2 } from 'lucide-react-native';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from 'react-native';
 import { bloodGroupLabel } from '@/lib/bloodGroup';
+import { getPlanEntitlements } from '@/lib/subscription';
 
 import { Avatar } from '@/components/ui/Avatar';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
@@ -19,6 +20,8 @@ import { DsarExportModal } from '@/components/security/DsarExportModal';
 export default function ProfileScreen() {
   const toast = useToast();
   const profile = useAppStore((s) => s.patientProfile);
+  const subscriptionPlan = useAppStore((s) => s.subscriptionPlan);
+  const entitlements = getPlanEntitlements(subscriptionPlan);
   const updateProfile = useAppStore((s) => s.updatePatientProfile);
 
   const [phone, setPhone] = useState(profile.phone);
@@ -59,9 +62,26 @@ export default function ProfileScreen() {
           <View className="flex-row items-center gap-4">
             <Avatar name={profile.preferredName} size={64} />
             <View className="flex-1">
-              <Text className="font-sans-bold text-[20px] text-white" numberOfLines={1}>
-                {profile.firstName} {profile.lastName}
-              </Text>
+              <View className="flex-row items-center gap-2 flex-wrap">
+                <Text className="font-sans-bold text-[20px] text-white" numberOfLines={1}>
+                  {profile.firstName} {profile.lastName}
+                </Text>
+                {entitlements.hasFounderBadge ? (
+                  <View className="flex-row items-center gap-1 rounded-full bg-emergency-500 px-2.5 py-0.5 border border-amber-300/60">
+                    <Flame size={11} color="#FBBF24" />
+                    <Text className="font-sans-bold text-[9px] uppercase tracking-[0.8px] text-white">
+                      Founder Member
+                    </Text>
+                  </View>
+                ) : entitlements.isPro ? (
+                  <View className="flex-row items-center gap-1 rounded-full bg-sky-500/25 px-2.5 py-0.5">
+                    <Sparkles size={10} color="#38BDF8" />
+                    <Text className="font-sans-bold text-[9px] uppercase tracking-[0.8px] text-sky-300">
+                      Pro Member
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
               <Text className="font-sans text-[12px] text-white/60">
                 Member since {new Date(profile.memberSince).toLocaleDateString('en-ZA', { month: 'long', year: 'numeric' })}
               </Text>
