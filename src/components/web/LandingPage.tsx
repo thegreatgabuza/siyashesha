@@ -14,7 +14,6 @@ import {
 import { useEffect, useState } from 'react';
 import {
   ImageBackground,
-  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -26,7 +25,6 @@ import {
 import Animated, {
   Easing,
   FadeInDown,
-  FadeIn,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -35,27 +33,9 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { LegalDocumentModal, type LegalDocKind } from '@/components/security/LegalDocumentModal';
+import { INK, LINE, MAX, MUTED, NAVY, RED, TEAL, SiteFooter, SiteNav, goSignIn, goSignUp, sans } from '@/components/web/site/SiteChrome';
 
-const NAVY = '#0B1E40';
-const RED = '#DC1F26';
-const TEAL = '#0D7C66';
-const INK = '#1B2540';
-const MUTED = '#5B6478';
-const LINE = '#E5E9F2';
-const MAX = 1120;
-
-const sans = (w: 400 | 500 | 600 | 700 = 400) =>
-  ({ 400: 'Inter_400Regular', 500: 'Inter_500Medium', 600: 'Inter_600SemiBold', 700: 'Inter_700Bold' })[w];
-
-const LANGUAGES = ['English', 'isiZulu', 'Afrikaans', 'Setswana', 'Kiswahili', 'FranÃ§ais', 'Deutsch'];
-
-function goSignUp(email?: string) {
-  router.push({ pathname: '/sign-in', params: { mode: 'signup', ...(email ? { email } : {}) } } as any);
-}
-function goSignIn() {
-  router.push('/sign-in');
-}
+const LANGUAGES = ['English', 'isiZulu', 'Afrikaans', 'Setswana', 'Kiswahili', 'Français', 'Deutsch'];
 
 /** Fades and lifts its children in the first time they scroll into view (web). */
 function Reveal({ children, delay = 0, style }: { children: React.ReactNode; delay?: number; style?: any }) {
@@ -136,15 +116,7 @@ export default function LandingPage() {
   const { width } = useWindowDimensions();
   const wide = width >= 900;
   const pad = width >= 768 ? 32 : 20;
-  const [legalDoc, setLegalDoc] = useState<LegalDocKind>(null);
-  const [scroller, setScroller] = useState<any>(null);
-  const [nav] = useState(() => ({ y: {} as Record<string, number> }));
   const [email, setEmail] = useState('');
-
-  const mark = (k: string) => (e: any) => {
-    nav.y[k] = e.nativeEvent.layout.y;
-  };
-  const jump = (k: string) => scroller?.scrollTo({ y: Math.max((nav.y[k] ?? 0) - 68, 0), animated: true });
 
   // Slow Ken Burns drift on the hero photo and a gentle float on the card.
   const zoom = useSharedValue(1);
@@ -160,10 +132,10 @@ export default function LandingPage() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
-      <ScrollView ref={setScroller} showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false}>
         {/* Announcement */}
         <Pressable
-          onPress={() => jump('features')}
+          onPress={() => router.navigate('/features')}
           style={{ height: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FDFDFC', borderBottomWidth: 1, borderBottomColor: LINE }}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16 }}>
@@ -189,46 +161,7 @@ export default function LandingPage() {
             pointerEvents="none"
           />
 
-          {/* Nav */}
-          <Animated.View entering={FadeIn.duration(800)} style={{ zIndex: 10 }}>
-            <View
-              style={{
-                width: '100%',
-                maxWidth: 1360,
-                alignSelf: 'center',
-                paddingHorizontal: pad,
-                height: 84,
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}
-            >
-              <Text style={{ fontFamily: 'BebasNeue_400Regular', fontSize: 28, letterSpacing: 2, color: '#FFFFFF' }}>SIYASHESHA</Text>
-              {wide ? (
-                <View style={{ flexDirection: 'row', gap: 4 }}>
-                  {(['features', 'security', 'pricing'] as const).map((k) => (
-                    <Pressable key={k} accessibilityRole="link" onPress={() => jump(k)} style={{ paddingHorizontal: 18, height: 40, justifyContent: 'center' }}>
-                      <Text style={{ fontFamily: sans(500), fontSize: 16, color: 'rgba(255,255,255,0.92)' }}>
-                        {k[0].toUpperCase() + k.slice(1)}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              ) : null}
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Pressable accessibilityRole="button" onPress={goSignIn} style={{ paddingHorizontal: 16, height: 44, justifyContent: 'center' }}>
-                  <Text style={{ fontFamily: sans(500), fontSize: 16, color: '#FFFFFF' }}>Log in</Text>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => goSignUp()}
-                  style={{ paddingHorizontal: 22, height: 44, borderRadius: 999, backgroundColor: '#FFFFFF', justifyContent: 'center' }}
-                >
-                  <Text style={{ fontFamily: sans(600), fontSize: 15, color: NAVY }}>Create passport</Text>
-                </Pressable>
-              </View>
-            </View>
-          </Animated.View>
+          <SiteNav overlay />
 
           {/* Copy + capture */}
           <View style={{ alignItems: 'center', paddingHorizontal: pad, paddingTop: wide ? 56 : 32 }}>
@@ -298,7 +231,7 @@ export default function LandingPage() {
                   <Text style={{ fontFamily: sans(600), fontSize: 15, color: '#FFFFFF' }}>Create passport</Text>
                 </Pressable>
               </View>
-              <Button label="See how it works" variant="glass" onPress={() => jump('features')} />
+              <Button label="See how it works" variant="glass" onPress={() => router.navigate('/features')} />
             </Animated.View>
           </View>
 
@@ -317,7 +250,7 @@ export default function LandingPage() {
         <Marquee />
 
         {/* Features */}
-        <View onLayout={mark('features')} style={{ backgroundColor: '#FFFFFF' }}>
+        <View style={{ backgroundColor: '#FFFFFF' }}>
           <View style={{ width: '100%', maxWidth: MAX, alignSelf: 'center', paddingHorizontal: pad, paddingVertical: wide ? 104 : 64 }}>
             <Reveal>
               <Text style={{ fontFamily: sans(500), fontSize: wide ? 44 : 30, lineHeight: wide ? 50 : 36, letterSpacing: -1.2, color: NAVY, maxWidth: 640 }}>
@@ -335,7 +268,7 @@ export default function LandingPage() {
         </View>
 
         {/* Security */}
-        <View onLayout={mark('security')} style={{ backgroundColor: '#F8FAFC', borderTopWidth: 1, borderBottomWidth: 1, borderColor: LINE }}>
+        <View style={{ backgroundColor: '#F8FAFC', borderTopWidth: 1, borderBottomWidth: 1, borderColor: LINE }}>
           <View style={{ width: '100%', maxWidth: MAX, alignSelf: 'center', paddingHorizontal: pad, paddingVertical: wide ? 104 : 64, flexDirection: wide ? 'row' : 'column', gap: wide ? 64 : 28 }}>
             <Reveal style={{ flex: 1 }}>
               <Text style={{ fontFamily: sans(500), fontSize: wide ? 44 : 30, letterSpacing: -1.2, color: NAVY }}>You own your data.</Text>
@@ -359,7 +292,7 @@ export default function LandingPage() {
         </View>
 
         {/* Pricing */}
-        <View onLayout={mark('pricing')} style={{ backgroundColor: '#FFFFFF' }}>
+        <View style={{ backgroundColor: '#FFFFFF' }}>
           <View style={{ width: '100%', maxWidth: MAX, alignSelf: 'center', paddingHorizontal: pad, paddingVertical: wide ? 104 : 64 }}>
             <Reveal>
               <Text style={{ fontFamily: sans(500), fontSize: wide ? 44 : 30, letterSpacing: -1.2, color: NAVY }}>Simple pricing</Text>
@@ -387,22 +320,8 @@ export default function LandingPage() {
           </Reveal>
         </View>
 
-        {/* Footer */}
-        <View style={{ backgroundColor: '#FFFFFF' }}>
-          <View style={{ width: '100%', maxWidth: MAX, alignSelf: 'center', paddingHorizontal: pad, paddingVertical: 40, gap: 16 }}>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 20, alignItems: 'center' }}>
-              <Text style={{ fontFamily: 'BebasNeue_400Regular', fontSize: 22, letterSpacing: 1, color: RED }}>SIYASHESHA</Text>
-              <Pressable onPress={() => setLegalDoc('privacy')}><Text style={{ fontFamily: sans(500), fontSize: 13, color: MUTED }}>Privacy policy (POPIA)</Text></Pressable>
-              <Pressable onPress={() => setLegalDoc('terms')}><Text style={{ fontFamily: sans(500), fontSize: 13, color: MUTED }}>Terms of use</Text></Pressable>
-              <Pressable onPress={() => void Linking.openURL('mailto:support@siyashesha.co.za')}><Text style={{ fontFamily: sans(500), fontSize: 13, color: MUTED }}>Support</Text></Pressable>
-            </View>
-            <Text style={{ fontFamily: sans(400), fontSize: 12, lineHeight: 18, color: MUTED, maxWidth: 720 }}>
-              Siyashesha is a patient-held record organiser, not a medical device. It does not diagnose or treat. In an emergency call 112 or your local emergency number.
-            </Text>
-          </View>
-        </View>
+        <SiteFooter />
       </ScrollView>
-      <LegalDocumentModal visibleDoc={legalDoc} onClose={() => setLegalDoc(null)} />
     </View>
   );
 }

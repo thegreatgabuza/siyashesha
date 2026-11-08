@@ -167,6 +167,8 @@ export default function RootLayout() {
         <ToastProvider>
           <BiometricGate>
             <Stack screenOptions={{ headerShown: false }}>
+              {/* Public pages (features, pricing, privacy, terms, support�) are always reachable */}
+              <Stack.Screen name="(site)" />
               {/* Landing / sign up → onboarding (once) → app */}
               <Stack.Protected guard={!isSignedIn}>
                 <Stack.Screen name="(auth)" />
