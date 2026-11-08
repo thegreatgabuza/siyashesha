@@ -41,11 +41,13 @@ import { useAccent } from '@/hooks/useAccent';
 import { getDayAgenda, getMonthMarks, upcomingHealthDays } from '@/lib/calendarMarks';
 import { formatDayMonth, formatFriendlyDate, formatTime12 } from '@/lib/date';
 import { healthDayIcons } from '@/lib/healthDayIcons';
+import { useI18n } from '@/i18n/useI18n';
 import { useAppStore } from '@/store/useAppStore';
 
 export default function CalendarScreen() {
   const { accent, accentSoft } = useAccent();
   const t = useTokens();
+  const { t: tr } = useI18n();
   const toast = useToast();
 
   const appointments = useAppStore((s) => s.appointments);
@@ -167,13 +169,13 @@ export default function CalendarScreen() {
 
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 16 }}>
         <View>
-          <Txt variant="title">Health Calendar</Txt>
+          <Txt variant="title">{tr('calendar.title')}</Txt>
           <Txt variant="callout" tone="muted" style={{ marginTop: 2 }}>
-            Plan ahead & track clinical visits
+            {tr('calendar.subtitle')}
           </Txt>
         </View>
         <PressableScale
-          accessibilityLabel="Schedule new visit"
+          accessibilityLabel={tr('calendar.scheduleVisit')}
           onPress={() => openNewAppointmentModal(selectedDate)}
           style={{
             flexDirection: 'row',
@@ -187,7 +189,7 @@ export default function CalendarScreen() {
         >
           <Plus size={16} color="#FFFFFF" strokeWidth={2.5} />
           <Txt variant="footnote" tone="onNavy" style={{ fontFamily: fonts.semibold }}>
-            Book Visit
+            {tr('calendar.scheduleVisit')}
           </Txt>
         </PressableScale>
       </View>

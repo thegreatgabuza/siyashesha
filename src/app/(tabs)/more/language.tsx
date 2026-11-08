@@ -9,33 +9,35 @@ import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { useToast } from '@/components/ui/Toast';
 import { dictionaries, languageNames, type LanguageCode } from '@/i18n/translations';
+import { useI18n } from '@/i18n/useI18n';
 import { useAppStore } from '@/store/useAppStore';
 
 const languages: LanguageCode[] = ['en', 'zu', 'af', 'tn', 'sw', 'fr', 'de'];
 
 export default function LanguageScreen() {
   const toast = useToast();
+  const { t: tr } = useI18n();
   const language = useAppStore((s) => s.language);
   const setLanguage = useAppStore((s) => s.setLanguage);
 
   return (
     <Screen headerOwnsTopInset scroll={false}>
-      <ScreenHeader title="Language" onBack={() => safeBack('/(tabs)/more')} />
+      <ScreenHeader title={tr('language.title')} onBack={() => safeBack('/(tabs)/more')} />
       <ScreenScroll className="flex-1 px-5">
         <View className="mt-2 rounded-[32px] bg-ink p-5 dark:bg-canvasdark-card" style={heroShadow}>
           <View className="flex-row items-center justify-between">
-            <Text className="font-sans-semibold text-[13px] text-white/70">Current language</Text>
+            <Text className="font-sans-semibold text-[13px] text-white/70">{tr('language.currentLanguage')}</Text>
             <View className="rounded-full bg-white/15 px-3 py-1">
-              <Text className="font-sans-semibold text-[11px] text-white">{languages.length} available</Text>
+              <Text className="font-sans-semibold text-[11px] text-white">{tr('language.available', { count: String(languages.length) })}</Text>
             </View>
           </View>
           <Text className="mt-4 font-sans-bold text-[28px] leading-[32px] text-white">{languageNames[language]}</Text>
           <Text className="mt-3 font-sans text-[12px] leading-[17px] text-white/60">
-            The tab bar and home screen update immediately. isiZulu and Afrikaans are fully translated today.
+            {tr('language.description')}
           </Text>
         </View>
         <View className="pt-6">
-          <SectionHeader title="Choose a language" />
+          <SectionHeader title={tr('language.chooseLanguage')} />
         </View>
         <View className="rounded-3xl border border-slate-200 bg-white dark:border-canvasdark-card dark:bg-canvasdark-card">
           {languages.map((code, i) => {

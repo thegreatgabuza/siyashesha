@@ -22,6 +22,7 @@ import { Txt } from '@/components/ui/Txt';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { useToast } from '@/components/ui/Toast';
 import { diaryCategories, type DiaryCategory, type DiaryNote } from '@/data/diarySeed';
+import { useI18n } from '@/i18n/useI18n';
 import { useAppStore } from '@/store/useAppStore';
 import { useAccent } from '@/hooks/useAccent';
 
@@ -29,6 +30,7 @@ export default function DiaryScreen() {
   const { accent, accentSoft } = useAccent();
   const aboveTabBar = useAboveTabBar();
   const toast = useToast();
+  const { t: tr } = useI18n();
   const notes = useAppStore((s) => s.diaryNotes);
   const draft = useAppStore((s) => s.diaryDraft);
   const deleteDiaryNote = useAppStore((s) => s.deleteDiaryNote);
@@ -87,7 +89,7 @@ export default function DiaryScreen() {
       </View>
 
       <View className="pb-4 pt-2">
-        <Txt variant="title">My Diary</Txt>
+        <Txt variant="title">{tr('diary.title')}</Txt>
         <Txt variant="callout" tone="muted" style={{ marginTop: 2 }}>
           Thoughts, questions and anything you want to remember.
         </Txt>
@@ -96,9 +98,9 @@ export default function DiaryScreen() {
       {/* Summary card */}
       <View className="rounded-[32px] bg-ink p-5 dark:bg-canvasdark-card" style={heroShadow}>
         <View className="flex-row items-center justify-between">
-          <Text className="font-sans-semibold text-[13px] text-white/70">Notes in your diary</Text>
+          <Text className="font-sans-semibold text-[13px] text-white/70">{tr('diary.yourNotes')}</Text>
           <View className="rounded-full bg-white/15 px-3 py-1">
-            <Text className="font-sans-semibold text-[11px] text-white">{summary.pinnedCount} pinned</Text>
+            <Text className="font-sans-semibold text-[11px] text-white">{summary.pinnedCount} {tr('diary.pinned').toLowerCase()}</Text>
           </View>
         </View>
 
@@ -110,9 +112,9 @@ export default function DiaryScreen() {
         </View>
 
         <View className="flex-row items-center gap-2">
-          <HeroAction label="Add a note" icon={<Plus size={16} color="#FFFFFF" />} onPress={() => router.push('/diary/new')} />
+          <HeroAction label={tr('diary.addNote')} icon={<Plus size={16} color="#FFFFFF" />} onPress={() => router.push('/diary/new')} />
           <HeroAction
-            label="Search"
+            label={tr('common.search')}
             icon={<Search size={16} color="#FFFFFF" />}
             onPress={() => searchInput.current?.focus()}
           />
@@ -122,19 +124,19 @@ export default function DiaryScreen() {
       {/* Stat row */}
       <View className="mt-4 flex-row gap-3">
         <View className="flex-1 rounded-3xl border border-slate-200 bg-white p-4 dark:border-canvasdark-card dark:bg-canvasdark-card">
-          <Text className="font-sans-medium text-[12px] text-ink-muted dark:text-slate-400">Pinned</Text>
+          <Text className="font-sans-medium text-[12px] text-ink-muted dark:text-slate-400">{tr('diary.pinned')}</Text>
           <Text className="mt-2 font-sans-bold text-[30px] text-ink dark:text-slate-50">{summary.pinnedCount}</Text>
-          <Text className="mt-0.5 font-sans text-[11px] text-ink-muted dark:text-slate-500">kept at the top</Text>
+          <Text className="mt-0.5 font-sans text-[11px] text-ink-muted dark:text-slate-500">{tr('diary.keptAtTop')}</Text>
         </View>
         <View className="flex-1 rounded-3xl border border-slate-200 bg-white p-4 dark:border-canvasdark-card dark:bg-canvasdark-card">
-          <Text className="font-sans-medium text-[12px] text-ink-muted dark:text-slate-400">Attachments</Text>
+          <Text className="font-sans-medium text-[12px] text-ink-muted dark:text-slate-400">{tr('diary.attachments')}</Text>
           <Text className="mt-2 font-sans-bold text-[30px] text-ink dark:text-slate-50">{summary.attachmentCount}</Text>
-          <Text className="mt-0.5 font-sans text-[11px] text-ink-muted dark:text-slate-500">files on your notes</Text>
+          <Text className="mt-0.5 font-sans text-[11px] text-ink-muted dark:text-slate-500">{tr('diary.filesOnNotes')}</Text>
         </View>
       </View>
 
       <View className="pt-7">
-        <SectionHeader title="Your notes" />
+        <SectionHeader title={tr('diary.yourNotes')} />
 
         <View className="mb-3 flex-row items-center gap-2 rounded-full border border-slate-200 bg-white px-4 dark:border-canvasdark-card dark:bg-canvasdark-card">
           <Search size={16} color="#5B6478" />
@@ -142,7 +144,7 @@ export default function DiaryScreen() {
             ref={searchInput}
             value={search}
             onChangeText={setSearch}
-            placeholder="Search your notes"
+            placeholder={tr('diary.searchNotes')}
             placeholderTextColor="#8C98B8"
             className="min-h-[44px] flex-1 font-sans text-[14px] text-ink dark:text-slate-50"
             accessibilityLabel="Search diary notes"
@@ -150,7 +152,7 @@ export default function DiaryScreen() {
         </View>
 
         <View className="mb-4 flex-row flex-wrap gap-2">
-          <Pill label="All" selected={category === 'All'} onPress={() => setCategory('All')} />
+          <Pill label={tr('common.all')} selected={category === 'All'} onPress={() => setCategory('All')} />
           {diaryCategories.map((c) => (
             <Pill key={c} label={c} selected={category === c} onPress={() => setCategory(c)} />
           ))}
@@ -173,13 +175,13 @@ export default function DiaryScreen() {
         {filtered.length === 0 ? (
           <EmptyState
             icon={<BookHeart size={32} color={accentSoft} />}
-            title={search.trim() ? `No notes match "${search.trim()}"` : 'No notes yet'}
-            subtitle={search.trim() ? 'Try a different word or clear the search.' : 'Add your first note to start your diary.'}
+            title={search.trim() ? `No notes match "${search.trim()}"` : tr('diary.noNotesTitle')}
+            subtitle={search.trim() ? 'Try a different word or clear the search.' : tr('diary.noNotesSubtitle')}
             action={
               search.trim() ? (
-                <ActionButton label="Clear search" onPress={() => setSearch('')} />
+                <ActionButton label={tr('diary.clearSearch')} onPress={() => setSearch('')} />
               ) : (
-                <ActionButton label="Add a note" onPress={() => router.push('/diary/new')} />
+                <ActionButton label={tr('diary.addNote')} onPress={() => router.push('/diary/new')} />
               )
             }
           />
@@ -187,7 +189,7 @@ export default function DiaryScreen() {
           <View className="gap-4">
             {pinned.length > 0 ? (
               <View>
-                <SectionHeader title="Pinned" />
+                <SectionHeader title={tr('diary.pinned')} />
                 <View className="gap-2.5">
                   {pinned.map((note, i) => (
                     <DiaryRow
@@ -202,7 +204,7 @@ export default function DiaryScreen() {
             ) : null}
             {rest.length > 0 ? (
               <View>
-                {pinned.length > 0 ? <SectionHeader title="All notes" /> : null}
+                {pinned.length > 0 ? <SectionHeader title={tr('diary.allNotes')} /> : null}
                 <View className="gap-2.5">
                   {rest.map((note, i) => (
                     <DiaryRow

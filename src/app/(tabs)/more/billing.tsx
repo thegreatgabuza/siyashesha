@@ -31,6 +31,7 @@ import {
 } from '@/lib/iap';
 import { safeBack } from '@/lib/navigation';
 import { FREE_RECORD_LIMIT, getPlanEntitlements } from '@/lib/subscription';
+import { useI18n } from '@/i18n/useI18n';
 import { useAppStore, type SubscriptionPlanId } from '@/store/useAppStore';
 
 export type PlanId = SubscriptionPlanId;
@@ -117,6 +118,7 @@ const plans: Plan[] = [
 
 export default function BillingScreen() {
   const t = useTokens();
+  const { t: tr } = useI18n();
   const toast = useToast();
   const currentPlan = useAppStore((s) => s.subscriptionPlan);
   const trialEndsAt = useAppStore((s) => s.subscriptionTrialEndsAt);
@@ -258,7 +260,7 @@ export default function BillingScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.canvas }}>
-      <ScreenHeader title="Subscription & Billing" onBack={() => safeBack('/(tabs)/more')} />
+      <ScreenHeader title={tr('billing.title')} onBack={() => safeBack('/(tabs)/more')} />
       <ScreenScroll className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 64 }}>
         {/* Active Subscription Hero Card */}
         <View
@@ -282,7 +284,7 @@ export default function BillingScreen() {
                 <Sparkles size={16} color="#FBBF24" />
               )}
               <Txt variant="footnote" color="#FBBF24" style={{ fontFamily: fonts.semibold, letterSpacing: 0.8 }}>
-                {entitlements.hasFounderBadge ? 'FOUNDER PASS' : 'CURRENT PLAN'}
+                {entitlements.hasFounderBadge ? tr('billing.founderPass') : tr('billing.currentPlan')}
               </Txt>
             </View>
             <View

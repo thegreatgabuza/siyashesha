@@ -44,6 +44,7 @@ import {
   type RecordSort,
 } from '@/lib/recordSearch';
 import { FREE_RECORD_LIMIT, getPlanEntitlements, promptPlanUpgrade } from '@/lib/subscription';
+import { useI18n } from '@/i18n/useI18n';
 import { useAppStore } from '@/store/useAppStore';
 
 const HERO_HEIGHT = 164;
@@ -52,6 +53,7 @@ const COLLAPSE_AT = 140;
 export default function RecordsScreen() {
   const insets = useSafeAreaInsets();
   const toast = useToast();
+  const { t: tr } = useI18n();
   const records = useAppStore((s) => s.records);
   const patient = useAppStore((s) => s.patientProfile);
   const subscriptionPlan = useAppStore((s) => s.subscriptionPlan);
@@ -193,12 +195,12 @@ export default function RecordsScreen() {
           {/* 0: header */}
           <View className="flex-row items-center justify-between pb-4">
             <View className="flex-1 pr-2">
-              <Text style={{ color: RecordsTokens.text, fontSize: RecordsTokens.type.title, fontFamily: RecordsTokens.fonts.bold }}>Medical Records</Text>
+              <Text style={{ color: RecordsTokens.text, fontSize: RecordsTokens.type.title, fontFamily: RecordsTokens.fonts.bold }}>{tr('records.title')}</Text>
               <View className="flex-row items-center gap-2">
                 <Text style={{ color: RecordsTokens.textMuted, fontSize: RecordsTokens.type.meta }}>
                   {entitlements.isPro
-                    ? `${records.length} ${records.length === 1 ? 'record' : 'records'} · Unlimited Vault`
-                    : `${records.length} / ${FREE_RECORD_LIMIT} free records`}
+                    ? `${records.length} ${records.length === 1 ? 'record' : 'records'} · ${tr('records.unlimitedVault')}`
+                    : tr('records.freeRecords', { count: String(records.length), limit: String(FREE_RECORD_LIMIT) })}
                 </Text>
                 {!entitlements.isPro ? (
                   <Pressable
@@ -219,7 +221,7 @@ export default function RecordsScreen() {
                         fontFamily: RecordsTokens.fonts.bold,
                       }}
                     >
-                      {records.length >= FREE_RECORD_LIMIT ? 'LIMIT REACHED · UPGRADE' : 'UPGRADE'}
+                      {records.length >= FREE_RECORD_LIMIT ? `LIMIT REACHED · ${tr('common.upgrade').toUpperCase()}` : tr('common.upgrade').toUpperCase()}
                     </Text>
                   </Pressable>
                 ) : null}
@@ -247,7 +249,7 @@ export default function RecordsScreen() {
                 }}
               >
                 <FileDown size={18} color="#FFFFFF" />
-                <Text style={{ color: '#FFFFFF', fontSize: 13, fontFamily: RecordsTokens.fonts.bold }}>Export</Text>
+                <Text style={{ color: '#FFFFFF', fontSize: 13, fontFamily: RecordsTokens.fonts.bold }}>{tr('records.export')}</Text>
               </PressableScale>
               <Pressable
                 accessibilityRole="button"
@@ -308,7 +310,7 @@ export default function RecordsScreen() {
               <TextInput
                 value={search}
                 onChangeText={setSearch}
-                placeholder="Search title, diagnosis, doctor, facility"
+                placeholder={tr('records.searchPlaceholder')}
                 placeholderTextColor={RecordsTokens.textMuted}
                 autoCorrect={false}
                 returnKeyType="search"
@@ -338,7 +340,7 @@ export default function RecordsScreen() {
             </View>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 14, paddingVertical: 6, paddingRight: 8 }}>
-              <CategoryChip label="All" count={searchMatches.length} icon={LayoutGrid} active={category === 'All'} onPress={() => setCategory('All')} />
+              <CategoryChip label={tr('common.all')} count={searchMatches.length} icon={LayoutGrid} active={category === 'All'} onPress={() => setCategory('All')} />
               {categories.map((c) => (
                 <CategoryChip
                   key={c}

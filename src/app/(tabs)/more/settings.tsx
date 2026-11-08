@@ -25,6 +25,7 @@ import { heroShadow } from '@/components/ui/HeroAction';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { useToast } from '@/components/ui/Toast';
 import { languageNames } from '@/i18n/translations';
+import { useI18n } from '@/i18n/useI18n';
 import { useSafeClerk } from '@/lib/clerkAvatar';
 import { useAppStore, type ThemePreference } from '@/store/useAppStore';
 import { AccountDeletionModal } from '@/components/security/AccountDeletionModal';
@@ -45,6 +46,7 @@ import { getPlanEntitlements, promptPlanUpgrade } from '@/lib/subscription';
 export default function SettingsScreen() {
   const { accent, accentSoft } = useAccent();
   const toast = useToast();
+  const { t: tr } = useI18n();
   const subscriptionPlan = useAppStore((s) => s.subscriptionPlan);
   const entitlements = getPlanEntitlements(subscriptionPlan);
   const mfaEnabled = useAppStore((s) => s.mfaEnabled);
@@ -125,21 +127,21 @@ export default function SettingsScreen() {
 
   return (
     <View className="flex-1 bg-slate-50 dark:bg-canvasdark">
-      <ScreenHeader title="Settings" onBack={() => safeBack('/(tabs)/more')} />
+      <ScreenHeader title={tr('settings.title')} onBack={() => safeBack('/(tabs)/more')} />
       <ScreenScroll className="flex-1 px-5">
         <View className="mt-2 rounded-[32px] bg-ink p-5 dark:bg-canvasdark-card" style={heroShadow}>
-          <Text className="font-sans-semibold text-[13px] text-white/70">Account protection</Text>
+          <Text className="font-sans-semibold text-[13px] text-white/70">{tr('settings.accountProtection')}</Text>
           <View className="mt-4 flex-row gap-2">
             <View className="flex-1 rounded-2xl bg-white/10 px-4 py-3">
-              <Text className="font-sans text-[11px] text-white/60">Two-factor</Text>
+              <Text className="font-sans text-[11px] text-white/60">{tr('settings.twoFactor')}</Text>
               <Text className="font-sans-bold text-[16px] text-white">{mfaEnabled ? 'On' : 'Off'}</Text>
             </View>
             <View className="flex-1 rounded-2xl bg-white/10 px-4 py-3">
-              <Text className="font-sans text-[11px] text-white/60">Sharing PIN</Text>
+              <Text className="font-sans text-[11px] text-white/60">{tr('settings.sharingPin')}</Text>
               <Text className="font-sans-bold text-[16px] text-white">{sharingRequiresPin ? 'On' : 'Off'}</Text>
             </View>
             <View className="flex-1 rounded-2xl bg-white/10 px-4 py-3">
-              <Text className="font-sans text-[11px] text-white/60">Reminders</Text>
+              <Text className="font-sans text-[11px] text-white/60">{tr('settings.reminders')}</Text>
               <Text className="font-sans-bold text-[16px] text-white">{notificationsOn}/{notificationTotal}</Text>
             </View>
           </View>
@@ -148,7 +150,7 @@ export default function SettingsScreen() {
           </Text>
         </View>
 
-        <SectionLabel text="Cloud vault sync" />
+        <SectionLabel text={tr('settings.cloudVaultSync')} />
         <View className="mb-2 flex-row items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3.5 dark:border-canvasdark-card dark:bg-canvasdark-card">
           <View className="flex-1 flex-row items-center gap-3 pr-3">
             <View className="h-9 w-9 items-center justify-center rounded-xl bg-brand-100/80 dark:bg-brand-500/20">
@@ -156,7 +158,7 @@ export default function SettingsScreen() {
             </View>
             <View className="flex-1">
               <Text className="font-sans-semibold text-[14px] text-ink dark:text-slate-50">
-                Two-Way Cloud Backup & Sync
+                {tr('settings.twoWaySyncTitle')}
               </Text>
               <Text className="mt-0.5 font-sans text-[12px] text-ink-muted dark:text-slate-400">
                 {isSyncingCloud
@@ -189,12 +191,12 @@ export default function SettingsScreen() {
           >
             <RefreshCw size={13} color="#FFFFFF" />
             <Text className="font-sans-bold text-[12px] text-white">
-              {isSyncingCloud ? 'Syncing…' : 'Sync Now'}
+              {isSyncingCloud ? tr('common.syncing') : tr('common.syncNow')}
             </Text>
           </Pressable>
         </View>
 
-        <SectionLabel text="Security" />
+        <SectionLabel text={tr('settings.security')} />
         <ToggleRow
           icon={<ShieldCheck size={16} color={accent} />}
           label="Two-factor authentication"

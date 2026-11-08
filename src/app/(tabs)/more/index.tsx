@@ -33,6 +33,7 @@ import { elevation, fonts, radii } from '@/design/tokens';
 import { useTokens } from '@/design/useTokens';
 import { useAccent } from '@/hooks/useAccent';
 import { languageNames } from '@/i18n/translations';
+import { useI18n } from '@/i18n/useI18n';
 import { bloodGroupLabel } from '@/lib/bloodGroup';
 import { useSafeClerk } from '@/lib/clerkAvatar';
 import { FREE_RECORD_LIMIT, getPlanEntitlements } from '@/lib/subscription';
@@ -59,6 +60,7 @@ interface MenuSection {
 export default function MoreScreen() {
   const { accent } = useAccent();
   const t = useTokens();
+  const { t: tr } = useI18n();
   const patient = useAppStore((s) => s.patientProfile);
   const recordCount = useAppStore((s) => s.records.length);
   const medications = useAppStore((s) => s.medications);
@@ -141,11 +143,11 @@ export default function MoreScreen() {
 
   const sections: MenuSection[] = [
     {
-      title: 'Account & Coverage',
+      title: tr('more.accountCoverage'),
       items: [
         {
           id: 'profile',
-          label: 'Personal Profile',
+          label: tr('more.personalProfile'),
           subtitle: `${patient.firstName} ${patient.lastName} · ID ···${patient.idNumber.slice(-4)}`,
           icon: UserRound,
           route: '/more/profile',
@@ -153,7 +155,7 @@ export default function MoreScreen() {
         },
         {
           id: 'billing',
-          label: 'Subscription & Billing',
+          label: tr('more.subscriptionBilling'),
           subtitle: planSummary.subtitle,
           icon: CreditCard,
           route: '/more/billing',
@@ -163,7 +165,7 @@ export default function MoreScreen() {
         },
         {
           id: 'emergency',
-          label: 'Emergency Profile (ICE)',
+          label: tr('more.emergencyProfile'),
           subtitle: `Blood group ${bloodGroupLabel(patient.bloodGroup)} · Allergies`,
           icon: ShieldAlert,
           route: '/more/emergency',
@@ -172,11 +174,11 @@ export default function MoreScreen() {
       ],
     },
     {
-      title: 'Health & Records',
+      title: tr('more.healthRecords'),
       items: [
         {
           id: 'medications',
-          label: 'Active Medications',
+          label: tr('more.activeMedications'),
           subtitle: `${activeMedCount} active prescriptions & schedules`,
           icon: PillIcon,
           route: '/more/medications',
@@ -186,7 +188,7 @@ export default function MoreScreen() {
         },
         {
           id: 'timeline',
-          label: 'Health Timeline',
+          label: tr('more.healthTimeline'),
           subtitle: 'Visits, consultations & clinical milestones',
           icon: Clock,
           route: '/more/timeline',
@@ -194,7 +196,7 @@ export default function MoreScreen() {
         },
         {
           id: 'vault',
-          label: 'Records Vault',
+          label: tr('more.recordsVault'),
           subtitle: entitlements.isPro
             ? `${recordCount} lab reports, imaging & discharge summaries (Unlimited)`
             : `${recordCount} / ${FREE_RECORD_LIMIT} free records used`,
@@ -207,11 +209,11 @@ export default function MoreScreen() {
       ],
     },
     {
-      title: 'Security & Preferences',
+      title: tr('more.securityPreferences'),
       items: [
         {
           id: 'settings',
-          label: 'Settings & Security',
+          label: tr('more.settingsSecurity'),
           subtitle: 'Biometrics, PIN, dark mode & password',
           icon: SettingsIcon,
           route: '/more/settings',
@@ -219,7 +221,7 @@ export default function MoreScreen() {
         },
         {
           id: 'sharing',
-          label: 'Doctor & Clinician Sharing',
+          label: tr('more.doctorSharing'),
           subtitle: 'Active access links & doctor scan QR',
           icon: Share2,
           route: '/more/sharing',
@@ -227,7 +229,7 @@ export default function MoreScreen() {
         },
         {
           id: 'notifications',
-          label: 'Notifications',
+          label: tr('more.notifications'),
           subtitle: 'Medication alerts & appointment reminders',
           icon: BellRing,
           route: '/more/notifications',
@@ -235,7 +237,7 @@ export default function MoreScreen() {
         },
         {
           id: 'language',
-          label: 'Language',
+          label: tr('more.language'),
           subtitle: languageNames[language] || 'English',
           icon: Globe,
           route: '/more/language',
@@ -246,11 +248,11 @@ export default function MoreScreen() {
       ],
     },
     {
-      title: 'Legal, Privacy & Support',
+      title: tr('more.legalPrivacySupport'),
       items: [
         {
           id: 'privacy_policy',
-          label: 'Privacy Policy (POPIA)',
+          label: tr('more.privacyPolicy'),
           subtitle: 'Data protection, AI consent & static web policy',
           icon: ShieldAlert,
           onPress: () => setLegalDoc('privacy'),
@@ -258,7 +260,7 @@ export default function MoreScreen() {
         },
         {
           id: 'terms_eula',
-          label: 'Terms of Use (EULA)',
+          label: tr('more.termsOfUse'),
           subtitle: 'Subscription terms & Apple Standard EULA',
           icon: FileText,
           onPress: () => setLegalDoc('terms'),
@@ -287,7 +289,7 @@ export default function MoreScreen() {
         },
         {
           id: 'sign_out',
-          label: 'Sign Out',
+          label: tr('more.signOut'),
           subtitle: 'Log out of your health passport on this device',
           icon: LogOut,
           onPress: confirmSignOut,
@@ -319,7 +321,7 @@ export default function MoreScreen() {
         <Txt variant="footnote" tone="muted">
           Health Passport & Account
         </Txt>
-        <Txt variant="title">More</Txt>
+        <Txt variant="title">{tr('more.title')}</Txt>
       </View>
 
       {/* Profile Summary Card - First Class Entry into Profile */}

@@ -90,7 +90,7 @@ export default function HomeScreen() {
       <PassportCard recordCount={records.length} />
 
       <Animated.View entering={enter(1)} style={{ marginTop: 28 }}>
-        <SectionTitle title="Emergency" />
+        <SectionTitle title={tr('common.emergency')} />
         <EmergencyReadinessCard />
       </Animated.View>
 
@@ -99,18 +99,18 @@ export default function HomeScreen() {
       </Animated.View>
 
       <Animated.View entering={enter(3)} style={{ marginTop: 28 }}>
-        <SectionTitle title={tr('home.todaysReminders')} action="Medications" onAction={() => router.push('/more/medications')} />
+        <SectionTitle title={tr('home.todaysReminders')} action={tr('home.medications')} onAction={() => router.push('/more/medications')} />
         <TodayCard />
       </Animated.View>
 
       <Animated.View entering={enter(4)} style={{ marginTop: 28 }}>
-        <SectionTitle title="Health Awareness" action="Calendar" onAction={() => router.push('/calendar')} />
+        <SectionTitle title={tr('home.healthAwareness')} action={tr('tabs.calendar')} onAction={() => router.push('/calendar')} />
         <HealthAwarenessSpotlight />
       </Animated.View>
 
       {progress.next ? (
         <Animated.View entering={enter(5)} style={{ marginTop: 28 }}>
-          <SectionTitle title="Your passport" />
+          <SectionTitle title={tr('home.yourPassport')} />
           <PassportProgress progress={progress} />
         </Animated.View>
       ) : null}
