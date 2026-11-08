@@ -184,6 +184,7 @@ export interface CustomReminder {
 
 export interface OnboardingDraft {
   goal: string | null;
+  goals: string[];
   firstName: string;
   lastName: string;
   dateOfBirth: string;
@@ -198,6 +199,7 @@ export interface OnboardingDraft {
 
 export const emptyOnboardingDraft: OnboardingDraft = {
   goal: null,
+  goals: [],
   firstName: '',
   lastName: '',
   dateOfBirth: '',

@@ -64,13 +64,6 @@ interface DeviceContactItem {
   phone: string;
 }
 
-const FALLBACK_DEVICE_CONTACTS: DeviceContactItem[] = [
-  { id: 'sim-1', name: 'Sipho Nkosi', phone: '+27 82 555 0149' },
-  { id: 'sim-2', name: 'Lerato Dlamini', phone: '+27 71 440 2391' },
-  { id: 'sim-3', name: 'Dr N. Mokoena (Family GP)', phone: '+27 11 447 8900' },
-  { id: 'sim-4', name: 'Thabo Mbeki-Zulu', phone: '+27 83 910 4421' },
-];
-
 export default function EmergencyScreen() {
   const insets = useSafeAreaInsets();
   const toast = useToast();
@@ -157,33 +150,82 @@ export default function EmergencyScreen() {
 
   const handlePickFromPhoneContacts = async (index: number) => {
     tapFeedback();
-    if (Platform.OS === 'web') {
-      setDeviceContacts(FALLBACK_DEVICE_CONTACTS);
-      setContactSearch('');
-      setContactPickerIndex(index);
-      return;
-    }
 
-    // 1. The system contact picker. On iOS and Android it returns only the contact the user
-    //    taps, so no blanket address-book permission is needed.
-    try {
-      const picked = await Contacts.Contact.presentPicker();
-      if (!picked) return; // user cancelled
-      const [fullName, phones] = await Promise.all([
-        picked.getFullName().catch(() => ''),
-        picked.getPhones().catch(() => []),
-      ]);
-      applyPickedContact(
-        index,
-        fullName,
-        phones.map((p) => p.number ?? ''),
+    // 1. Web Contact Picker API (Supported on Chrome/Edge on Android and mobile browsers)
+    if (Platform.OS === 'web') {
+      if (typeof navigator !== 'undefined' && 'contacts' in navigator && 'ContactsManager' in window) {
+        try {
+          const props = ['name', 'tel'];
+          const pickedContacts = await (navigator as any).contacts.select(props, { multiple: false });
+          if (pickedContacts && pickedContacts.length > 0) {
+            const first = pickedContacts[0];
+            const name = (first.name && first.name[0]) ? first.name[0] : '';
+            const phone = (first.tel && first.tel[0]) ? first.tel[0] : '';
+            if (name || phone) {
+              updateContactAt(index, {
+                name: name || 'Emergency Contact',
+                phone: phone || '',
+              });
+              toast.show(`Imported ${name || phone} from Contacts`, 'success');
+              return;
+            }
+          }
+        } catch (err: any) {
+          if (err.name !== 'AbortError') {
+            console.warn('[Web Contacts] Picker error:', err);
+          }
+          return;
+        }
+      }
+
+      // If browser doesn't support Contact Picker API (desktop or unsupported web view), inform user clearly
+      toast.show(
+        'Phone contacts picker is available on supported mobile browsers. Please type your contact details below.',
+        'info'
       );
       return;
-    } catch {
-      // Picker unavailable or details unreadable without permission: use the searchable list below.
     }
 
-    // 2. Searchable in-app list. Show the Google Play prominent disclosure before the OS prompt.
+    // 2. Native System Contact Picker (iOS / Android)
+    // Tapping opens the native device phonebook app directly
+    try {
+      if (Contacts.Contact && typeof Contacts.Contact.presentPicker === 'function') {
+        const picked = await Contacts.Contact.presentPicker();
+        if (picked) {
+          let fullName = '';
+          let numbers: string[] = [];
+
+          if (typeof picked.getFullName === 'function') {
+            fullName = (await picked.getFullName().catch(() => '')) || '';
+          } else if ((picked as any).fullName) {
+            fullName = (picked as any).fullName;
+          } else if ((picked as any).name) {
+            fullName = (picked as any).name;
+          }
+
+          if (typeof picked.getPhones === 'function') {
+            const phones = await picked.getPhones().catch(() => []);
+            numbers = phones.map((p) => p.number ?? '').filter(Boolean);
+          } else if (Array.isArray((picked as any).phones)) {
+            numbers = (picked as any).phones.map((p: any) => p.number ?? '').filter(Boolean);
+          } else if (Array.isArray((picked as any).phoneNumbers)) {
+            numbers = (picked as any).phoneNumbers.map((p: any) => p.number ?? '').filter(Boolean);
+          }
+
+          if (fullName || numbers.length > 0) {
+            applyPickedContact(index, fullName, numbers);
+            return;
+          }
+        } else {
+          // User cancelled native picker
+          return;
+        }
+      }
+    } catch (pickerErr) {
+      console.warn('[Contacts] Native presentPicker failed, attempting fallback:', pickerErr);
+    }
+
+    // 3. Fallback: Searchable in-app list. Show the Google Play prominent disclosure before the OS prompt.
     try {
       const existing = await Contacts.getPermissionsAsync();
       if (existing.status !== 'granted') {
@@ -211,7 +253,7 @@ export default function EmergencyScreen() {
               [
                 { text: 'Type manually', style: 'cancel' },
                 { text: 'Open Settings', onPress: () => Linking.openSettings().catch(() => {}) },
-              ],
+              ]
             );
           } else {
             toast.show('Contacts permission is needed to import from your phonebook', 'warning');
@@ -224,21 +266,31 @@ export default function EmergencyScreen() {
       setContactSearch('');
       setContactPickerIndex(index);
 
-      // ContactField is re-exported via `export *`, which eslint-plugin-import cannot follow; TypeScript and the runtime both resolve it.
-      /* eslint-disable import/namespace */
-      const details = await Contacts.Contact.getAllDetails([
-        Contacts.ContactField.FULL_NAME,
-        Contacts.ContactField.PHONES,
-      ]);
-      /* eslint-enable import/namespace */
-      const parsed: DeviceContactItem[] = [];
-      details.forEach((d, i) => {
-        const name = (d.fullName ?? '').trim();
-        const phone = d.phones?.[0]?.number?.trim();
-        if (name && phone) parsed.push({ id: `${i}-${name}-${phone}`, name, phone });
-      });
+      let parsed: DeviceContactItem[] = [];
+
+      try {
+        /* eslint-disable import/namespace */
+        const details = await Contacts.Contact.getAllDetails([
+          Contacts.ContactField.FULL_NAME,
+          Contacts.ContactField.PHONES,
+        ]);
+        /* eslint-enable import/namespace */
+        if (details && Array.isArray(details)) {
+          details.forEach((d, i) => {
+            const name = (d.fullName ?? '').trim();
+            const phone = d.phones?.[0]?.number?.trim();
+            if (name && phone) parsed.push({ id: `${i}-${name}-${phone}`, name, phone });
+          });
+        }
+      } catch (detailsErr) {
+        console.warn('[Contacts] getAllDetails fallback failed:', detailsErr);
+      }
+
       parsed.sort((a, b) => a.name.localeCompare(b.name));
       setDeviceContacts(parsed);
+      if (parsed.length === 0) {
+        toast.show('No contacts found on device. Please enter details manually.', 'info');
+      }
     } catch {
       setContactPickerIndex(null);
       toast.show('Could not open your contacts. Please type the details in manually.', 'warning');
@@ -405,7 +457,7 @@ export default function EmergencyScreen() {
                   <TextInput
                     value={contact.name}
                     onChangeText={(v) => updateContactAt(index, { name: v })}
-                    placeholder="Contact full name (e.g. Sipho Nkosi)"
+                    placeholder="Contact full name (e.g. Spouse or Parent)"
                     placeholderTextColor="#8C98B8"
                     autoCapitalize="words"
                     returnKeyType="next"
@@ -415,7 +467,7 @@ export default function EmergencyScreen() {
                   <TextInput
                     value={contact.phone}
                     onChangeText={(v) => updateContactAt(index, { phone: v })}
-                    placeholder="Phone number (e.g. +27 82 555 0149)"
+                    placeholder="Phone number (e.g. 082 123 4567)"
                     placeholderTextColor="#8C98B8"
                     keyboardType="phone-pad"
                     returnKeyType="done"
