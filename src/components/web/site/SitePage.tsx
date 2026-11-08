@@ -1,5 +1,5 @@
-import Head from 'expo-router/head';
-import { Linking, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
+import { useEffect } from 'react';
+import { Linking, Platform, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { INK, LINE, MAX, MUTED, NAVY, RED, SiteFooter, SiteNav, sans } from './SiteChrome';
@@ -25,12 +25,19 @@ export function SitePage({
   const { width } = useWindowDimensions();
   const wide = width >= 768;
   const pad = wide ? 32 : 20;
+
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      document.title = `${title} · Siyashesha Health Passport`;
+      const meta = document.querySelector('meta[name="description"]');
+      if (meta) {
+        meta.setAttribute('content', description ?? intro ?? 'Siyashesha Health Passport');
+      }
+    }
+  }, [title, description, intro]);
+
   return (
     <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
-      <Head>
-        <title>{`${title} · Siyashesha Health Passport`}</title>
-        <meta name="description" content={description ?? intro ?? 'Siyashesha Health Passport'} />
-      </Head>
       <SiteNav />
       <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false}>
         <View style={{ backgroundColor: '#F8FAFC', borderBottomWidth: 1, borderBottomColor: LINE }}>
@@ -74,7 +81,11 @@ export function Bullets({ items }: { items: React.ReactNode[] }) {
       {items.map((it, i) => (
         <View key={i} style={{ flexDirection: 'row', gap: 12 }}>
           <Text style={{ fontFamily: sans(400), fontSize: 16, lineHeight: 26, color: MUTED }}>•</Text>
-          <Text style={{ flex: 1, fontFamily: sans(400), fontSize: 16, lineHeight: 26, color: INK }}>{it}</Text>
+          {typeof it === 'string' ? (
+            <Text style={{ flex: 1, fontFamily: sans(400), fontSize: 16, lineHeight: 26, color: INK }}>{it}</Text>
+          ) : (
+            <View style={{ flex: 1 }}>{it}</View>
+          )}
         </View>
       ))}
     </View>

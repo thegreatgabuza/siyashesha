@@ -39,7 +39,7 @@ export default function NotificationsScreen() {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
 
-  const goNext = () => router.push('/(onboarding)/privacy' as any);
+  const goNext = () => router.push('/(onboarding)/consent' as any);
 
   const allowReminders = async () => {
     if (busy) return;
