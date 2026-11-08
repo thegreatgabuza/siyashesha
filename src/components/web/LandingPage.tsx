@@ -70,17 +70,24 @@ function Button({
 }
 
 /** Web landing page: the first thing an unauthenticated visitor sees. */
-export default function LandingScreen() {
+export default function LandingPage() {
   const { width } = useWindowDimensions();
   const wide = width >= 900;
   const pad = width >= 768 ? 32 : 20;
   const [legalDoc, setLegalDoc] = useState<LegalDocKind>(null);
+  const [scroller, setScroller] = useState<any>(null);
+  const [nav] = useState(() => ({ y: {} as Record<string, number> }));
+  const mark = (k: string) => (e: any) => {
+    nav.y[k] = e.nativeEvent.layout.y;
+  };
+  const jump = (k: string) =>
+    scroller?.scrollTo({ y: Math.max((nav.y[k] ?? 0) - 68, 0), animated: true });
 
   return (
     <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView ref={setScroller} showsVerticalScrollIndicator={false}>
         {/* Nav */}
-        <View style={{ borderBottomWidth: 1, borderBottomColor: LINE }}>
+        <View style={{ borderBottomWidth: 1, borderBottomColor: LINE, position: 'sticky' as any, top: 0, zIndex: 10, backgroundColor: '#FFFFFF' }}>
           <View
             style={{
               width: '100%',
@@ -97,6 +104,13 @@ export default function LandingScreen() {
               <Text style={{ fontFamily: 'BebasNeue_400Regular', fontSize: 28, letterSpacing: 1, color: RED }}>SIYASHESHA</Text>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              {wide
+                ? (['features', 'security', 'pricing'] as const).map((k) => (
+                    <Pressable key={k} accessibilityRole="link" onPress={() => jump(k)} style={{ paddingHorizontal: 14, height: 40, justifyContent: 'center' }}>
+                      <Text style={{ fontFamily: sans(500), fontSize: 14, color: MUTED }}>{k[0].toUpperCase() + k.slice(1)}</Text>
+                    </Pressable>
+                  ))
+                : null}
               <Pressable accessibilityRole="button" onPress={goSignIn} style={{ paddingHorizontal: 14, height: 40, justifyContent: 'center' }}>
                 <Text style={{ fontFamily: sans(600), fontSize: 14, color: INK }}>Sign in</Text>
               </Pressable>
@@ -158,7 +172,7 @@ export default function LandingScreen() {
         </View>
 
         {/* Features */}
-        <View style={{ backgroundColor: '#F8FAFC', borderTopWidth: 1, borderBottomWidth: 1, borderColor: LINE }}>
+        <View onLayout={mark('features')} style={{ backgroundColor: '#F8FAFC', borderTopWidth: 1, borderBottomWidth: 1, borderColor: LINE }}>
           <View
             style={{ width: '100%', maxWidth: MAX, alignSelf: 'center', paddingHorizontal: pad, paddingVertical: wide ? 88 : 56 }}
           >
@@ -204,6 +218,7 @@ export default function LandingScreen() {
 
         {/* Security */}
         <View
+          onLayout={mark('security')}
           style={{
             width: '100%',
             maxWidth: MAX,
@@ -241,7 +256,7 @@ export default function LandingScreen() {
         </View>
 
         {/* Pricing */}
-        <View style={{ backgroundColor: '#F8FAFC', borderTopWidth: 1, borderBottomWidth: 1, borderColor: LINE }}>
+        <View onLayout={mark('pricing')} style={{ backgroundColor: '#F8FAFC', borderTopWidth: 1, borderBottomWidth: 1, borderColor: LINE }}>
           <View
             style={{ width: '100%', maxWidth: MAX, alignSelf: 'center', paddingHorizontal: pad, paddingVertical: wide ? 88 : 56 }}
           >
