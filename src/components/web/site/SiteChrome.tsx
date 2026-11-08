@@ -1,15 +1,19 @@
 import { router, usePathname } from 'expo-router';
-import { Menu, X } from 'lucide-react-native';
+import { Menu, ShieldAlert, X } from 'lucide-react-native';
 import { useState } from 'react';
 import { Linking, Platform, Pressable, Text, useWindowDimensions, View } from 'react-native';
 
 export const NAVY = '#0B1E40';
 export const RED = '#DC1F26';
 export const TEAL = '#0D7C66';
-export const INK = '#1B2540';
-export const MUTED = '#5B6478';
-export const LINE = '#E5E9F2';
-export const MAX = 1120;
+export const INK = '#111827';
+export const MUTED = '#6B7487';
+export const SECONDARY = '#4B5565';
+export const LINE = 'rgba(17, 24, 39, 0.08)';
+export const SURFACE = '#FAF9F6';
+export const CARD_BG = '#FFFFFF';
+export const RAISED = '#F3F1EC';
+export const MAX = 1160;
 
 export const sans = (w: 400 | 500 | 600 | 700 = 400) =>
   ({ 400: 'Inter_400Regular', 500: 'Inter_500Medium', 600: 'Inter_600SemiBold', 700: 'Inter_700Bold' })[w];
@@ -31,41 +35,53 @@ export function goSignIn() {
   router.push('/sign-in');
 }
 
-/** Top navigation shared by every public page. `overlay` floats white over the landing hero. */
+/** Top navigation shared by every public page. Clean, quiet chrome with a 4px grid. */
 export function SiteNav({ overlay = false }: { overlay?: boolean }) {
   const { width } = useWindowDimensions();
-  const wide = width >= 900;
+  const wide = width >= 860;
   const pad = width >= 768 ? 32 : 20;
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const fg = overlay ? '#FFFFFF' : NAVY;
-  const sub = overlay ? 'rgba(255,255,255,0.92)' : MUTED;
 
   return (
     <View
       style={{
         zIndex: 20,
-        ...(overlay
-          ? { position: 'absolute' as const, top: 0, left: 0, right: 0 }
-          : { backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: LINE, ...(Platform.OS === 'web' ? ({ position: 'sticky', top: 0 } as any) : null) }),
+        backgroundColor: overlay ? 'transparent' : '#FFFFFF',
+        borderBottomWidth: 1,
+        borderBottomColor: LINE,
+        ...(Platform.OS === 'web' && !overlay ? ({ position: 'sticky', top: 0 } as any) : null),
       }}
     >
       <View
         style={{
           width: '100%',
-          maxWidth: 1360,
+          maxWidth: MAX,
           alignSelf: 'center',
           paddingHorizontal: pad,
-          height: 76,
+          height: 64,
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
         }}
       >
-        <Pressable accessibilityRole="link" accessibilityLabel="Siyashesha home" onPress={() => router.navigate('/')}>
-          <Text style={{ fontFamily: 'BebasNeue_400Regular', fontSize: 28, letterSpacing: 2, color: overlay ? '#FFFFFF' : RED }}>SIYASHESHA</Text>
+        {/* Brand Lockup */}
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel="Siyashesha home"
+          onPress={() => router.navigate('/')}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
+        >
+          <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: RED, alignItems: 'center', justifyContent: 'center' }}>
+            <ShieldAlert size={16} color="#FFFFFF" strokeWidth={2.2} />
+          </View>
+          <View>
+            <Text style={{ fontFamily: sans(700), fontSize: 16, letterSpacing: 0.5, color: NAVY }}>SIYASHESHA</Text>
+            <Text style={{ fontFamily: sans(500), fontSize: 10, letterSpacing: 0.3, color: MUTED }}>Health Passport</Text>
+          </View>
         </Pressable>
 
+        {/* Links */}
         {wide ? (
           <View style={{ flexDirection: 'row', gap: 4 }}>
             {NAV_LINKS.map((l) => {
@@ -75,41 +91,72 @@ export function SiteNav({ overlay = false }: { overlay?: boolean }) {
                   key={l.href}
                   accessibilityRole="link"
                   onPress={() => router.navigate(l.href as any)}
-                  style={{ paddingHorizontal: 18, height: 40, justifyContent: 'center' }}
+                  style={({ hovered }: any) => ({
+                    paddingHorizontal: 14,
+                    height: 36,
+                    borderRadius: 8,
+                    justifyContent: 'center',
+                    backgroundColor: active ? RAISED : hovered ? 'rgba(17,24,39,0.04)' : 'transparent',
+                  })}
                 >
-                  <Text style={{ fontFamily: sans(active ? 600 : 500), fontSize: 16, color: active ? fg : sub }}>{l.label}</Text>
+                  <Text style={{ fontFamily: sans(active ? 600 : 500), fontSize: 14, color: active ? INK : SECONDARY }}>
+                    {l.label}
+                  </Text>
                 </Pressable>
               );
             })}
           </View>
         ) : null}
 
+        {/* Actions */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           {wide ? (
-            <Pressable accessibilityRole="button" onPress={goSignIn} style={{ paddingHorizontal: 16, height: 44, justifyContent: 'center' }}>
-              <Text style={{ fontFamily: sans(500), fontSize: 16, color: fg }}>Log in</Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={goSignIn}
+              style={({ hovered }: any) => ({
+                paddingHorizontal: 14,
+                height: 38,
+                borderRadius: 8,
+                justifyContent: 'center',
+                backgroundColor: hovered ? 'rgba(17,24,39,0.04)' : 'transparent',
+              })}
+            >
+              <Text style={{ fontFamily: sans(500), fontSize: 14, color: INK }}>Sign in</Text>
             </Pressable>
           ) : null}
+
           <Pressable
             accessibilityRole="button"
             onPress={() => goSignUp()}
-            style={{ paddingHorizontal: 20, height: 44, borderRadius: 999, backgroundColor: overlay ? '#FFFFFF' : NAVY, justifyContent: 'center' }}
+            style={({ pressed, hovered }: any) => ({
+              paddingHorizontal: 16,
+              height: 38,
+              borderRadius: 8,
+              backgroundColor: hovered ? '#152C5B' : NAVY,
+              justifyContent: 'center',
+              opacity: pressed ? 0.92 : 1,
+            })}
           >
-            <Text style={{ fontFamily: sans(600), fontSize: 15, color: overlay ? NAVY : '#FFFFFF' }}>
-              {wide ? 'Create passport' : 'Start'}
-            </Text>
+            <Text style={{ fontFamily: sans(600), fontSize: 14, color: '#FFFFFF' }}>Create passport</Text>
           </Pressable>
+
           {!wide ? (
-            <Pressable accessibilityRole="button" accessibilityLabel="Menu" onPress={() => setOpen((v) => !v)} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
-              {open ? <X size={22} color={fg} /> : <Menu size={22} color={fg} />}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Menu"
+              onPress={() => setOpen((v) => !v)}
+              style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 8 }}
+            >
+              {open ? <X size={20} color={INK} /> : <Menu size={20} color={INK} />}
             </Pressable>
           ) : null}
         </View>
       </View>
 
       {!wide && open ? (
-        <View style={{ backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: LINE, paddingHorizontal: pad, paddingBottom: 12 }}>
-          {[...NAV_LINKS, { href: '/sign-in', label: 'Log in' }].map((l) => (
+        <View style={{ backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: LINE, paddingHorizontal: pad, paddingVertical: 8 }}>
+          {[...NAV_LINKS, { href: '/sign-in', label: 'Sign in' }].map((l) => (
             <Pressable
               key={l.href}
               accessibilityRole="link"
@@ -117,9 +164,9 @@ export function SiteNav({ overlay = false }: { overlay?: boolean }) {
                 setOpen(false);
                 router.navigate(l.href as any);
               }}
-              style={{ height: 48, justifyContent: 'center' }}
+              style={{ height: 44, justifyContent: 'center' }}
             >
-              <Text style={{ fontFamily: sans(500), fontSize: 17, color: INK }}>{l.label}</Text>
+              <Text style={{ fontFamily: sans(500), fontSize: 15, color: INK }}>{l.label}</Text>
             </Pressable>
           ))}
         </View>
@@ -160,13 +207,18 @@ export function SiteFooter() {
   const wide = width >= 768;
   const pad = wide ? 32 : 20;
   return (
-    <View style={{ backgroundColor: '#F8FAFC', borderTopWidth: 1, borderTopColor: LINE }}>
+    <View style={{ backgroundColor: '#FAF9F6', borderTopWidth: 1, borderTopColor: LINE }}>
       <View style={{ width: '100%', maxWidth: MAX, alignSelf: 'center', paddingHorizontal: pad, paddingTop: 56, paddingBottom: 40 }}>
         <View style={{ flexDirection: wide ? 'row' : 'column', gap: wide ? 64 : 32 }}>
-          <View style={{ flex: wide ? 1.3 : undefined, gap: 10 }}>
-            <Text style={{ fontFamily: 'BebasNeue_400Regular', fontSize: 26, letterSpacing: 1, color: RED }}>SIYASHESHA</Text>
-            <Text style={{ fontFamily: sans(400), fontSize: 14, lineHeight: 22, color: MUTED, maxWidth: 320 }}>
-              A patient-held health passport for your records and emergency information.
+          <View style={{ flex: wide ? 1.4 : undefined, gap: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: RED, alignItems: 'center', justifyContent: 'center' }}>
+                <ShieldAlert size={15} color="#FFFFFF" strokeWidth={2.2} />
+              </View>
+              <Text style={{ fontFamily: sans(700), fontSize: 15, letterSpacing: 0.5, color: NAVY }}>SIYASHESHA</Text>
+            </View>
+            <Text style={{ fontFamily: sans(400), fontSize: 14, lineHeight: 22, color: MUTED, maxWidth: 340 }}>
+              A patient-held health passport and offline emergency ICE card for South African patients and families.
             </Text>
             <Pressable onPress={() => void Linking.openURL(`mailto:${SUPPORT_EMAIL}`)}>
               <Text style={{ fontFamily: sans(500), fontSize: 14, color: NAVY }}>{SUPPORT_EMAIL}</Text>
@@ -174,13 +226,13 @@ export function SiteFooter() {
           </View>
           {footerColumns.map((col) => (
             <View key={col.title} style={{ flex: 1, gap: 4 }}>
-              <Text style={{ fontFamily: sans(600), fontSize: 13, color: INK, marginBottom: 6 }}>{col.title}</Text>
+              <Text style={{ fontFamily: sans(600), fontSize: 13, color: INK, marginBottom: 8 }}>{col.title}</Text>
               {col.links.map((l) => (
                 <Pressable
                   key={l.label}
                   accessibilityRole="link"
                   onPress={() => (l.href ? router.navigate(l.href as any) : void Linking.openURL(`mailto:${l.mail}`))}
-                  style={{ paddingVertical: 5 }}
+                  style={{ paddingVertical: 4 }}
                 >
                   <Text style={{ fontFamily: sans(400), fontSize: 14, color: MUTED }}>{l.label}</Text>
                 </Pressable>
