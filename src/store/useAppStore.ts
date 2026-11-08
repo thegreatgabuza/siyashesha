@@ -29,7 +29,9 @@ import {
   fetchMedicationsFromDatabase,
   fetchPatientProfileFromDatabase,
   fetchRecordsFromDatabase,
+  fetchSharedLinksFromDatabase,
   isSupabaseConfigured,
+  revokeSharedLinkInDatabase,
   setSupabaseAuthContext,
   syncAppointmentToDatabase,
   syncAppointments,
@@ -40,6 +42,9 @@ import {
   syncPatientProfile,
   syncRecordToDatabase,
   syncRecords,
+  syncSharedLinkToDatabase,
+  syncSharedLinks,
+  type SharedLinkSnapshot,
 } from '@/lib/supabase';
 
 const DEMO_RECORD_IDS = new Set(medicalRecords.map((r) => r.id));
@@ -91,6 +96,26 @@ function stripDemoSeedProfile(current: PatientProfile): PatientProfile {
     },
     emergencyContacts: [],
     memberSince: new Date().toISOString().slice(0, 10),
+  };
+}
+
+function buildShareSnapshot(
+  profile: PatientProfile,
+  records: MedicalRecord[],
+  diaryNotes: DiaryNote[],
+  link: SharedLink
+): SharedLinkSnapshot {
+  return {
+    patientSummary: {
+      fullName: [profile.firstName, profile.lastName].filter(Boolean).join(' ') || 'Patient',
+      dateOfBirth: profile.dateOfBirth || 'Unknown',
+      bloodGroup: profile.bloodGroup || 'Unknown',
+      allergies: profile.allergies ?? [],
+      chronicConditions: profile.chronicConditions ?? [],
+      emergencyContact: profile.emergencyContact,
+    },
+    records: records.filter((r) => link.recordIds.includes(r.id)),
+    diaryNotes: diaryNotes.filter((n) => link.diaryNoteIds.includes(n.id)),
   };
 }
 
@@ -694,6 +719,13 @@ export const useAppStore = create<AppState>()(
           expiresAt: expires.toISOString(),
           status: 'active',
         };
+        const current = get();
+        const snapshot = buildShareSnapshot(
+          current.patientProfile,
+          current.records,
+          current.diaryNotes,
+          link
+        );
         set((s) => ({
           sharedLinks: [link, ...s.sharedLinks],
           auditEvents: [
@@ -706,11 +738,13 @@ export const useAppStore = create<AppState>()(
             ...s.auditEvents,
           ],
         }));
+        syncSharedLinkToDatabase(link, snapshot).catch(() => {});
         return link;
       },
       revokeShare: (id) =>
         set((s) => {
           const link = s.sharedLinks.find((l) => l.id === id);
+          revokeSharedLinkInDatabase(id).catch(() => {});
           return {
             sharedLinks: s.sharedLinks.map((l) => (l.id === id ? { ...l, status: 'revoked' } : l)),
             auditEvents: link
@@ -1039,12 +1073,14 @@ export const useAppStore = create<AppState>()(
             remoteMedications,
             remoteAppointments,
             remoteDiaryNotes,
+            remoteSharedLinks,
           ] = await Promise.all([
             fetchPatientProfileFromDatabase(),
             fetchRecordsFromDatabase(),
             fetchMedicationsFromDatabase(),
             fetchAppointmentsFromDatabase(),
             fetchDiaryNotesFromDatabase(),
+            fetchSharedLinksFromDatabase(),
           ]);
 
           const current = get();
@@ -1149,7 +1185,39 @@ export const useAppStore = create<AppState>()(
             syncDiaryNotes(localNotes).catch(() => {});
           }
 
-          // 5. Two-way merge Patient Profile
+          // 5. Two-way merge Shared Links & auto-expire past-due shares
+          const nowMs = Date.now();
+          const normalizeShareStatus = (l: SharedLink): SharedLink => {
+            if (l.status === 'active' && l.expiresAt && new Date(l.expiresAt).getTime() <= nowMs) {
+              return { ...l, status: 'expired' };
+            }
+            return l;
+          };
+
+          const localShares = (
+            isDemo
+              ? current.sharedLinks
+              : current.sharedLinks.filter((l) => !DEMO_SHARE_IDS.has(l.id))
+          ).map(normalizeShareStatus);
+          let mergedShares = localShares;
+
+          if (remoteSharedLinks !== null) {
+            const normalizedRemote = remoteSharedLinks.map(normalizeShareStatus);
+            const remoteShareIds = new Set(normalizedRemote.map((l) => l.id));
+            const unsyncedLocalShares = localShares.filter((l) => !remoteShareIds.has(l.id));
+            if (unsyncedLocalShares.length > 0 && !isDemo) {
+              syncSharedLinks(unsyncedLocalShares, (link) =>
+                buildShareSnapshot(current.patientProfile, mergedRecords, mergedNotes, link)
+              ).catch(() => {});
+            }
+            mergedShares = [...normalizedRemote, ...unsyncedLocalShares];
+          } else if (localShares.length > 0 && !isDemo) {
+            syncSharedLinks(localShares, (link) =>
+              buildShareSnapshot(current.patientProfile, mergedRecords, mergedNotes, link)
+            ).catch(() => {});
+          }
+
+          // 6. Two-way merge Patient Profile
           const baseLocalProfile = isDemo
             ? current.patientProfile
             : stripDemoSeedProfile(current.patientProfile);
@@ -1228,6 +1296,7 @@ export const useAppStore = create<AppState>()(
             medicationReminderEnabled: nextReminderEnabled,
             appointments: mergedAppts,
             diaryNotes: mergedNotes,
+            sharedLinks: mergedShares,
             patientProfile: mergedProfile,
             isSyncingCloud: false,
             lastCloudSyncAt: new Date().toISOString(),

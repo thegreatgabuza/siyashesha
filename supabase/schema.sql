@@ -370,3 +370,97 @@ CREATE POLICY "Owner access on scheduled_reminders_sync"
 ON public.scheduled_reminders_sync FOR ALL
 USING (public.requesting_user_id() IS NOT NULL AND user_id = public.requesting_user_id())
 WITH CHECK (public.requesting_user_id() IS NOT NULL AND user_id = public.requesting_user_id());
+
+-- ==============================================================================
+-- 9. Clinician / Doctor Shared Links Table & PIN Verification RPC
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.shared_links (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL DEFAULT public.requesting_user_id(),
+  share_code TEXT NOT NULL,
+  recipient_name TEXT NOT NULL,
+  recipient_facility TEXT NOT NULL,
+  record_ids JSONB DEFAULT '[]'::jsonb,
+  diary_note_ids JSONB DEFAULT '[]'::jsonb,
+  duration_id TEXT NOT NULL,
+  pin TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active',
+  payload JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_shared_links_user_id ON public.shared_links(user_id);
+CREATE INDEX IF NOT EXISTS idx_shared_links_share_code ON public.shared_links(share_code);
+
+ALTER TABLE public.shared_links ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.shared_links FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Owner access on shared_links" ON public.shared_links;
+
+CREATE POLICY "Owner access on shared_links"
+ON public.shared_links FOR ALL
+USING (public.requesting_user_id() IS NOT NULL AND user_id = public.requesting_user_id())
+WITH CHECK (public.requesting_user_id() IS NOT NULL AND user_id = public.requesting_user_id());
+
+DROP TRIGGER IF EXISTS trg_shared_links_updated_at ON public.shared_links;
+CREATE TRIGGER trg_shared_links_updated_at
+BEFORE UPDATE ON public.shared_links
+FOR EACH ROW
+EXECUTE FUNCTION public.handle_updated_at();
+
+-- Security Definer RPC allowing a clinician with the share_code and 4-digit PIN
+-- to retrieve ONLY the authorized snapshot if the link is active and not expired.
+CREATE OR REPLACE FUNCTION public.verify_shared_link(
+  p_share_code TEXT,
+  p_pin TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_row public.shared_links%ROWTYPE;
+BEGIN
+  SELECT *
+  INTO v_row
+  FROM public.shared_links
+  WHERE share_code = p_share_code OR id = p_share_code
+  LIMIT 1;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'Share link not found.');
+  END IF;
+
+  IF v_row.status = 'revoked' THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'This share link has been revoked by the patient.');
+  END IF;
+
+  IF v_row.status = 'expired' OR v_row.expires_at <= TIMEZONE('utc'::text, NOW()) THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'This share link has expired.');
+  END IF;
+
+  IF TRIM(v_row.pin) <> TRIM(p_pin) THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'Incorrect 4-digit access PIN.');
+  END IF;
+
+  RETURN jsonb_build_object(
+    'ok', true,
+    'id', v_row.share_code,
+    'recipientName', v_row.recipient_name,
+    'recipientFacility', v_row.recipient_facility,
+    'recordIds', v_row.record_ids,
+    'diaryNoteIds', v_row.diary_note_ids,
+    'durationId', v_row.duration_id,
+    'createdAt', v_row.created_at,
+    'expiresAt', v_row.expires_at,
+    'status', v_row.status,
+    'payload', v_row.payload
+  );
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.verify_shared_link(TEXT, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.verify_shared_link(TEXT, TEXT) TO anon, authenticated, service_role;

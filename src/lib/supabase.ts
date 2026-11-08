@@ -15,6 +15,7 @@ import type { DiaryAttachment, DiaryCategory, DiaryNote } from '@/data/diarySeed
 import type { Medication } from '@/data/medications';
 import type { EmergencyContact, PatientProfile } from '@/data/patient';
 import type { MedicalRecord } from '@/data/records';
+import type { ShareDuration, SharedLink } from '@/data/sharing';
 import type { Database, Json } from '@/types/supabase';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
@@ -1038,6 +1039,354 @@ export async function fetchDiaryNotesFromDatabase(): Promise<DiaryNote[] | null>
   }
 }
 
+export interface SharedLinkSnapshot {
+  patientSummary: {
+    fullName: string;
+    dateOfBirth: string;
+    bloodGroup: string;
+    allergies: { substance: string; reaction: string }[];
+    chronicConditions: string[];
+    emergencyContact?: EmergencyContact;
+  };
+  records: MedicalRecord[];
+  diaryNotes: DiaryNote[];
+}
+
+export interface VerifySharedLinkResult {
+  ok: boolean;
+  error?: string;
+  link?: SharedLink;
+  snapshot?: SharedLinkSnapshot;
+}
+
+function resolveShareStatus(
+  rawStatus: string | undefined | null,
+  expiresAt: string
+): SharedLink['status'] {
+  if (rawStatus === 'revoked') return 'revoked';
+  if (rawStatus === 'expired') return 'expired';
+  if (expiresAt && new Date(expiresAt).getTime() <= Date.now()) {
+    return 'expired';
+  }
+  return 'active';
+}
+
+function buildSharedLinkRow(userId: string, link: SharedLink, snapshot?: SharedLinkSnapshot) {
+  const status = resolveShareStatus(link.status, link.expiresAt);
+  return {
+    id: toScopedRowId(userId, link.id),
+    user_id: userId,
+    share_code: link.id,
+    recipient_name: link.recipientName,
+    recipient_facility: link.recipientFacility,
+    record_ids: (link.recordIds ?? []) as unknown as Json,
+    diary_note_ids: (link.diaryNoteIds ?? []) as unknown as Json,
+    duration_id: link.durationId,
+    pin: link.pin,
+    status,
+    payload: (snapshot ?? {}) as unknown as Json,
+    created_at: link.createdAt,
+    expires_at: link.expiresAt,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+function buildFallbackReminderShareRow(
+  userId: string,
+  link: SharedLink,
+  snapshot?: SharedLinkSnapshot
+) {
+  const status = resolveShareStatus(link.status, link.expiresAt);
+  return {
+    id: toScopedRowId(userId, `sharelink_${link.id}`),
+    user_id: userId,
+    patient_id: userId,
+    reminder_type: 'shared_link',
+    title: `${link.recipientName} (${link.recipientFacility})`,
+    body: link.id,
+    scheduled_time: link.expiresAt,
+    recurrence: link.durationId,
+    status,
+    metadata: {
+      link: { ...link, status },
+      snapshot: snapshot ?? null,
+    } as unknown as Json,
+    synced_at: new Date().toISOString(),
+  };
+}
+
+/**
+ * Syncs a clinician/doctor share link (plus authorized record snapshot) to Supabase.
+ * Writes to `shared_links` and mirrors to `scheduled_reminders_sync` for backwards compatibility.
+ */
+export async function syncSharedLinkToDatabase(
+  link: SharedLink,
+  snapshot?: SharedLinkSnapshot
+): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) return false;
+
+    const { error } = await supabase
+      .from('shared_links')
+      .upsert(buildSharedLinkRow(userId, link, snapshot));
+
+    // Also mirror into scheduled_reminders_sync if shared_links table hasn't been migrated yet
+    const { error: fbErr } = await supabase
+      .from('scheduled_reminders_sync')
+      .upsert(buildFallbackReminderShareRow(userId, link, snapshot));
+
+    return !error || !fbErr;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Syncs multiple shared links to Supabase.
+ */
+export async function syncSharedLinks(
+  links: SharedLink[],
+  snapshotBuilder?: (link: SharedLink) => SharedLinkSnapshot
+): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
+  if (links.length === 0) return true;
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) return false;
+
+    const rows = links.map((l) =>
+      buildSharedLinkRow(userId, l, snapshotBuilder ? snapshotBuilder(l) : undefined)
+    );
+    const fallbackRows = links.map((l) =>
+      buildFallbackReminderShareRow(userId, l, snapshotBuilder ? snapshotBuilder(l) : undefined)
+    );
+
+    const { error } = await supabase.from('shared_links').upsert(rows);
+    const { error: fbErr } = await supabase.from('scheduled_reminders_sync').upsert(fallbackRows);
+    return !error || !fbErr;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Immediately marks a clinician share link as revoked in Supabase so the PIN and QR stop working.
+ */
+export async function revokeSharedLinkInDatabase(id: string): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) return false;
+
+    const scopedId = toScopedRowId(userId, id);
+    const { error } = await supabase
+      .from('shared_links')
+      .update({ status: 'revoked', updated_at: new Date().toISOString() })
+      .in('id', [id, scopedId])
+      .eq('user_id', userId);
+
+    const fallbackId = toScopedRowId(userId, `sharelink_${id}`);
+    const { data: existingFallback } = await supabase
+      .from('scheduled_reminders_sync')
+      .select('metadata')
+      .eq('id', fallbackId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    const updatedMeta =
+      existingFallback?.metadata && typeof existingFallback.metadata === 'object'
+        ? {
+            ...(existingFallback.metadata as Record<string, any>),
+            link: {
+              ...((existingFallback.metadata as Record<string, any>).link ?? {}),
+              status: 'revoked',
+            },
+          }
+        : undefined;
+
+    const { error: fbErr } = await supabase
+      .from('scheduled_reminders_sync')
+      .update({
+        status: 'revoked',
+        ...(updatedMeta ? { metadata: updatedMeta as unknown as Json } : {}),
+        synced_at: new Date().toISOString(),
+      })
+      .eq('id', fallbackId)
+      .eq('user_id', userId);
+
+    return !error || !fbErr;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Fetches all clinician share links belonging to the current user from Supabase,
+ * automatically transitioning any past-due active links to `'expired'`.
+ */
+export async function fetchSharedLinksFromDatabase(): Promise<SharedLink[] | null> {
+  if (!isSupabaseConfigured) return null;
+
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) return null;
+
+    const { data, error } = await supabase
+      .from('shared_links')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (!error && data && data.length > 0) {
+      return data.map((row: any): SharedLink => {
+        const expiresAt = row.expires_at;
+        const status = resolveShareStatus(row.status, expiresAt);
+        return {
+          id: row.share_code || fromScopedRowId(userId, row.id),
+          recipientName: row.recipient_name,
+          recipientFacility: row.recipient_facility,
+          recordIds: Array.isArray(row.record_ids) ? row.record_ids : [],
+          diaryNoteIds: Array.isArray(row.diary_note_ids) ? row.diary_note_ids : [],
+          durationId: (row.duration_id as ShareDuration['id']) || '7d',
+          pin: row.pin,
+          createdAt: row.created_at,
+          expiresAt,
+          status,
+        };
+      });
+    }
+
+    // Fallback check in scheduled_reminders_sync if shared_links table is empty or not yet migrated
+    const { data: fallbackData, error: fallbackErr } = await supabase
+      .from('scheduled_reminders_sync')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('reminder_type', 'shared_link')
+      .order('synced_at', { ascending: false });
+
+    if (fallbackErr || !fallbackData) {
+      return !error && data ? [] : null;
+    }
+
+    return fallbackData
+      .map((row: any): SharedLink | null => {
+        const meta = row.metadata as { link?: SharedLink } | null;
+        if (!meta?.link) return null;
+        const link = meta.link;
+        const status = resolveShareStatus(row.status || link.status, link.expiresAt);
+        return {
+          ...link,
+          status,
+        };
+      })
+      .filter((l): l is SharedLink => Boolean(l));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Verifies a clinician share ID + 4-digit PIN against Supabase (`verify_shared_link` RPC or owner tables)
+ * and returns the authorized clinical snapshot if active and not expired.
+ */
+export async function verifySharedLinkWithPin(
+  shareId: string,
+  enteredPin: string
+): Promise<VerifySharedLinkResult> {
+  const cleanPin = enteredPin.trim();
+  const cleanId = shareId.trim();
+
+  if (!cleanId || cleanPin.length !== 4) {
+    return { ok: false, error: 'Please enter the 4-digit access PIN.' };
+  }
+
+  if (isSupabaseConfigured) {
+    try {
+      // 1. Try Security Definer RPC (`verify_shared_link`) first
+      const { data: rpcData, error: rpcErr } = await supabase.rpc('verify_shared_link', {
+        p_share_code: cleanId,
+        p_pin: cleanPin,
+      });
+
+      if (!rpcErr && rpcData && typeof rpcData === 'object' && !Array.isArray(rpcData)) {
+        const result = rpcData as Record<string, any>;
+        if (result.ok === false) {
+          return { ok: false, error: String(result.error || 'Access denied.') };
+        }
+        if (result.ok === true) {
+          const expiresAt = String(result.expiresAt || '');
+          const status = resolveShareStatus(String(result.status || 'active'), expiresAt);
+          if (status !== 'active') {
+            return {
+              ok: false,
+              error:
+                status === 'revoked'
+                  ? 'This share link has been revoked by the patient.'
+                  : 'This share link has expired.',
+            };
+          }
+          const link: SharedLink = {
+            id: String(result.id || cleanId),
+            recipientName: String(result.recipientName || 'Clinician'),
+            recipientFacility: String(result.recipientFacility || 'Healthcare Facility'),
+            recordIds: Array.isArray(result.recordIds) ? result.recordIds : [],
+            diaryNoteIds: Array.isArray(result.diaryNoteIds) ? result.diaryNoteIds : [],
+            durationId: (result.durationId as ShareDuration['id']) || '7d',
+            pin: cleanPin,
+            createdAt: String(result.createdAt || new Date().toISOString()),
+            expiresAt,
+            status,
+          };
+          const snapshot =
+            result.payload && typeof result.payload === 'object'
+              ? (result.payload as SharedLinkSnapshot)
+              : undefined;
+          return { ok: true, link, snapshot };
+        }
+      }
+
+      // 2. Fallback: query shared_links or scheduled_reminders_sync for current user
+      const userId = await getCurrentUserId();
+      if (userId) {
+        const fallbackId = toScopedRowId(userId, `sharelink_${cleanId}`);
+        const { data: fbRow } = await supabase
+          .from('scheduled_reminders_sync')
+          .select('*')
+          .eq('id', fallbackId)
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (fbRow && fbRow.metadata && typeof fbRow.metadata === 'object') {
+          const meta = fbRow.metadata as { link?: SharedLink; snapshot?: SharedLinkSnapshot };
+          if (meta.link) {
+            const status = resolveShareStatus(fbRow.status || meta.link.status, meta.link.expiresAt);
+            if (status === 'revoked') {
+              return { ok: false, error: 'This share link has been revoked by the patient.' };
+            }
+            if (status === 'expired') {
+              return { ok: false, error: 'This share link has expired.' };
+            }
+            if (meta.link.pin.trim() !== cleanPin) {
+              return { ok: false, error: 'Incorrect 4-digit access PIN.' };
+            }
+            return {
+              ok: true,
+              link: { ...meta.link, status },
+              snapshot: meta.snapshot ?? undefined,
+            };
+          }
+        }
+      }
+    } catch {
+      // Fall through to caller / local verification
+    }
+  }
+
+  return { ok: false, error: 'Unable to verify share link in cloud.' };
+}
+
 /**
  * Registers / syncs the device Expo push token to Supabase for native background alerts (Spec §4.6 & §8.2).
  */
@@ -1169,6 +1518,7 @@ export async function eraseAllCloudData(): Promise<{ success: boolean; error?: s
     await supabase.from('medications').delete().eq('user_id', userId);
     await supabase.from('appointments').delete().eq('user_id', userId);
     await supabase.from('diary_notes').delete().eq('user_id', userId);
+    await supabase.from('shared_links').delete().eq('user_id', userId);
     await supabase.from('scheduled_reminders_sync').delete().eq('user_id', userId);
     await supabase.from('push_notification_tokens').delete().eq('user_id', userId);
     await supabase.from('patient_profiles').delete().eq('user_id', userId);

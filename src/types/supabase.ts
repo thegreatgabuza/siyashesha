@@ -369,12 +369,67 @@ export type Database = {
         }
         Relationships: []
       }
+      shared_links: {
+        Row: {
+          created_at: string
+          diary_note_ids: Json | null
+          duration_id: string
+          expires_at: string
+          id: string
+          payload: Json | null
+          pin: string
+          recipient_facility: string
+          recipient_name: string
+          record_ids: Json | null
+          share_code: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          diary_note_ids?: Json | null
+          duration_id: string
+          expires_at: string
+          id: string
+          payload?: Json | null
+          pin: string
+          recipient_facility: string
+          recipient_name: string
+          record_ids?: Json | null
+          share_code: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          diary_note_ids?: Json | null
+          duration_id?: string
+          expires_at?: string
+          id?: string
+          payload?: Json | null
+          pin?: string
+          recipient_facility?: string
+          recipient_name?: string
+          record_ids?: Json | null
+          share_code?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
       requesting_user_id: { Args: never; Returns: string }
+      verify_shared_link: {
+        Args: { p_share_code: string; p_pin: string }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never

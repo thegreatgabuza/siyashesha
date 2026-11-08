@@ -5,6 +5,7 @@ import {
   BookHeart,
   Check,
   ChevronRight,
+  Eye,
   FileDown,
   History,
   Lock,
@@ -18,6 +19,7 @@ import QRCode from 'react-native-qrcode-svg';
 import { Card } from '@/components/ui/Card';
 import { RecordThumb } from '@/components/records/RecordThumb';
 import { ExportSummaryModal } from '@/components/records/ExportSummaryModal';
+import { ClinicianSharePreviewModal } from '@/components/sharing/ClinicianSharePreviewModal';
 import { CountUp } from '@/components/ui/CountUp';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Txt } from '@/components/ui/Txt';
@@ -39,7 +41,7 @@ const steps = ['Documents', 'Recipient', 'Access', 'Confirm'];
 
 export default function SharingScreen() {
   const { accentSoft } = useAccent();
-  const params = useLocalSearchParams<{ recordId?: string }>();
+  const params = useLocalSearchParams<{ recordId?: string; share?: string }>();
   const toast = useToast();
   const sharedLinks = useAppStore((s) => s.sharedLinks);
   const records = useAppStore((s) => s.records);
@@ -61,6 +63,7 @@ export default function SharingScreen() {
   const [pin, setPin] = useState(() => String(Math.floor(1000 + Math.random() * 9000)));
   const [completedLink, setCompletedLink] = useState<ReturnType<typeof createShare> | null>(null);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [previewShareId, setPreviewShareId] = useState<string | null>(params.share ?? null);
 
   const resetWizard = () => {
     setStep(0);
@@ -73,7 +76,16 @@ export default function SharingScreen() {
     setCompletedLink(null);
   };
 
-  const activeLinks = sharedLinks.filter((l) => l.status === 'active').length;
+  const getEffectiveStatus = (link: SharedLink): SharedLink['status'] => {
+    if (link.status === 'revoked') return 'revoked';
+    if (link.status === 'expired') return 'expired';
+    if (link.expiresAt && dayjs(link.expiresAt).isBefore(dayjs())) {
+      return 'expired';
+    }
+    return 'active';
+  };
+
+  const activeLinks = sharedLinks.filter((l) => getEffectiveStatus(l) === 'active').length;
 
   const toggleRecord = (id: string) =>
     setSelectedRecordIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
@@ -126,7 +138,9 @@ export default function SharingScreen() {
             <EmptyState icon={<ShieldCheck size={32} color={accentSoft} />} title="No sharing history yet" />
           ) : (
             <View className="gap-3">
-              {sharedLinks.map((link) => (
+              {sharedLinks.map((link) => {
+                const effectiveStatus = getEffectiveStatus(link);
+                return (
                 <Card key={link.id}>
                   <View className="flex-row items-start justify-between">
                     <View className="flex-1">
@@ -137,7 +151,7 @@ export default function SharingScreen() {
                         {link.recipientFacility}
                       </Text>
                     </View>
-                    <StatusBadge status={link.status} />
+                    <StatusBadge status={effectiveStatus} />
                   </View>
                   <Text className="mt-2 font-sans text-[12px] text-ink-soft dark:text-slate-300">
                     {link.recordIds.length} record(s)
@@ -146,8 +160,19 @@ export default function SharingScreen() {
                   <Text className="mt-1 font-sans text-[11px] text-ink-muted dark:text-slate-500">
                     Expires {dayjs(link.expiresAt).format('D MMM, h:mm A')}
                   </Text>
-                  {link.status === 'active' ? (
+                  {effectiveStatus === 'active' ? (
                     <View className="mt-3 flex-row flex-wrap items-center gap-2">
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Preview clinician portal for ${link.recipientName}`}
+                        onPress={() => setPreviewShareId(link.id)}
+                        className="min-h-[40px] flex-row items-center justify-center gap-1.5 rounded-full bg-slate-100 px-3.5 dark:bg-canvasdark"
+                      >
+                        <Eye size={13} color="#0B2559" />
+                        <Text className="font-sans-semibold text-[12px] text-ink dark:text-slate-200">
+                          Clinician View (PIN)
+                        </Text>
+                      </Pressable>
                       <Pressable
                         accessibilityRole="button"
                         accessibilityLabel={`Send share link and PIN to ${link.recipientName}`}
@@ -193,10 +218,16 @@ export default function SharingScreen() {
                     </View>
                   ) : null}
                 </Card>
-              ))}
+                );
+              })}
             </View>
           )}
         </ScreenScroll>
+        <ClinicianSharePreviewModal
+          visible={Boolean(previewShareId)}
+          shareId={previewShareId}
+          onClose={() => setPreviewShareId(null)}
+        />
       </Screen>
     );
   }
@@ -258,7 +289,14 @@ export default function SharingScreen() {
         ) : null}
 
         {completedLink ? (
-          <ConfirmationView link={completedLink} onDone={() => { resetWizard(); setView('history'); }} />
+          <ConfirmationView
+            link={completedLink}
+            onPreview={() => setPreviewShareId(completedLink.id)}
+            onDone={() => {
+              resetWizard();
+              setView('history');
+            }}
+          />
         ) : step === 0 ? (
           <DocumentStep
             selectedRecordIds={selectedRecordIds}
@@ -327,6 +365,11 @@ export default function SharingScreen() {
       <ExportSummaryModal
         visible={showExportModal}
         onClose={() => setShowExportModal(false)}
+      />
+      <ClinicianSharePreviewModal
+        visible={Boolean(previewShareId)}
+        shareId={previewShareId}
+        onClose={() => setPreviewShareId(null)}
       />
     </Screen>
   );
@@ -566,7 +609,15 @@ function ReviewRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ConfirmationView({ link, onDone }: { link: SharedLink; onDone: () => void }) {
+function ConfirmationView({
+  link,
+  onPreview,
+  onDone,
+}: {
+  link: SharedLink;
+  onPreview: () => void;
+  onDone: () => void;
+}) {
   const portalBase = (
     process.env.EXPO_PUBLIC_EMERGENCY_PORTAL_URL ||
     'https://siyashesha-health-passport.lovable.app'
@@ -596,7 +647,7 @@ function ConfirmationView({ link, onDone }: { link: SharedLink; onDone: () => vo
       <Text className="mb-5 font-sans text-[12px] text-ink-muted dark:text-slate-400">
         Access PIN: <Text className="font-sans-bold text-ink dark:text-slate-50">{link.pin}</Text>
       </Text>
-      <View className="mb-3 w-full">
+      <View className="mb-2.5 w-full">
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Share link and PIN via WhatsApp, SMS or Email"
@@ -606,6 +657,19 @@ function ConfirmationView({ link, onDone }: { link: SharedLink; onDone: () => vo
           <Share2 size={16} color="#0284C7" />
           <Text className="font-sans-bold text-[14px] text-sky-700 dark:text-sky-300">
             Send Link & PIN via WhatsApp / SMS
+          </Text>
+        </Pressable>
+      </View>
+      <View className="mb-3 w-full">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Preview Clinician Portal with 4-digit PIN"
+          onPress={onPreview}
+          className="min-h-[48px] flex-row items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-5 dark:border-canvasdark-card dark:bg-canvasdark-card"
+        >
+          <Eye size={16} color="#0B2559" />
+          <Text className="font-sans-semibold text-[13px] text-ink dark:text-slate-100">
+            Preview Clinician Portal (PIN Gate)
           </Text>
         </Pressable>
       </View>
