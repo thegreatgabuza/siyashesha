@@ -11,7 +11,7 @@ import { useFonts } from 'expo-font';
 import { router, Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -88,6 +88,7 @@ export default function RootLayout() {
 
   // Listen for notification taps and interactive category actions (Spec §4.6 & §8.2)
   useEffect(() => {
+    if (Platform.OS === 'web') return;
     const N = getNotifications();
     if (!N) return;
     const sub = N.addNotificationResponseReceivedListener((response) => {

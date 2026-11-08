@@ -247,7 +247,16 @@ export default function LandingPage() {
         </View>
 
         {/* Language marquee */}
-        <Marquee />
+        <View style={{ paddingVertical: 24, borderBottomWidth: 1, borderBottomColor: LINE, backgroundColor: '#FFFFFF' }}>
+          <View style={{ width: '100%', maxWidth: MAX, alignSelf: 'center', paddingHorizontal: pad, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+            <Text style={{ fontFamily: sans(600), fontSize: 13, color: MUTED, textTransform: 'uppercase', letterSpacing: 1, marginRight: 8 }}>Available in 7 languages:</Text>
+            {LANGUAGES.map((l) => (
+              <View key={l} style={{ paddingHorizontal: 14, paddingVertical: 6, borderRadius: 999, backgroundColor: '#F1F4F9', borderWidth: 1, borderColor: LINE }}>
+                <Text style={{ fontFamily: sans(500), fontSize: 13, color: INK }}>{l}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
 
         {/* Features */}
         <View style={{ backgroundColor: '#FFFFFF' }}>
@@ -322,37 +331,6 @@ export default function LandingPage() {
 
         <SiteFooter />
       </ScrollView>
-    </View>
-  );
-}
-
-/** Endless horizontal ticker of supported languages. */
-function Marquee() {
-  const x = useSharedValue(0);
-  const [w, setW] = useState(0);
-  useEffect(() => {
-    if (!w) return;
-    x.value = 0;
-    x.value = withRepeat(withTiming(-w, { duration: w * 28, easing: Easing.linear }), -1, false);
-  }, [w, x]);
-  const style = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
-  const row = (
-    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-      {LANGUAGES.map((l) => (
-        <View key={l} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 28 }}>
-          <Text style={{ fontFamily: sans(500), fontSize: 18, color: MUTED }}>{l}</Text>
-          <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: '#C3CAD9', marginLeft: 56 }} />
-        </View>
-      ))}
-    </View>
-  );
-  return (
-    <View style={{ paddingVertical: 28, overflow: 'hidden', borderBottomWidth: 1, borderBottomColor: LINE }}>
-      <Animated.View style={[{ flexDirection: 'row', width: 'max-content' as any }, style]}>
-        <View onLayout={(e) => setW(e.nativeEvent.layout.width)}>{row}</View>
-        {row}
-        {row}
-      </Animated.View>
     </View>
   );
 }
