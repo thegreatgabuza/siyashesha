@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Mail, ShieldCheck } from 'lucide-react-native';
 import { useState } from 'react';
 import {
@@ -30,7 +30,8 @@ export default function SignInScreen() {
   const { isLoaded: isSignInLoaded, signIn } = useSafeSignIn();
   const { isLoaded: isSignUpLoaded, signUp } = useSafeSignUp();
 
-  const [email, setEmail] = useState('');
+  const params = useLocalSearchParams<{ email?: string }>();
+  const [email, setEmail] = useState(typeof params.email === 'string' ? params.email : '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [legalDoc, setLegalDoc] = useState<LegalDocKind>(null);
 

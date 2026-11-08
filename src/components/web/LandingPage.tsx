@@ -1,3 +1,4 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import {
   ArrowRight,
@@ -10,8 +11,29 @@ import {
   ShieldAlert,
   Share2,
 } from 'lucide-react-native';
-import { useState } from 'react';
-import { Linking, Platform, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import {
+  ImageBackground,
+  Linking,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  useWindowDimensions,
+  View,
+} from 'react-native';
+import Animated, {
+  Easing,
+  FadeInDown,
+  FadeIn,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { LegalDocumentModal, type LegalDocKind } from '@/components/security/LegalDocumentModal';
 
@@ -26,11 +48,48 @@ const MAX = 1120;
 const sans = (w: 400 | 500 | 600 | 700 = 400) =>
   ({ 400: 'Inter_400Regular', 500: 'Inter_500Medium', 600: 'Inter_600SemiBold', 700: 'Inter_700Bold' })[w];
 
-function goSignUp() {
-  router.push({ pathname: '/sign-in', params: { mode: 'signup' } } as any);
+const LANGUAGES = ['English', 'isiZulu', 'Afrikaans', 'Setswana', 'Kiswahili', 'Français', 'Deutsch'];
+
+function goSignUp(email?: string) {
+  router.push({ pathname: '/sign-in', params: { mode: 'signup', ...(email ? { email } : {}) } } as any);
 }
 function goSignIn() {
   router.push('/sign-in');
+}
+
+/** Fades and lifts its children in the first time they scroll into view (web). */
+function Reveal({ children, delay = 0, style }: { children: React.ReactNode; delay?: number; style?: any }) {
+  const p = useSharedValue(Platform.OS === 'web' ? 0 : 1);
+  const [node, setNode] = useState<any>(null);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !node || typeof IntersectionObserver === 'undefined') {
+      p.value = 1;
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          p.value = withDelay(delay, withTiming(1, { duration: 700, easing: Easing.out(Easing.cubic) }));
+          io.disconnect();
+        }
+      },
+      { threshold: 0.12 }
+    );
+    io.observe(node);
+    return () => io.disconnect();
+  }, [node, delay, p]);
+
+  const anim = useAnimatedStyle(() => ({
+    opacity: p.value,
+    transform: [{ translateY: (1 - p.value) * 28 }],
+  }));
+
+  return (
+    <Animated.View ref={setNode} style={[anim, style]}>
+      {children}
+    </Animated.View>
+  );
 }
 
 function Button({
@@ -41,11 +100,12 @@ function Button({
 }: {
   label: string;
   onPress: () => void;
-  variant?: 'primary' | 'ghost' | 'light';
+  variant?: 'primary' | 'ghost' | 'glass' | 'white';
   trailing?: boolean;
 }) {
-  const bg = variant === 'primary' ? NAVY : variant === 'light' ? '#FFFFFF' : 'transparent';
-  const fg = variant === 'primary' ? '#FFFFFF' : NAVY;
+  const bg =
+    variant === 'primary' ? NAVY : variant === 'white' ? '#FFFFFF' : variant === 'glass' ? 'rgba(255,255,255,0.16)' : 'transparent';
+  const fg = variant === 'primary' || variant === 'glass' ? '#FFFFFF' : NAVY;
   return (
     <Pressable
       accessibilityRole="button"
@@ -56,11 +116,13 @@ function Button({
         gap: 8,
         height: 48,
         paddingHorizontal: 22,
-        borderRadius: 12,
+        borderRadius: 999,
         backgroundColor: bg,
-        borderWidth: variant === 'primary' ? 0 : 1,
-        borderColor: LINE,
-        opacity: pressed ? 0.85 : hovered && variant === 'primary' ? 0.92 : 1,
+        borderWidth: variant === 'ghost' ? 1 : variant === 'glass' ? 1 : 0,
+        borderColor: variant === 'glass' ? 'rgba(255,255,255,0.28)' : LINE,
+        opacity: pressed ? 0.85 : 1,
+        transform: [{ scale: hovered ? 1.03 : 1 }],
+        ...(Platform.OS === 'web' ? ({ transition: 'transform 160ms ease, opacity 160ms ease' } as any) : null),
       })}
     >
       <Text style={{ fontFamily: sans(600), fontSize: 15, color: fg }}>{label}</Text>
@@ -69,7 +131,7 @@ function Button({
   );
 }
 
-/** Web landing page: the first thing an unauthenticated visitor sees. */
+/** Web landing page: the first thing a signed-out visitor sees. */
 export default function LandingPage() {
   const { width } = useWindowDimensions();
   const wide = width >= 900;
@@ -77,226 +139,301 @@ export default function LandingPage() {
   const [legalDoc, setLegalDoc] = useState<LegalDocKind>(null);
   const [scroller, setScroller] = useState<any>(null);
   const [nav] = useState(() => ({ y: {} as Record<string, number> }));
+  const [email, setEmail] = useState('');
+
   const mark = (k: string) => (e: any) => {
     nav.y[k] = e.nativeEvent.layout.y;
   };
-  const jump = (k: string) =>
-    scroller?.scrollTo({ y: Math.max((nav.y[k] ?? 0) - 68, 0), animated: true });
+  const jump = (k: string) => scroller?.scrollTo({ y: Math.max((nav.y[k] ?? 0) - 68, 0), animated: true });
+
+  // Slow Ken Burns drift on the hero photo and a gentle float on the card.
+  const zoom = useSharedValue(1);
+  const float = useSharedValue(0);
+  useEffect(() => {
+    zoom.value = withRepeat(withTiming(1.07, { duration: 18000, easing: Easing.inOut(Easing.quad) }), -1, true);
+    float.value = withRepeat(withTiming(1, { duration: 3200, easing: Easing.inOut(Easing.quad) }), -1, true);
+  }, [zoom, float]);
+  const zoomStyle = useAnimatedStyle(() => ({ transform: [{ scale: zoom.value }] }));
+  const floatStyle = useAnimatedStyle(() => ({ transform: [{ translateY: -8 + float.value * 16 }] }));
+
+  const heroH = wide ? 920 : 860;
 
   return (
     <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
       <ScrollView ref={setScroller} showsVerticalScrollIndicator={false}>
-        {/* Nav */}
-        <View style={{ borderBottomWidth: 1, borderBottomColor: LINE, position: 'sticky' as any, top: 0, zIndex: 10, backgroundColor: '#FFFFFF' }}>
-          <View
-            style={{
-              width: '100%',
-              maxWidth: MAX,
-              alignSelf: 'center',
-              paddingHorizontal: pad,
-              height: 68,
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
-          >
-            <View>
-              <Text style={{ fontFamily: 'BebasNeue_400Regular', fontSize: 28, letterSpacing: 1, color: RED }}>SIYASHESHA</Text>
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              {wide
-                ? (['features', 'security', 'pricing'] as const).map((k) => (
-                    <Pressable key={k} accessibilityRole="link" onPress={() => jump(k)} style={{ paddingHorizontal: 14, height: 40, justifyContent: 'center' }}>
-                      <Text style={{ fontFamily: sans(500), fontSize: 14, color: MUTED }}>{k[0].toUpperCase() + k.slice(1)}</Text>
-                    </Pressable>
-                  ))
-                : null}
-              <Pressable accessibilityRole="button" onPress={goSignIn} style={{ paddingHorizontal: 14, height: 40, justifyContent: 'center' }}>
-                <Text style={{ fontFamily: sans(600), fontSize: 14, color: INK }}>Sign in</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                onPress={goSignUp}
-                style={{ paddingHorizontal: 16, height: 40, borderRadius: 10, backgroundColor: NAVY, justifyContent: 'center' }}
-              >
-                <Text style={{ fontFamily: sans(600), fontSize: 14, color: '#FFFFFF' }}>Create passport</Text>
-              </Pressable>
-            </View>
+        {/* Announcement */}
+        <Pressable
+          onPress={() => jump('features')}
+          style={{ height: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FDFDFC', borderBottomWidth: 1, borderBottomColor: LINE }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16 }}>
+            <Text numberOfLines={1} style={{ fontFamily: sans(500), fontSize: 14, color: INK }}>
+              Introducing PIN-protected clinician share links
+            </Text>
+            <ArrowRight size={14} color={INK} />
           </View>
-        </View>
+        </Pressable>
 
         {/* Hero */}
-        <View
-          style={{
-            width: '100%',
-            maxWidth: MAX,
-            alignSelf: 'center',
-            paddingHorizontal: pad,
-            paddingTop: wide ? 88 : 48,
-            paddingBottom: wide ? 96 : 56,
-            flexDirection: wide ? 'row' : 'column',
-            alignItems: wide ? 'center' : 'stretch',
-            gap: wide ? 64 : 40,
-          }}
-        >
-          <View style={{ flex: wide ? 1.1 : undefined }}>
-            <Text style={{ fontFamily: sans(600), fontSize: 14, color: TEAL }}>Patient-held health records</Text>
-            <Text
+        <View style={{ height: heroH, overflow: 'hidden', backgroundColor: '#6C7AA0' }}>
+          <Animated.View style={[{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }, zoomStyle]}>
+            <ImageBackground
+              source={require('../../../assets/images/landing-hero.jpg')}
+              resizeMode="cover"
+              style={{ width: '100%', height: '100%' }}
+            />
+          </Animated.View>
+          <LinearGradient
+            colors={['rgba(11,30,64,0.45)', 'rgba(11,30,64,0.05)', 'rgba(11,30,64,0.0)']}
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 440 }}
+            pointerEvents="none"
+          />
+
+          {/* Nav */}
+          <Animated.View entering={FadeIn.duration(800)} style={{ zIndex: 10 }}>
+            <View
               style={{
-                fontFamily: sans(700),
-                fontSize: wide ? 52 : 36,
-                lineHeight: wide ? 58 : 42,
-                letterSpacing: -1,
-                color: NAVY,
-                marginTop: 12,
+                width: '100%',
+                maxWidth: 1360,
+                alignSelf: 'center',
+                paddingHorizontal: pad,
+                height: 84,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
               }}
             >
-              Your records and emergency card, in one health passport.
-            </Text>
-            <Text style={{ fontFamily: sans(400), fontSize: 18, lineHeight: 28, color: MUTED, marginTop: 20, maxWidth: 520 }}>
-              Keep lab results, prescriptions and scans in one private vault. Paramedics see your blood group, allergies and
-              emergency contacts in seconds, without a login.
-            </Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 32 }}>
-              <Button label="Get started free" onPress={goSignUp} trailing />
-              <Button label="Sign in" onPress={goSignIn} variant="ghost" />
+              <Text style={{ fontFamily: 'BebasNeue_400Regular', fontSize: 28, letterSpacing: 2, color: '#FFFFFF' }}>SIYASHESHA</Text>
+              {wide ? (
+                <View style={{ flexDirection: 'row', gap: 4 }}>
+                  {(['features', 'security', 'pricing'] as const).map((k) => (
+                    <Pressable key={k} accessibilityRole="link" onPress={() => jump(k)} style={{ paddingHorizontal: 18, height: 40, justifyContent: 'center' }}>
+                      <Text style={{ fontFamily: sans(500), fontSize: 16, color: 'rgba(255,255,255,0.92)' }}>
+                        {k[0].toUpperCase() + k.slice(1)}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Pressable accessibilityRole="button" onPress={goSignIn} style={{ paddingHorizontal: 16, height: 44, justifyContent: 'center' }}>
+                  <Text style={{ fontFamily: sans(500), fontSize: 16, color: '#FFFFFF' }}>Log in</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => goSignUp()}
+                  style={{ paddingHorizontal: 22, height: 44, borderRadius: 999, backgroundColor: '#FFFFFF', justifyContent: 'center' }}
+                >
+                  <Text style={{ fontFamily: sans(600), fontSize: 15, color: NAVY }}>Create passport</Text>
+                </Pressable>
+              </View>
             </View>
-            <Text style={{ fontFamily: sans(400), fontSize: 13, color: MUTED, marginTop: 16 }}>
-              Free forever for your emergency card. POPIA aligned.
-            </Text>
+          </Animated.View>
+
+          {/* Copy + capture */}
+          <View style={{ alignItems: 'center', paddingHorizontal: pad, paddingTop: wide ? 56 : 32 }}>
+            <Animated.Text
+              entering={FadeInDown.delay(100).duration(800)}
+              style={{
+                fontFamily: sans(500),
+                fontSize: wide ? 72 : 40,
+                lineHeight: wide ? 78 : 46,
+                letterSpacing: wide ? -2 : -1,
+                color: '#FFFFFF',
+                textAlign: 'center',
+                maxWidth: 860,
+                ...(Platform.OS === 'web' ? ({ textShadow: '0 2px 24px rgba(11,30,64,0.35)' } as any) : null),
+              }}
+            >
+              Radically better health records
+            </Animated.Text>
+            <Animated.Text
+              entering={FadeInDown.delay(250).duration(800)}
+              style={{ fontFamily: sans(400), fontSize: wide ? 22 : 17, lineHeight: wide ? 32 : 26, color: 'rgba(255,255,255,0.92)', textAlign: 'center', maxWidth: 620, marginTop: 20 }}
+            >
+              One private passport for your records and emergency card. Set up in minutes, readable by paramedics in seconds.
+            </Animated.Text>
+
+            <Animated.View
+              entering={FadeInDown.delay(400).duration(800)}
+              style={{ flexDirection: wide ? 'row' : 'column', alignItems: 'center', gap: 12, marginTop: 36, width: '100%', justifyContent: 'center' }}
+            >
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  width: '100%',
+                  maxWidth: 520,
+                  padding: 6,
+                  paddingLeft: 22,
+                  borderRadius: 999,
+                  backgroundColor: 'rgba(255,255,255,0.2)',
+                  borderWidth: 1,
+                  borderColor: 'rgba(255,255,255,0.3)',
+                  ...(Platform.OS === 'web' ? ({ backdropFilter: 'blur(14px)' } as any) : null),
+                }}
+              >
+                <TextInput
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="Enter your email"
+                  placeholderTextColor="rgba(255,255,255,0.75)"
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  onSubmitEditing={() => goSignUp(email.trim())}
+                  accessibilityLabel="Email address"
+                  style={{ flex: 1, height: 44, fontFamily: sans(400), fontSize: 16, color: '#FFFFFF', outlineStyle: 'none' } as any}
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => goSignUp(email.trim())}
+                  style={({ hovered }: any) => ({
+                    height: 48,
+                    paddingHorizontal: 24,
+                    borderRadius: 999,
+                    backgroundColor: hovered ? '#122B5C' : NAVY,
+                    justifyContent: 'center',
+                  })}
+                >
+                  <Text style={{ fontFamily: sans(600), fontSize: 15, color: '#FFFFFF' }}>Create passport</Text>
+                </Pressable>
+              </View>
+              <Button label="See how it works" variant="glass" onPress={() => jump('features')} />
+            </Animated.View>
           </View>
 
-          <View style={{ flex: wide ? 0.9 : undefined, alignItems: 'center' }}>
-            <PassportSpecimen />
-          </View>
+          {/* Floating passport card */}
+          <Animated.View
+            entering={FadeInDown.delay(700).duration(900)}
+            style={{ position: 'absolute', left: 0, right: 0, bottom: wide ? 56 : 32, alignItems: 'center', paddingHorizontal: pad }}
+          >
+            <Animated.View style={[{ width: '100%', maxWidth: 400 }, floatStyle]}>
+              <PassportSpecimen />
+            </Animated.View>
+          </Animated.View>
         </View>
 
+        {/* Language marquee */}
+        <Marquee />
+
         {/* Features */}
-        <View onLayout={mark('features')} style={{ backgroundColor: '#F8FAFC', borderTopWidth: 1, borderBottomWidth: 1, borderColor: LINE }}>
-          <View
-            style={{ width: '100%', maxWidth: MAX, alignSelf: 'center', paddingHorizontal: pad, paddingVertical: wide ? 88 : 56 }}
-          >
-            <Text style={{ fontFamily: sans(700), fontSize: wide ? 36 : 28, letterSpacing: -0.6, color: NAVY, maxWidth: 560 }}>
-              Everything you need when care is urgent, and when it isn’t.
-            </Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginTop: 40 }}>
-              <Feature
-                wide={wide}
-                span={2}
-                icon={<ShieldAlert size={20} color={RED} />}
-                title="Emergency ICE card"
-                body="Blood group, allergies, chronic conditions and emergency contacts on a QR card that works from the lock screen and the web."
-              />
-              <Feature
-                wide={wide}
-                icon={<FileText size={20} color={NAVY} />}
-                title="Record vault"
-                body="Scan or upload lab results, scripts and imaging. We read them into searchable, dated entries."
-              />
-              <Feature
-                wide={wide}
-                icon={<Share2 size={20} color={NAVY} />}
-                title="Clinician sharing"
-                body="Share selected records with a doctor for 24 hours to 30 days, protected by a PIN. Revoke any time."
-              />
-              <Feature
-                wide={wide}
-                icon={<CalendarDays size={20} color={NAVY} />}
-                title="Medication and calendar"
-                body="Dose reminders, appointments and a diary of what your doctor said."
-              />
-              <Feature
-                wide={wide}
-                span={2}
-                icon={<Languages size={20} color={TEAL} />}
-                title="Seven languages"
-                body="English, isiZulu, Afrikaans, Setswana, Kiswahili, Français and Deutsch."
-              />
+        <View onLayout={mark('features')} style={{ backgroundColor: '#FFFFFF' }}>
+          <View style={{ width: '100%', maxWidth: MAX, alignSelf: 'center', paddingHorizontal: pad, paddingVertical: wide ? 104 : 64 }}>
+            <Reveal>
+              <Text style={{ fontFamily: sans(500), fontSize: wide ? 44 : 30, lineHeight: wide ? 50 : 36, letterSpacing: -1.2, color: NAVY, maxWidth: 640 }}>
+                Built for the worst day, and every ordinary one.
+              </Text>
+            </Reveal>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginTop: 48 }}>
+              <Feature wide={wide} span={2} delay={0} icon={<ShieldAlert size={20} color={RED} />} title="Emergency ICE card" body="Blood group, allergies, chronic conditions and emergency contacts on a QR card that opens from the lock screen or the web, no login needed." />
+              <Feature wide={wide} delay={100} icon={<FileText size={20} color={NAVY} />} title="Record vault" body="Scan or upload lab results, scripts and imaging. We read them into searchable, dated entries." />
+              <Feature wide={wide} delay={0} icon={<Share2 size={20} color={NAVY} />} title="Clinician sharing" body="Share selected records for 24 hours to 30 days, protected by a PIN. Revoke any time." />
+              <Feature wide={wide} delay={100} icon={<CalendarDays size={20} color={NAVY} />} title="Medication and calendar" body="Dose reminders, appointments and a diary of what your doctor said." />
+              <Feature wide={wide} delay={200} icon={<Languages size={20} color={TEAL} />} title="Seven languages" body="English, isiZulu, Afrikaans, Setswana, Kiswahili, Français and Deutsch." />
             </View>
           </View>
         </View>
 
         {/* Security */}
-        <View
-          onLayout={mark('security')}
-          style={{
-            width: '100%',
-            maxWidth: MAX,
-            alignSelf: 'center',
-            paddingHorizontal: pad,
-            paddingVertical: wide ? 88 : 56,
-            flexDirection: wide ? 'row' : 'column',
-            gap: wide ? 64 : 24,
-          }}
-        >
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontFamily: sans(700), fontSize: wide ? 36 : 28, letterSpacing: -0.6, color: NAVY }}>
-              You own your data.
-            </Text>
-            <Text style={{ fontFamily: sans(400), fontSize: 16, lineHeight: 26, color: MUTED, marginTop: 12 }}>
-              Records sync to your private cloud vault. AI features only run after you consent, and you can export or erase
-              everything from Settings under POPIA.
-            </Text>
-          </View>
-          <View style={{ flex: 1, gap: 14 }}>
-            {[
-              'Email one-time code sign-in',
-              'Row-level security on every table',
-              'PIN-protected, expiring doctor links',
-              'Export or erase all data in-app',
-            ].map((t) => (
-              <View key={t} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#E6F4F1', alignItems: 'center', justifyContent: 'center' }}>
-                  <Check size={13} color={TEAL} strokeWidth={3} />
-                </View>
-                <Text style={{ fontFamily: sans(500), fontSize: 15, color: INK }}>{t}</Text>
-              </View>
-            ))}
+        <View onLayout={mark('security')} style={{ backgroundColor: '#F8FAFC', borderTopWidth: 1, borderBottomWidth: 1, borderColor: LINE }}>
+          <View style={{ width: '100%', maxWidth: MAX, alignSelf: 'center', paddingHorizontal: pad, paddingVertical: wide ? 104 : 64, flexDirection: wide ? 'row' : 'column', gap: wide ? 64 : 28 }}>
+            <Reveal style={{ flex: 1 }}>
+              <Text style={{ fontFamily: sans(500), fontSize: wide ? 44 : 30, letterSpacing: -1.2, color: NAVY }}>You own your data.</Text>
+              <Text style={{ fontFamily: sans(400), fontSize: 17, lineHeight: 27, color: MUTED, marginTop: 14 }}>
+                Records sync to your private cloud vault. AI features only run after you consent, and you can export or erase everything from Settings under POPIA.
+              </Text>
+            </Reveal>
+            <View style={{ flex: 1, gap: 16 }}>
+              {['Email one-time code sign-in', 'Row-level security on every table', 'PIN-protected, expiring doctor links', 'Export or erase all data in-app'].map((t, i) => (
+                <Reveal key={t} delay={i * 90}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: '#E6F4F1', alignItems: 'center', justifyContent: 'center' }}>
+                      <Check size={14} color={TEAL} strokeWidth={3} />
+                    </View>
+                    <Text style={{ fontFamily: sans(500), fontSize: 16, color: INK }}>{t}</Text>
+                  </View>
+                </Reveal>
+              ))}
+            </View>
           </View>
         </View>
 
         {/* Pricing */}
-        <View onLayout={mark('pricing')} style={{ backgroundColor: '#F8FAFC', borderTopWidth: 1, borderBottomWidth: 1, borderColor: LINE }}>
-          <View
-            style={{ width: '100%', maxWidth: MAX, alignSelf: 'center', paddingHorizontal: pad, paddingVertical: wide ? 88 : 56 }}
-          >
-            <Text style={{ fontFamily: sans(700), fontSize: wide ? 36 : 28, letterSpacing: -0.6, color: NAVY }}>Simple pricing</Text>
-            <Text style={{ fontFamily: sans(400), fontSize: 16, color: MUTED, marginTop: 8 }}>
-              The emergency card is always free. Upgrade for unlimited records and the assistant.
-            </Text>
-            <View style={{ flexDirection: wide ? 'row' : 'column', gap: 16, marginTop: 40 }}>
-              <Plan name="Free" price="R0" note="Emergency card, 10 records" />
-              <Plan name="Monthly Pro" price="R19.99" note="per month" />
-              <Plan name="Annual Pro" price="R149.99" note="per year, 7-day free trial" featured />
-              <Plan name="Lifetime" price="R299.99" note="once-off founder pass" />
-            </View>
-            <View style={{ marginTop: 32, alignItems: 'flex-start' }}>
-              <Button label="Create your passport" onPress={goSignUp} trailing />
+        <View onLayout={mark('pricing')} style={{ backgroundColor: '#FFFFFF' }}>
+          <View style={{ width: '100%', maxWidth: MAX, alignSelf: 'center', paddingHorizontal: pad, paddingVertical: wide ? 104 : 64 }}>
+            <Reveal>
+              <Text style={{ fontFamily: sans(500), fontSize: wide ? 44 : 30, letterSpacing: -1.2, color: NAVY }}>Simple pricing</Text>
+              <Text style={{ fontFamily: sans(400), fontSize: 17, color: MUTED, marginTop: 10 }}>The emergency card is always free. Upgrade for unlimited records and the assistant.</Text>
+            </Reveal>
+            <View style={{ flexDirection: wide ? 'row' : 'column', gap: 16, marginTop: 44 }}>
+              <Plan delay={0} name="Free" price="R0" note="Emergency card, 10 records" />
+              <Plan delay={90} name="Monthly Pro" price="R19.99" note="per month" />
+              <Plan delay={180} name="Annual Pro" price="R149.99" note="per year, 7-day free trial" featured />
+              <Plan delay={270} name="Lifetime" price="R299.99" note="once-off founder pass" />
             </View>
           </View>
         </View>
 
+        {/* Closing CTA */}
+        <View style={{ backgroundColor: NAVY }}>
+          <Reveal style={{ width: '100%', maxWidth: MAX, alignSelf: 'center', paddingHorizontal: pad, paddingVertical: wide ? 96 : 64, alignItems: 'center' }}>
+            <Text style={{ fontFamily: sans(500), fontSize: wide ? 48 : 32, lineHeight: wide ? 54 : 38, letterSpacing: -1.4, color: '#FFFFFF', textAlign: 'center', maxWidth: 700 }}>
+              Have your health story ready before you need it.
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 32, flexWrap: 'wrap', justifyContent: 'center' }}>
+              <Button label="Get started free" variant="white" trailing onPress={() => goSignUp()} />
+              <Button label="Log in" variant="glass" onPress={goSignIn} />
+            </View>
+          </Reveal>
+        </View>
+
         {/* Footer */}
-        <View style={{ width: '100%', maxWidth: MAX, alignSelf: 'center', paddingHorizontal: pad, paddingVertical: 40, gap: 16 }}>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 20, alignItems: 'center' }}>
-            <Text style={{ fontFamily: 'BebasNeue_400Regular', fontSize: 22, letterSpacing: 1, color: RED }}>SIYASHESHA</Text>
-            <Pressable onPress={() => setLegalDoc('privacy')}>
-              <Text style={{ fontFamily: sans(500), fontSize: 13, color: MUTED }}>Privacy policy (POPIA)</Text>
-            </Pressable>
-            <Pressable onPress={() => setLegalDoc('terms')}>
-              <Text style={{ fontFamily: sans(500), fontSize: 13, color: MUTED }}>Terms of use</Text>
-            </Pressable>
-            <Pressable onPress={() => void Linking.openURL('mailto:support@siyashesha.co.za')}>
-              <Text style={{ fontFamily: sans(500), fontSize: 13, color: MUTED }}>Support</Text>
-            </Pressable>
+        <View style={{ backgroundColor: '#FFFFFF' }}>
+          <View style={{ width: '100%', maxWidth: MAX, alignSelf: 'center', paddingHorizontal: pad, paddingVertical: 40, gap: 16 }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 20, alignItems: 'center' }}>
+              <Text style={{ fontFamily: 'BebasNeue_400Regular', fontSize: 22, letterSpacing: 1, color: RED }}>SIYASHESHA</Text>
+              <Pressable onPress={() => setLegalDoc('privacy')}><Text style={{ fontFamily: sans(500), fontSize: 13, color: MUTED }}>Privacy policy (POPIA)</Text></Pressable>
+              <Pressable onPress={() => setLegalDoc('terms')}><Text style={{ fontFamily: sans(500), fontSize: 13, color: MUTED }}>Terms of use</Text></Pressable>
+              <Pressable onPress={() => void Linking.openURL('mailto:support@siyashesha.co.za')}><Text style={{ fontFamily: sans(500), fontSize: 13, color: MUTED }}>Support</Text></Pressable>
+            </View>
+            <Text style={{ fontFamily: sans(400), fontSize: 12, lineHeight: 18, color: MUTED, maxWidth: 720 }}>
+              Siyashesha is a patient-held record organiser, not a medical device. It does not diagnose or treat. In an emergency call 112 or your local emergency number.
+            </Text>
           </View>
-          <Text style={{ fontFamily: sans(400), fontSize: 12, lineHeight: 18, color: MUTED, maxWidth: 720 }}>
-            Siyashesha is a patient-held record organiser, not a medical device. It does not diagnose or treat. In an emergency
-            call 112 or your local emergency number.
-          </Text>
         </View>
       </ScrollView>
       <LegalDocumentModal visibleDoc={legalDoc} onClose={() => setLegalDoc(null)} />
+    </View>
+  );
+}
+
+/** Endless horizontal ticker of supported languages. */
+function Marquee() {
+  const x = useSharedValue(0);
+  const [w, setW] = useState(0);
+  useEffect(() => {
+    if (!w) return;
+    x.value = 0;
+    x.value = withRepeat(withTiming(-w, { duration: w * 28, easing: Easing.linear }), -1, false);
+  }, [w, x]);
+  const style = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
+  const row = (
+    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+      {LANGUAGES.map((l) => (
+        <View key={l} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 28 }}>
+          <Text style={{ fontFamily: sans(500), fontSize: 18, color: MUTED }}>{l}</Text>
+          <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: '#C3CAD9', marginLeft: 56 }} />
+        </View>
+      ))}
+    </View>
+  );
+  return (
+    <View style={{ paddingVertical: 28, overflow: 'hidden', borderBottomWidth: 1, borderBottomColor: LINE }}>
+      <Animated.View style={[{ flexDirection: 'row', width: 'max-content' as any }, style]}>
+        <View onLayout={(e) => setW(e.nativeEvent.layout.width)}>{row}</View>
+        {row}
+        {row}
+      </Animated.View>
     </View>
   );
 }
@@ -307,85 +444,104 @@ function Feature({
   body,
   span = 1,
   wide,
+  delay = 0,
 }: {
   icon: React.ReactNode;
   title: string;
   body: string;
   span?: 1 | 2;
   wide: boolean;
+  delay?: number;
 }) {
-  // 3-column bento on wide screens; full width on narrow ones.
   const basis = wide ? (span === 2 ? '65.5%' : '31.5%') : '100%';
+  const [hover, setHover] = useState(false);
   return (
-    <View
-      style={{
-        flexBasis: basis as any,
-        flexGrow: 1,
-        padding: 24,
-        borderRadius: 16,
-        backgroundColor: '#FFFFFF',
-        borderWidth: 1,
-        borderColor: LINE,
-      }}
-    >
-      <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#F1F4F9', alignItems: 'center', justifyContent: 'center' }}>
-        {icon}
-      </View>
-      <Text style={{ fontFamily: sans(600), fontSize: 18, color: NAVY, marginTop: 16 }}>{title}</Text>
-      <Text style={{ fontFamily: sans(400), fontSize: 14, lineHeight: 22, color: MUTED, marginTop: 6 }}>{body}</Text>
-    </View>
+    <Reveal delay={delay} style={{ flexBasis: basis as any, flexGrow: 1 }}>
+      <Pressable
+        onHoverIn={() => setHover(true)}
+        onHoverOut={() => setHover(false)}
+        style={{
+          padding: 28,
+          borderRadius: 20,
+          backgroundColor: '#F8FAFC',
+          borderWidth: 1,
+          borderColor: hover ? '#C9D2E6' : LINE,
+          minHeight: 200,
+          transform: [{ translateY: hover ? -4 : 0 }],
+          ...(Platform.OS === 'web' ? ({ transition: 'transform 200ms ease, border-color 200ms ease' } as any) : null),
+        }}
+      >
+        <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: LINE, alignItems: 'center', justifyContent: 'center' }}>
+          {icon}
+        </View>
+        <Text style={{ fontFamily: sans(600), fontSize: 19, color: NAVY, marginTop: 20 }}>{title}</Text>
+        <Text style={{ fontFamily: sans(400), fontSize: 15, lineHeight: 23, color: MUTED, marginTop: 8 }}>{body}</Text>
+      </Pressable>
+    </Reveal>
   );
 }
 
-function Plan({ name, price, note, featured }: { name: string; price: string; note: string; featured?: boolean }) {
+function Plan({ name, price, note, featured, delay = 0 }: { name: string; price: string; note: string; featured?: boolean; delay?: number }) {
   return (
-    <View
-      style={{
-        flex: 1,
-        padding: 24,
-        borderRadius: 16,
-        backgroundColor: featured ? NAVY : '#FFFFFF',
-        borderWidth: 1,
-        borderColor: featured ? NAVY : LINE,
-      }}
-    >
-      <Text style={{ fontFamily: sans(600), fontSize: 14, color: featured ? '#C7D2EA' : MUTED }}>{name}</Text>
-      <Text style={{ fontFamily: sans(700), fontSize: 32, letterSpacing: -0.6, color: featured ? '#FFFFFF' : NAVY, marginTop: 8 }}>{price}</Text>
-      <Text style={{ fontFamily: sans(400), fontSize: 13, color: featured ? '#C7D2EA' : MUTED, marginTop: 4 }}>{note}</Text>
-    </View>
+    <Reveal delay={delay} style={{ flex: 1 }}>
+      <View
+        style={{
+          padding: 28,
+          borderRadius: 20,
+          backgroundColor: featured ? NAVY : '#FFFFFF',
+          borderWidth: 1,
+          borderColor: featured ? NAVY : LINE,
+        }}
+      >
+        <Text style={{ fontFamily: sans(600), fontSize: 14, color: featured ? '#C7D2EA' : MUTED }}>{name}</Text>
+        <Text style={{ fontFamily: sans(500), fontSize: 36, letterSpacing: -1, color: featured ? '#FFFFFF' : NAVY, marginTop: 10 }}>{price}</Text>
+        <Text style={{ fontFamily: sans(400), fontSize: 13, color: featured ? '#C7D2EA' : MUTED, marginTop: 4 }}>{note}</Text>
+      </View>
+    </Reveal>
   );
 }
 
 /** Illustrative passport card. Fields are placeholders, not real patient data. */
 function PassportSpecimen() {
   const [flipped, setFlipped] = useState(false);
+  const pulse = useSharedValue(0);
+  useEffect(() => {
+    pulse.value = withRepeat(withSequence(withTiming(1, { duration: 900 }), withTiming(0.35, { duration: 900 })), -1);
+  }, [pulse]);
+  const dot = useAnimatedStyle(() => ({ opacity: pulse.value }));
+
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel="Flip passport card to see the emergency side"
       onPress={() => setFlipped((v) => !v)}
-      style={{ width: '100%', maxWidth: 400 }}
     >
       <View
         style={{
           borderRadius: 24,
           backgroundColor: flipped ? '#FFFFFF' : NAVY,
           borderWidth: 1,
-          borderColor: flipped ? '#F5C2C4' : NAVY,
+          borderColor: flipped ? '#F5C2C4' : 'rgba(255,255,255,0.18)',
           padding: 28,
-          minHeight: 244,
-          ...(Platform.OS === 'web' ? ({ boxShadow: '0 24px 48px -24px rgba(11,30,64,0.35)' } as any) : null),
+          minHeight: 232,
+          ...(Platform.OS === 'web' ? ({ boxShadow: '0 32px 64px -24px rgba(11,30,64,0.55)', transition: 'background-color 300ms ease' } as any) : null),
         }}
       >
         {!flipped ? (
           <>
-            <Text style={{ fontFamily: 'BebasNeue_400Regular', fontSize: 26, letterSpacing: 1, color: '#FFFFFF' }}>HEALTH PASSPORT</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={{ fontFamily: 'BebasNeue_400Regular', fontSize: 26, letterSpacing: 1, color: '#FFFFFF' }}>HEALTH PASSPORT</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Animated.View style={[{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#34D399' }, dot]} />
+                <Text style={{ fontFamily: sans(500), fontSize: 12, color: '#9FB0D3' }}>Synced</Text>
+              </View>
+            </View>
             <Text style={{ fontFamily: sans(500), fontSize: 12, color: '#9FB0D3', marginTop: 2 }}>Sample card</Text>
-            <View style={{ flexDirection: 'row', gap: 24, marginTop: 36 }}>
+            <View style={{ flexDirection: 'row', gap: 24, marginTop: 32 }}>
               <Field label="Name" value="Your name" />
               <Field label="Blood group" value="—" />
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 36 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 32 }}>
               <Lock size={14} color="#9FB0D3" />
               <Text style={{ fontFamily: sans(500), fontSize: 12, color: '#9FB0D3' }}>Tap to see the emergency side</Text>
             </View>
