@@ -1,7 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 
-import { GEMINI_API_KEY } from '@/lib/geminiAssistant';
+import { invokeGeminiGenerateContent, isGeminiConfigured } from '@/lib/geminiProxy';
 import { useAppStore } from '@/store/useAppStore';
 
 const STALLED_MODELS = new Set([
@@ -104,8 +104,8 @@ export async function transcribeAudioWithGemini(
   if (!useAppStore.getState().aiConsentGranted) {
     throw new Error('Explicit AI consent is required before sending voice audio to Google Gemini.');
   }
-  if (!GEMINI_API_KEY) {
-    throw new Error('Google Gemini API key is not configured.');
+  if (!isGeminiConfigured()) {
+    throw new Error('Google Gemini AI service is not configured.');
   }
 
   const { base64Data, mimeType } = await readAudioAsBase64(audioUri);
@@ -129,74 +129,42 @@ Do NOT output any markdown commentary, timestamps, or conversational responses. 
 
   // Deduplicate model list
   const modelsToTry = Array.from(new Set(TRANSCRIPTION_MODELS));
-
-  for (const model of modelsToTry) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 12000);
-
-      const isDedicatedTranscribeModel = model.includes('transcribe');
-      const payload = isDedicatedTranscribeModel
-        ? {
-            contents: [
-              {
-                parts: [
-                  {
-                    inlineData: {
-                      mimeType,
-                      data: base64Data,
-                    },
-                  },
-                ],
-              },
-            ],
-          }
-        : {
-            contents: [
-              {
-                parts: [
-                  { text: prompt },
-                  {
-                    inlineData: {
-                      mimeType,
-                      data: base64Data,
-                    },
-                  },
-                ],
-              },
-            ],
-            generationConfig: {
-              temperature: 0.2,
-              maxOutputTokens: 800,
-              thinkingConfig: {
-                thinkingBudget: 0,
-              },
+  const payload = {
+    contents: [
+      {
+        parts: [
+          { text: prompt },
+          {
+            inlineData: {
+              mimeType,
+              data: base64Data,
             },
-          };
+          },
+        ],
+      },
+    ],
+    generationConfig: {
+      temperature: 0.2,
+      maxOutputTokens: 800,
+      thinkingConfig: {
+        thinkingBudget: 0,
+      },
+    },
+  };
 
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (res.status === 200) {
-        const json = await res.json();
-        const transcript = extractTranscriptFromResponse(json);
-        if (transcript) {
-          return transcript;
-        }
-      } else {
-        const errBody = await res.text().catch(() => '');
-        console.warn(`[GeminiAudio] Model ${model} returned status ${res.status}:`, errBody);
-      }
-    } catch (err) {
-      console.warn(`[GeminiAudio] Error with model ${model}:`, err);
+  try {
+    const { json } = await invokeGeminiGenerateContent({
+      models: modelsToTry,
+      payload,
+      timeoutMs: 12000,
+      feature: 'transcribe',
+    });
+    const transcript = extractTranscriptFromResponse(json);
+    if (transcript) {
+      return transcript;
     }
+  } catch (err) {
+    console.warn('[GeminiAudio] Transcription error:', err);
   }
 
   throw new Error('Could not transcribe audio. Please try again.');

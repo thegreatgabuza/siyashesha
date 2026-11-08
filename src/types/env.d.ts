@@ -13,8 +13,7 @@ declare namespace NodeJS {
     readonly EXPO_PUBLIC_SUPABASE_ANON_KEY?: string;
     readonly EXPO_PUBLIC_SUPABASE_STORAGE_BUCKET?: string;
 
-    // Google Gemini API
-    readonly EXPO_PUBLIC_GEMINI_API_KEY?: string;
+    // Google Gemini AI (API key lives server-side in `gemini-proxy` Edge Function secrets)
     readonly EXPO_PUBLIC_AI_ASSISTANT_PROVIDER?: 'mock' | 'gemini' | 'openai';
     readonly EXPO_PUBLIC_GEMINI_MODEL?: string;
 

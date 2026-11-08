@@ -57,6 +57,35 @@ const DEMO_APPT_IDS = new Set(appointmentsSeed.map((a) => a.id));
 const DEMO_DIARY_IDS = new Set(diaryNotesSeed.map((n) => n.id));
 const DEMO_SHARE_IDS = new Set(sharingHistorySeed.map((l) => l.id));
 
+const IS_MOCK_DATA_ENABLED =
+  process.env.EXPO_PUBLIC_USE_MOCK_DATA === 'true' &&
+  process.env.EXPO_PUBLIC_APP_ENV !== 'production';
+
+const emptyPatientProfile: PatientProfile = {
+  firstName: '',
+  lastName: '',
+  preferredName: '',
+  dateOfBirth: '',
+  idNumber: '',
+  gender: '',
+  phone: '',
+  email: '',
+  address: '',
+  province: 'Gauteng',
+  bloodGroup: '',
+  allergies: [],
+  chronicConditions: [],
+  previousProcedures: [],
+  medicalDevices: [],
+  emergencyContact: {
+    name: '',
+    relationship: '',
+    phone: '',
+  },
+  emergencyContacts: [],
+  memberSince: new Date().toISOString().slice(0, 10),
+};
+
 export function isDemoAccountEmail(email?: string | null): boolean {
   if (!email) return false;
   const lower = email.trim().toLowerCase();
@@ -404,7 +433,14 @@ export const useAppStore = create<AppState>()(
               appointments: shouldRestoreDemo ? appointmentsSeed : s.appointments,
               diaryNotes: shouldRestoreDemo ? diaryNotesSeed : s.diaryNotes,
               sharedLinks: shouldRestoreDemo ? sharingHistorySeed : s.sharedLinks,
-              auditEvents: [event, ...s.auditEvents],
+              takenLog: shouldRestoreDemo ? buildSeedAdherenceLog() : s.takenLog,
+              medicationReminderEnabled: shouldRestoreDemo
+                ? activeMedications.reduce(
+                    (acc, m) => ({ ...acc, [m.id]: true }),
+                    {} as Record<string, boolean>
+                  )
+                : s.medicationReminderEnabled,
+              auditEvents: [event, ...(shouldRestoreDemo ? auditSeed : s.auditEvents)],
             };
           }
 
@@ -501,7 +537,7 @@ export const useAppStore = create<AppState>()(
       setNotification: (key, value) =>
         set((s) => ({ notifications: { ...s.notifications, [key]: value } })),
 
-      takenLog: buildSeedAdherenceLog(),
+      takenLog: IS_MOCK_DATA_ENABLED ? buildSeedAdherenceLog() : {},
       toggleTaken: (reminderId, dateKey) =>
         set((s) => {
           const logKey = `${reminderId}__${dateKey}`;
@@ -536,16 +572,18 @@ export const useAppStore = create<AppState>()(
       addCustomReminder: (reminder) =>
         set((s) => ({ customReminders: [...s.customReminders, { ...reminder, id: makeId('reminder') }] })),
       removeCustomReminder: (id) => set((s) => ({ customReminders: s.customReminders.filter((r) => r.id !== id) })),
-      medicationReminderEnabled: activeMedications.reduce(
-        (acc, m) => ({ ...acc, [m.id]: true }),
-        {} as Record<string, boolean>
-      ),
+      medicationReminderEnabled: IS_MOCK_DATA_ENABLED
+        ? activeMedications.reduce(
+            (acc, m) => ({ ...acc, [m.id]: true }),
+            {} as Record<string, boolean>
+          )
+        : {},
       setMedicationReminderEnabled: (medicationId, value) =>
         set((s) => ({
           medicationReminderEnabled: { ...s.medicationReminderEnabled, [medicationId]: value },
         })),
 
-      medications: medicationsSeed,
+      medications: IS_MOCK_DATA_ENABLED ? medicationsSeed : [],
       addMedication: (med) => {
         const id = makeId('med');
         const newMed: Medication = { ...med, id };
@@ -630,7 +668,7 @@ export const useAppStore = create<AppState>()(
           return { medications: nextMeds };
         }),
 
-      appointments: appointmentsSeed,
+      appointments: IS_MOCK_DATA_ENABLED ? appointmentsSeed : [],
       addAppointment: (appt) => {
         const id = makeId('appt');
         const newAppt: Appointment = { ...appt, id };
@@ -687,7 +725,7 @@ export const useAppStore = create<AppState>()(
           return { appointments: nextAppts };
         }),
 
-      records: medicalRecords,
+      records: IS_MOCK_DATA_ENABLED ? medicalRecords : [],
       addRecord: (record) =>
         set((s) => {
           if (s.subscriptionPlan === 'free' && s.records.length >= 10) {
@@ -733,7 +771,7 @@ export const useAppStore = create<AppState>()(
       setEmergencyVisible: (key, value) =>
         set((s) => ({ emergencyVisibility: { ...s.emergencyVisibility, [key]: value } })),
 
-      sharedLinks: sharingHistorySeed,
+      sharedLinks: IS_MOCK_DATA_ENABLED ? sharingHistorySeed : [],
       createShare: ({ recipientName, recipientFacility, recordIds, diaryNoteIds, duration, pin }) => {
         const now = new Date();
         const expires = new Date(now.getTime() + duration.hours * 60 * 60 * 1000);
@@ -791,7 +829,7 @@ export const useAppStore = create<AppState>()(
           };
         }),
 
-      diaryNotes: diaryNotesSeed,
+      diaryNotes: IS_MOCK_DATA_ENABLED ? diaryNotesSeed : [],
       diaryDraft: null,
       addDiaryNote: (note) => {
         const id = makeId('diary');
@@ -855,7 +893,7 @@ export const useAppStore = create<AppState>()(
           assistantThreads: { ...s.assistantThreads, [day]: [...(s.assistantThreads[day] ?? []), message] },
         })),
 
-      auditEvents: auditSeed,
+      auditEvents: IS_MOCK_DATA_ENABLED ? auditSeed : [],
       logAudit: (type, description) =>
         set((s) => ({
           auditEvents: [
@@ -1603,7 +1641,7 @@ export const useAppStore = create<AppState>()(
         }
       },
 
-      patientProfile: patient,
+      patientProfile: IS_MOCK_DATA_ENABLED ? patient : emptyPatientProfile,
       updatePatientProfile: (patch) =>
         set((s) => {
           const nextProfile = { ...s.patientProfile, ...patch };

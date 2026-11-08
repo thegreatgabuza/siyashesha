@@ -2,12 +2,8 @@ import dayjs from 'dayjs';
 
 import type { AssistantCard, AssistantMessage } from '@/data/assistant';
 import { deriveHba1cSeries } from '@/data/timeline';
+import { invokeGeminiGenerateContent } from '@/lib/geminiProxy';
 import { useAppStore } from '@/store/useAppStore';
-
-const RAW_ENV_KEY = (process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? '').trim();
-const DEFAULT_GEMINI_KEY = ['AQ.Ab8RN6KNYigvyZNMWgw2hMX', '-HSI4s6W5P2xzS-ZZcVTlX71nEQ'].join('');
-export const GEMINI_API_KEY =
-  RAW_ENV_KEY && !RAW_ENV_KEY.includes('your_gemini_api_key') ? RAW_ENV_KEY : DEFAULT_GEMINI_KEY;
 
 const STALLED_MODELS = new Set([
   'gemini-3.8-flash',
@@ -153,37 +149,21 @@ export async function askGeminiAssistant(
 
   const modelsToTry = Array.from(new Set([PRIMARY_MODEL, ...FALLBACK_MODELS]));
 
-  for (const model of modelsToTry) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+  const { json, modelUsed } = await invokeGeminiGenerateContent({
+    models: modelsToTry,
+    payload,
+    timeoutMs: 6000,
+    feature: 'assistant',
+  });
 
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (res.status === 200) {
-        const json = await res.json();
-        const rawReply = json.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (rawReply && typeof rawReply === 'string' && rawReply.trim().length > 0) {
-          const { text, card } = parseCardTag(rawReply);
-          return {
-            text,
-            card,
-            modelUsed: model,
-          };
-        }
-      }
-      console.warn(`[Gemini API] Model ${model} returned status ${res.status}`);
-    } catch (err) {
-      console.warn(`[Gemini API] Failed request to model ${model}:`, err);
-    }
+  const rawReply = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (rawReply && typeof rawReply === 'string' && rawReply.trim().length > 0) {
+    const { text, card } = parseCardTag(rawReply);
+    return {
+      text,
+      card,
+      modelUsed,
+    };
   }
 
   throw new Error('All Gemini model endpoints unavailable or timed out.');

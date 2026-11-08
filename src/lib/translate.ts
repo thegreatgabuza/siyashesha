@@ -1,7 +1,7 @@
 import { languageNames, type LanguageCode } from '@/i18n/translations';
 import type { MedicalRecord } from '@/data/records';
 import { recordTranslationsAf, recordTranslationsZu } from '@/data/recordTranslations';
-import { GEMINI_API_KEY } from '@/lib/geminiAssistant';
+import { invokeGeminiGenerateContent } from '@/lib/geminiProxy';
 import { useAppStore } from '@/store/useAppStore';
 
 const dynamicTranslationCache = new Map<string, string>();
@@ -51,33 +51,23 @@ CRITICAL CLINICAL SAFETY RULES:
 ORIGINAL CLINICAL NOTES:
 ${record.clinicalNotes}`;
 
-  for (const model of TRANSLATION_MODELS) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.2, maxOutputTokens: 600 },
-        }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-
-      if (res.status === 200) {
-        const json = await res.json();
-        const translated = json?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-        if (translated) {
-          dynamicTranslationCache.set(cacheKey, translated);
-          return translated;
-        }
-      }
-    } catch {
-      // Try next fallback model
+  try {
+    const { json } = await invokeGeminiGenerateContent({
+      models: TRANSLATION_MODELS,
+      payload: {
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.2, maxOutputTokens: 600 },
+      },
+      timeoutMs: 6000,
+      feature: 'translate',
+    });
+    const translated = json?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+    if (translated) {
+      dynamicTranslationCache.set(cacheKey, translated);
+      return translated;
     }
+  } catch {
+    // Fallback to null when translation service is offline
   }
 
   return null;

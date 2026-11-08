@@ -49,7 +49,9 @@
       "extends": "base",
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_APP_ENV": "production"
+        "EXPO_PUBLIC_APP_ENV": "production",
+        "EXPO_PUBLIC_USE_MOCK_DATA": "false",
+        "EXPO_PUBLIC_ENABLE_ANALYTICS": "true"
       },
       "android": {
         "buildType": "app-bundle"

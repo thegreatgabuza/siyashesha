@@ -3,7 +3,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 
 import { recordCategories, type RecordCategory } from '@/data/records';
-import { GEMINI_API_KEY } from '@/lib/geminiAssistant';
+import { invokeGeminiGenerateContent } from '@/lib/geminiProxy';
 import { extractClinicalEntitiesOffline } from './onDeviceOcr';
 import type { ExtractedClinicalRecord } from './types';
 
@@ -158,32 +158,19 @@ export async function extractRecordWithGeminiVision(
     },
   };
 
-  for (const model of MODELS_TO_TRY) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (res.status === 200) {
-        const json = await res.json();
-        const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (text) {
-          return parseGeminiJson(text, fileName);
-        }
-      }
-      console.warn(`[GeminiVision] Model ${model} returned status ${res.status}`);
-    } catch (err) {
-      console.warn(`[GeminiVision] Error with model ${model}:`, err);
+  try {
+    const { json } = await invokeGeminiGenerateContent({
+      models: MODELS_TO_TRY,
+      payload,
+      timeoutMs: 9000,
+      feature: 'vision_ocr',
+    });
+    const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (text) {
+      return parseGeminiJson(text, fileName);
     }
+  } catch (err) {
+    console.warn('[GeminiVision] Vision OCR error:', err);
   }
 
   throw new Error('All Gemini Vision model endpoints timed out or failed.');
@@ -212,32 +199,19 @@ export async function extractEntitiesFromTextWithGemini(
     },
   };
 
-  for (const model of MODELS_TO_TRY) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (res.status === 200) {
-        const json = await res.json();
-        const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (text) {
-          return parseGeminiJson(text, fileName);
-        }
-      }
-      console.warn(`[GeminiNER] Model ${model} returned status ${res.status}`);
-    } catch (err) {
-      console.warn(`[GeminiNER] Error with model ${model}:`, err);
+  try {
+    const { json } = await invokeGeminiGenerateContent({
+      models: MODELS_TO_TRY,
+      payload,
+      timeoutMs: 8000,
+      feature: 'clinical_ner',
+    });
+    const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (text) {
+      return parseGeminiJson(text, fileName);
     }
+  } catch (err) {
+    console.warn('[GeminiNER] Clinical NER fallback triggered:', err);
   }
 
   // Fallback to offline rule extractor
