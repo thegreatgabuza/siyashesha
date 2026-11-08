@@ -4,12 +4,14 @@ import {
   Archive,
   BookOpen,
   ChevronRight,
+  Cloud,
   Download,
   FileText,
   Globe,
   Lock,
   LogOut,
   Moon,
+  RefreshCw,
   ShieldCheck,
   Sparkles,
   Trash2,
@@ -61,6 +63,10 @@ export default function SettingsScreen() {
   const biometricLock = useAppStore((s) => s.biometricLock);
   const setBiometricLock = useAppStore((s) => s.setBiometricLock);
   const lockApp = useAppStore((s) => s.lockApp);
+  const isSyncingCloud = useAppStore((s) => s.isSyncingCloud);
+  const lastCloudSyncAt = useAppStore((s) => s.lastCloudSyncAt);
+  const hydrateFromCloud = useAppStore((s) => s.hydrateFromCloud);
+  const logAudit = useAppStore((s) => s.logAudit);
   const { signOut: clerkSignOut } = useSafeClerk();
 
   const [capabilities, setCapabilities] = useState<BiometricCapabilities | null>(null);
@@ -140,6 +146,52 @@ export default function SettingsScreen() {
           <Text className="mt-4 font-sans text-[12px] leading-[17px] text-white/60">
             Language: {languageNames[language]} · {auditEvents.length} account events logged
           </Text>
+        </View>
+
+        <SectionLabel text="Cloud vault sync" />
+        <View className="mb-2 flex-row items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3.5 dark:border-canvasdark-card dark:bg-canvasdark-card">
+          <View className="flex-1 flex-row items-center gap-3 pr-3">
+            <View className="h-9 w-9 items-center justify-center rounded-xl bg-brand-100/80 dark:bg-brand-500/20">
+              <Cloud size={17} color={accent} />
+            </View>
+            <View className="flex-1">
+              <Text className="font-sans-semibold text-[14px] text-ink dark:text-slate-50">
+                Two-Way Cloud Backup & Sync
+              </Text>
+              <Text className="mt-0.5 font-sans text-[12px] text-ink-muted dark:text-slate-400">
+                {isSyncingCloud
+                  ? 'Synchronizing records, profile, medications, appointments & diary…'
+                  : lastCloudSyncAt
+                  ? `Last synced ${new Date(lastCloudSyncAt).toLocaleString('en-ZA', {
+                      day: 'numeric',
+                      month: 'short',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}`
+                  : 'Records, medications, calendar & diary sync with Supabase Cloud'}
+              </Text>
+            </View>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Sync health passport with cloud now"
+            disabled={isSyncingCloud}
+            onPress={async () => {
+              const ok = await hydrateFromCloud();
+              if (ok) {
+                logAudit('profile', 'Completed two-way cloud vault synchronization');
+                toast.show('Health passport synced with cloud vault', 'success');
+              } else {
+                toast.show('Could not reach cloud server. Local vault is up to date.', 'info');
+              }
+            }}
+            className="flex-row items-center gap-1.5 rounded-full bg-ink px-3.5 py-2 dark:bg-brand-500"
+          >
+            <RefreshCw size={13} color="#FFFFFF" />
+            <Text className="font-sans-bold text-[12px] text-white">
+              {isSyncingCloud ? 'Syncing…' : 'Sync Now'}
+            </Text>
+          </Pressable>
         </View>
 
         <SectionLabel text="Security" />

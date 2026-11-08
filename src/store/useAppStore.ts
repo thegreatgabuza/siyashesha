@@ -19,11 +19,80 @@ import { pastDateKeys } from '@/lib/date';
 import { clearAllStoredFiles } from '@/lib/documents';
 import { clearEnclaveKeys } from '@/lib/security/enclaveSecurity';
 import {
+  deleteAppointmentFromDatabase,
+  deleteDiaryNoteFromDatabase,
+  deleteMedicationFromDatabase,
+  deleteRecordFromDatabase,
   eraseAllCloudData,
+  fetchAppointmentsFromDatabase,
+  fetchDiaryNotesFromDatabase,
+  fetchMedicationsFromDatabase,
+  fetchPatientProfileFromDatabase,
+  fetchRecordsFromDatabase,
+  isSupabaseConfigured,
   setSupabaseAuthContext,
+  syncAppointmentToDatabase,
+  syncAppointments,
+  syncDiaryNoteToDatabase,
+  syncDiaryNotes,
+  syncMedicationToDatabase,
   syncMedications,
   syncPatientProfile,
+  syncRecordToDatabase,
+  syncRecords,
 } from '@/lib/supabase';
+
+const DEMO_RECORD_IDS = new Set(medicalRecords.map((r) => r.id));
+const DEMO_MED_IDS = new Set(medicationsSeed.map((m) => m.id));
+const DEMO_APPT_IDS = new Set(appointmentsSeed.map((a) => a.id));
+const DEMO_DIARY_IDS = new Set(diaryNotesSeed.map((n) => n.id));
+const DEMO_SHARE_IDS = new Set(sharingHistorySeed.map((l) => l.id));
+
+export function isDemoAccountEmail(email?: string | null): boolean {
+  if (!email) return false;
+  const lower = email.trim().toLowerCase();
+  return (
+    lower === 'jessica.tebatso@gmail.com' ||
+    lower === 'jessica.tebatso@example.co.za' ||
+    lower === 'demo@siyashesha.co.za'
+  );
+}
+
+function stripDemoSeedProfile(current: PatientProfile): PatientProfile {
+  const isUntouchedDemoProfile =
+    current.idNumber === patient.idNumber &&
+    (current.email === patient.email || !current.email);
+
+  if (!isUntouchedDemoProfile) {
+    return current;
+  }
+
+  return {
+    firstName: current.firstName === patient.firstName ? '' : current.firstName,
+    lastName: current.lastName === patient.lastName ? '' : current.lastName,
+    preferredName: current.preferredName === patient.preferredName ? '' : current.preferredName,
+    avatarUrl: current.avatarUrl,
+    dateOfBirth: current.dateOfBirth === patient.dateOfBirth ? '' : current.dateOfBirth,
+    idNumber: '',
+    gender: '',
+    phone: '',
+    email: current.email === patient.email ? '' : current.email,
+    address: '',
+    province: 'Gauteng',
+    bloodGroup: current.bloodGroup === patient.bloodGroup ? '' : current.bloodGroup,
+    allergies: [],
+    chronicConditions: [],
+    previousProcedures: [],
+    medicalDevices: [],
+    emergencyContact: {
+      name: '',
+      relationship: '',
+      phone: '',
+    },
+    emergencyContacts: [],
+    memberSince: new Date().toISOString().slice(0, 10),
+  };
+}
 
 function makeId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
@@ -225,6 +294,11 @@ interface AppState {
   lockApp: () => void;
   finishOnboarding: (options?: { plan?: SubscriptionPlanId; startTrial?: boolean }) => void;
 
+  // Cloud Hydration & Two-Way Sync
+  isSyncingCloud: boolean;
+  lastCloudSyncAt?: string;
+  hydrateFromCloud: () => Promise<boolean>;
+
   // POPIA §24 / HIPAA Data Subject Erasure
   eraseAllPatientData: () => Promise<void>;
   resetToDemoPatient: () => void;
@@ -232,18 +306,20 @@ interface AppState {
 
 export const useAppStore = create<AppState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       isSignedIn: false,
       pendingEmail: '',
       clerkFlow: 'sign_in',
       clerkSessionId: undefined,
+      isSyncingCloud: false,
+      lastCloudSyncAt: undefined,
       signInWithEmail: (email, flow = 'sign_in') =>
         set({ pendingEmail: email.trim().toLowerCase(), clerkFlow: flow }),
       setClerkSessionId: (id) => set({ clerkSessionId: id }),
-      completeSignIn: (options) =>
+      completeSignIn: (options) => {
         set((s) => {
           const isClerk = Boolean(options?.clerkSessionId);
-          const email = options?.email || s.pendingEmail;
+          const email = (options?.email || s.pendingEmail || '').trim().toLowerCase();
           const event: AuditEvent = {
             id: makeId('audit'),
             type: 'login',
@@ -252,26 +328,64 @@ export const useAppStore = create<AppState>()(
               : 'Signed in with demo verification',
             timestamp: new Date().toISOString(),
           };
-          // Returning users with an account skip the guided setup.
-          const isDemo = !isClerk && (!email || email.includes('jessica') || email.includes('example'));
-          const shouldRestoreDemo = isDemo && s.records.length === 0;
+          const isDemo =
+            !isClerk &&
+            (s.clerkFlow === 'demo' || !email || isDemoAccountEmail(email));
+
+          if (isDemo) {
+            const shouldRestoreDemo = s.records.length === 0;
+            return {
+              isSignedIn: true,
+              hasCompletedOnboarding: true,
+              clerkFlow: 'demo',
+              clerkSessionId: options?.clerkSessionId ?? s.clerkSessionId,
+              patientProfile: shouldRestoreDemo
+                ? patient
+                : email
+                ? { ...s.patientProfile, email }
+                : s.patientProfile,
+              records: shouldRestoreDemo ? medicalRecords : s.records,
+              medications: shouldRestoreDemo ? medicationsSeed : s.medications,
+              appointments: shouldRestoreDemo ? appointmentsSeed : s.appointments,
+              diaryNotes: shouldRestoreDemo ? diaryNotesSeed : s.diaryNotes,
+              sharedLinks: shouldRestoreDemo ? sharingHistorySeed : s.sharedLinks,
+              auditEvents: [event, ...s.auditEvents],
+            };
+          }
+
+          // Real authenticated user: strip any untouched Jessica Tebatso demo seed items
+          const cleanedBaseProfile = stripDemoSeedProfile(s.patientProfile);
+          const nextProfile: PatientProfile = {
+            ...cleanedBaseProfile,
+            ...(email ? { email } : {}),
+          };
+          const cleanedRecords = s.records.filter((r) => !DEMO_RECORD_IDS.has(r.id));
+          const cleanedMeds = s.medications.filter((m) => !DEMO_MED_IDS.has(m.id));
+          const cleanedAppts = s.appointments.filter((a) => !DEMO_APPT_IDS.has(a.id));
+          const cleanedNotes = s.diaryNotes.filter((n) => !DEMO_DIARY_IDS.has(n.id));
+          const cleanedShares = s.sharedLinks.filter((l) => !DEMO_SHARE_IDS.has(l.id));
+          const hadOnlyDemoMeds = cleanedMeds.length === 0 && s.medications.length > 0;
+
           return {
             isSignedIn: true,
             hasCompletedOnboarding: true,
             clerkSessionId: options?.clerkSessionId ?? s.clerkSessionId,
-            patientProfile: email
-              ? { ...s.patientProfile, email }
-              : shouldRestoreDemo
-              ? patient
-              : s.patientProfile,
-            records: shouldRestoreDemo ? medicalRecords : s.records,
-            medications: shouldRestoreDemo ? medicationsSeed : s.medications,
-            appointments: shouldRestoreDemo ? appointmentsSeed : s.appointments,
-            diaryNotes: shouldRestoreDemo ? diaryNotesSeed : s.diaryNotes,
-            sharedLinks: shouldRestoreDemo ? sharingHistorySeed : s.sharedLinks,
+            patientProfile: nextProfile,
+            records: cleanedRecords,
+            medications: cleanedMeds,
+            appointments: cleanedAppts,
+            diaryNotes: cleanedNotes,
+            sharedLinks: cleanedShares,
+            ...(hadOnlyDemoMeds ? { takenLog: {}, skippedLog: {}, medicationReminderEnabled: {} } : {}),
             auditEvents: [event, ...s.auditEvents],
           };
-        }),
+        });
+
+        // Trigger two-way cloud hydration immediately after sign-in state is committed
+        setTimeout(() => {
+          void get().hydrateFromCloud();
+        }, 150);
+      },
       signOut: () => {
         setSupabaseAuthContext({ userId: null, getToken: null });
         set({
@@ -393,26 +507,41 @@ export const useAppStore = create<AppState>()(
             ...s.auditEvents,
           ],
         }));
+        syncMedicationToDatabase(newMed).catch(() => {});
         return id;
       },
       updateMedication: (id, patch) =>
-        set((s) => ({
-          medications: s.medications.map((m) => (m.id === id ? { ...m, ...patch } : m)),
-          auditEvents: [
-            {
-              id: makeId('audit'),
-              type: 'upload',
-              description: `Updated prescription: ${patch.name ?? id}`,
-              timestamp: new Date().toISOString(),
-            },
-            ...s.auditEvents,
-          ],
-        })),
+        set((s) => {
+          let updatedMed: Medication | undefined;
+          const nextMeds = s.medications.map((m) => {
+            if (m.id === id) {
+              updatedMed = { ...m, ...patch };
+              return updatedMed;
+            }
+            return m;
+          });
+          if (updatedMed) {
+            syncMedicationToDatabase(updatedMed).catch(() => {});
+          }
+          return {
+            medications: nextMeds,
+            auditEvents: [
+              {
+                id: makeId('audit'),
+                type: 'upload',
+                description: `Updated prescription: ${patch.name ?? id}`,
+                timestamp: new Date().toISOString(),
+              },
+              ...s.auditEvents,
+            ],
+          };
+        }),
       deleteMedication: (id) =>
         set((s) => {
           const med = s.medications.find((m) => m.id === id);
           const nextReminders = { ...s.medicationReminderEnabled };
           delete nextReminders[id];
+          deleteMedicationFromDatabase(id).catch(() => {});
           return {
             medications: s.medications.filter((m) => m.id !== id),
             medicationReminderEnabled: nextReminders,
@@ -428,17 +557,23 @@ export const useAppStore = create<AppState>()(
           };
         }),
       toggleMedicationStatus: (id) =>
-        set((s) => ({
-          medications: s.medications.map((m) => {
+        set((s) => {
+          let toggledMed: Medication | undefined;
+          const nextMeds = s.medications.map((m) => {
             if (m.id !== id) return m;
-            const nextStatus = m.status === 'active' ? 'past' : 'active';
-            return {
+            const nextStatus: Medication['status'] = m.status === 'active' ? 'past' : 'active';
+            toggledMed = {
               ...m,
               status: nextStatus,
               endDate: nextStatus === 'past' ? new Date().toISOString().slice(0, 10) : undefined,
             };
-          }),
-        })),
+            return toggledMed;
+          });
+          if (toggledMed) {
+            syncMedicationToDatabase(toggledMed).catch(() => {});
+          }
+          return { medications: nextMeds };
+        }),
 
       appointments: appointmentsSeed,
       addAppointment: (appt) => {
@@ -456,20 +591,46 @@ export const useAppStore = create<AppState>()(
             ...s.auditEvents,
           ],
         }));
+        syncAppointmentToDatabase(newAppt).catch(() => {});
         return id;
       },
       updateAppointment: (id, patch) =>
-        set((s) => ({
-          appointments: s.appointments.map((a) => (a.id === id ? { ...a, ...patch } : a)),
-        })),
+        set((s) => {
+          let updatedAppt: Appointment | undefined;
+          const nextAppts = s.appointments.map((a) => {
+            if (a.id === id) {
+              updatedAppt = { ...a, ...patch };
+              return updatedAppt;
+            }
+            return a;
+          });
+          if (updatedAppt) {
+            syncAppointmentToDatabase(updatedAppt).catch(() => {});
+          }
+          return { appointments: nextAppts };
+        }),
       deleteAppointment: (id) =>
-        set((s) => ({
-          appointments: s.appointments.filter((a) => a.id !== id),
-        })),
+        set((s) => {
+          deleteAppointmentFromDatabase(id).catch(() => {});
+          return {
+            appointments: s.appointments.filter((a) => a.id !== id),
+          };
+        }),
       rescheduleAppointment: (id, date, time) =>
-        set((s) => ({
-          appointments: s.appointments.map((a) => (a.id === id ? { ...a, date, time } : a)),
-        })),
+        set((s) => {
+          let updatedAppt: Appointment | undefined;
+          const nextAppts = s.appointments.map((a) => {
+            if (a.id === id) {
+              updatedAppt = { ...a, date, time };
+              return updatedAppt;
+            }
+            return a;
+          });
+          if (updatedAppt) {
+            syncAppointmentToDatabase(updatedAppt).catch(() => {});
+          }
+          return { appointments: nextAppts };
+        }),
 
       records: medicalRecords,
       addRecord: (record) =>
@@ -477,6 +638,7 @@ export const useAppStore = create<AppState>()(
           if (s.subscriptionPlan === 'free' && s.records.length >= 10) {
             return {};
           }
+          syncRecordToDatabase(record).catch(() => {});
           return {
             records: [record, ...s.records],
             auditEvents: [
@@ -491,10 +653,26 @@ export const useAppStore = create<AppState>()(
           };
         }),
       updateRecord: (id, patch) =>
-        set((s) => ({
-          records: s.records.map((r) => (r.id === id ? { ...r, ...patch } : r)),
-        })),
-      deleteRecord: (id) => set((s) => ({ records: s.records.filter((r) => r.id !== id) })),
+        set((s) => {
+          let updatedRecord: MedicalRecord | undefined;
+          const nextRecords = s.records.map((r) => {
+            if (r.id === id) {
+              updatedRecord = { ...r, ...patch };
+              return updatedRecord;
+            }
+            return r;
+          });
+          if (updatedRecord) {
+            syncRecordToDatabase(updatedRecord).catch(() => {});
+          }
+          return { records: nextRecords };
+        }),
+      deleteRecord: (id) =>
+        set((s) => {
+          const existing = s.records.find((r) => r.id === id);
+          deleteRecordFromDatabase(id, existing?.originalFile?.storagePath).catch(() => {});
+          return { records: s.records.filter((r) => r.id !== id) };
+        }),
 
       emergencyVisibility: defaultEmergencyVisibility,
       setEmergencyVisible: (key, value) =>
@@ -554,30 +732,57 @@ export const useAppStore = create<AppState>()(
       addDiaryNote: (note) => {
         const id = makeId('diary');
         const now = new Date().toISOString();
+        const newNote: DiaryNote = { ...note, id, pinned: false, createdAt: now, updatedAt: now };
         set((s) => ({
-          diaryNotes: [{ ...note, id, pinned: false, createdAt: now, updatedAt: now }, ...s.diaryNotes],
+          diaryNotes: [newNote, ...s.diaryNotes],
           diaryDraft: null,
         }));
+        syncDiaryNoteToDatabase(newNote).catch(() => {});
         return id;
       },
       updateDiaryNote: (id, patch) =>
-        set((s) => ({
-          diaryNotes: s.diaryNotes.map((n) =>
-            n.id === id ? { ...n, ...patch, updatedAt: new Date().toISOString() } : n
-          ),
-        })),
-      deleteDiaryNote: (id) => set((s) => ({ diaryNotes: s.diaryNotes.filter((n) => n.id !== id) })),
+        set((s) => {
+          let updatedNote: DiaryNote | undefined;
+          const nextNotes = s.diaryNotes.map((n) => {
+            if (n.id === id) {
+              updatedNote = { ...n, ...patch, updatedAt: new Date().toISOString() };
+              return updatedNote;
+            }
+            return n;
+          });
+          if (updatedNote) {
+            syncDiaryNoteToDatabase(updatedNote).catch(() => {});
+          }
+          return { diaryNotes: nextNotes };
+        }),
+      deleteDiaryNote: (id) =>
+        set((s) => {
+          deleteDiaryNoteFromDatabase(id).catch(() => {});
+          return { diaryNotes: s.diaryNotes.filter((n) => n.id !== id) };
+        }),
       restoreDiaryNote: (note, index) =>
         set((s) => {
           const notes = [...s.diaryNotes];
           const at = Math.min(index ?? 0, notes.length);
           notes.splice(at, 0, note);
+          syncDiaryNoteToDatabase(note).catch(() => {});
           return { diaryNotes: notes };
         }),
       toggleDiaryPin: (id) =>
-        set((s) => ({
-          diaryNotes: s.diaryNotes.map((n) => (n.id === id ? { ...n, pinned: !n.pinned } : n)),
-        })),
+        set((s) => {
+          let toggledNote: DiaryNote | undefined;
+          const nextNotes = s.diaryNotes.map((n) => {
+            if (n.id === id) {
+              toggledNote = { ...n, pinned: !n.pinned, updatedAt: new Date().toISOString() };
+              return toggledNote;
+            }
+            return n;
+          });
+          if (toggledNote) {
+            syncDiaryNoteToDatabase(toggledNote).catch(() => {});
+          }
+          return { diaryNotes: nextNotes };
+        }),
       saveDiaryDraft: (draft) => set({ diaryDraft: draft }),
 
       assistantThreads: {},
@@ -689,7 +894,7 @@ export const useAppStore = create<AppState>()(
         })),
       lockApp: () =>
         set((s) => (s.biometricLock ? { isAppLocked: true } : {})),
-      finishOnboarding: (options) =>
+      finishOnboarding: (options) => {
         set((s) => {
           const d = s.onboardingDraft;
           const chosenPlan = options?.plan ?? s.subscriptionPlan;
@@ -717,23 +922,33 @@ export const useAppStore = create<AppState>()(
             });
           }
 
+          // Strip untouched Jessica Tebatso seed profile before applying user's onboarding inputs
+          const baseProfile = stripDemoSeedProfile(s.patientProfile);
+
           const patch: Partial<PatientProfile> = {
-            firstName: d.firstName || s.patientProfile.firstName,
-            lastName: d.lastName || s.patientProfile.lastName,
-            preferredName: d.firstName || s.patientProfile.preferredName,
-            dateOfBirth: d.dateOfBirth || s.patientProfile.dateOfBirth,
-            bloodGroup: d.bloodGroup || s.patientProfile.bloodGroup,
+            firstName: d.firstName || baseProfile.firstName,
+            lastName: d.lastName || baseProfile.lastName,
+            preferredName: d.firstName || baseProfile.preferredName,
+            dateOfBirth: d.dateOfBirth || baseProfile.dateOfBirth,
+            bloodGroup: d.bloodGroup || baseProfile.bloodGroup,
             allergies:
               d.allergies.length > 0
                 ? d.allergies.map((substance) => ({ substance, reaction: 'Reported during onboarding' }))
-                : s.patientProfile.allergies,
-            chronicConditions: d.conditions.length > 0 ? d.conditions : s.patientProfile.chronicConditions,
-            emergencyContact: validContacts[0] ?? s.patientProfile.emergencyContact,
+                : baseProfile.allergies,
+            chronicConditions: d.conditions.length > 0 ? d.conditions : baseProfile.chronicConditions,
+            emergencyContact: validContacts[0] ?? baseProfile.emergencyContact,
             emergencyContacts:
               validContacts.length > 0
                 ? validContacts
-                : s.patientProfile.emergencyContacts ?? [s.patientProfile.emergencyContact],
+                : baseProfile.emergencyContacts ?? [],
           };
+
+          // Strip demo seed records, meds, appointments, diary notes, and shares for new onboarding passport
+          const nonDemoMeds = s.medications.filter((m) => !DEMO_MED_IDS.has(m.id));
+          const nonDemoRecords = s.records.filter((r) => !DEMO_RECORD_IDS.has(r.id));
+          const nonDemoAppts = s.appointments.filter((a) => !DEMO_APPT_IDS.has(a.id));
+          const nonDemoNotes = s.diaryNotes.filter((n) => !DEMO_DIARY_IDS.has(n.id));
+          const nonDemoShares = s.sharedLinks.filter((l) => !DEMO_SHARE_IDS.has(l.id));
 
           const timeMap: Record<MedicationTimeSlot, string> = {
             Morning: '08:00',
@@ -742,7 +957,7 @@ export const useAppStore = create<AppState>()(
             Night: '21:00',
           };
           const onboardingMeds: Medication[] = s.userMedications
-            .filter((um) => !s.medications.some((m) => m.name.toLowerCase() === um.name.toLowerCase()))
+            .filter((um) => !nonDemoMeds.some((m) => m.name.toLowerCase() === um.name.toLowerCase()))
             .map((um) => {
               const slots = um.times && um.times.length > 0 ? um.times : [um.time];
               const mappedTimes = slots.map((slot) => timeMap[slot] ?? '08:00');
@@ -771,16 +986,16 @@ export const useAppStore = create<AppState>()(
               };
             });
 
-          const nextMedReminders = { ...s.medicationReminderEnabled };
-          for (const med of onboardingMeds) {
+          const mergedMeds = [...onboardingMeds, ...nonDemoMeds];
+          const nextMedReminders: Record<string, boolean> = {};
+          for (const med of mergedMeds) {
             nextMedReminders[med.id] = true;
           }
 
-          const mergedMeds =
-            onboardingMeds.length > 0 ? [...onboardingMeds, ...s.medications] : s.medications;
-          const mergedProfile = { ...s.patientProfile, ...patch };
+          const mergedProfile = { ...baseProfile, ...patch };
           syncPatientProfile(mergedProfile).catch(() => {});
           syncMedications(mergedMeds).catch(() => {});
+          syncRecords(nonDemoRecords).catch(() => {});
 
           const isFree = chosenPlan === 'free';
           return {
@@ -792,12 +1007,239 @@ export const useAppStore = create<AppState>()(
             sharingRequiresPin: !isFree,
             subscriptionPlan: chosenPlan,
             subscriptionTrialEndsAt: isFree ? undefined : trialEnd,
+            records: nonDemoRecords,
             medications: mergedMeds,
+            appointments: nonDemoAppts,
+            diaryNotes: nonDemoNotes,
+            sharedLinks: nonDemoShares,
+            takenLog: {},
+            skippedLog: {},
             medicationReminderEnabled: nextMedReminders,
             patientProfile: mergedProfile,
             auditEvents: [event, ...s.auditEvents],
           };
-        }),
+        });
+
+        setTimeout(() => {
+          void get().hydrateFromCloud();
+        }, 150);
+      },
+
+      hydrateFromCloud: async () => {
+        if (!isSupabaseConfigured || get().isSyncingCloud) {
+          return false;
+        }
+
+        set({ isSyncingCloud: true });
+
+        try {
+          const [
+            remoteProfile,
+            remoteRecords,
+            remoteMedications,
+            remoteAppointments,
+            remoteDiaryNotes,
+          ] = await Promise.all([
+            fetchPatientProfileFromDatabase(),
+            fetchRecordsFromDatabase(),
+            fetchMedicationsFromDatabase(),
+            fetchAppointmentsFromDatabase(),
+            fetchDiaryNotesFromDatabase(),
+          ]);
+
+          const current = get();
+          const activeEmail = current.patientProfile.email || current.pendingEmail;
+          const isDemo =
+            current.clerkFlow === 'demo' || isDemoAccountEmail(activeEmail);
+
+          // 1. Two-way merge Records
+          const localRecords = isDemo
+            ? current.records
+            : current.records.filter((r) => !DEMO_RECORD_IDS.has(r.id));
+          let mergedRecords = localRecords;
+
+          if (remoteRecords !== null) {
+            const localById = new Map(localRecords.map((r) => [r.id, r]));
+            const remoteById = new Map(remoteRecords.map((r) => [r.id, r]));
+
+            const hydratedRemote = remoteRecords.map((remoteRec) => {
+              const localRec = localById.get(remoteRec.id);
+              if (
+                localRec?.originalFile?.uri &&
+                localRec.originalFile.uri.startsWith('file://')
+              ) {
+                return {
+                  ...remoteRec,
+                  originalFile: {
+                    ...(remoteRec.originalFile ?? localRec.originalFile),
+                    uri: localRec.originalFile.uri,
+                  },
+                };
+              }
+              return remoteRec;
+            });
+
+            const unsyncedLocalRecords = localRecords.filter((r) => !remoteById.has(r.id));
+            if (unsyncedLocalRecords.length > 0 && !isDemo) {
+              syncRecords(unsyncedLocalRecords).catch(() => {});
+            }
+
+            mergedRecords = [...hydratedRemote, ...unsyncedLocalRecords].sort((a, b) =>
+              a.eventDate < b.eventDate ? 1 : -1
+            );
+          } else if (localRecords.length > 0 && !isDemo) {
+            syncRecords(localRecords).catch(() => {});
+          }
+
+          // 2. Two-way merge Medications
+          const localMeds = isDemo
+            ? current.medications
+            : current.medications.filter((m) => !DEMO_MED_IDS.has(m.id));
+          let mergedMeds = localMeds;
+
+          if (remoteMedications !== null) {
+            const remoteMedIds = new Set(remoteMedications.map((m) => m.id));
+            const unsyncedLocalMeds = localMeds.filter((m) => !remoteMedIds.has(m.id));
+            if (unsyncedLocalMeds.length > 0 && !isDemo) {
+              syncMedications(unsyncedLocalMeds).catch(() => {});
+            }
+            mergedMeds = [...remoteMedications, ...unsyncedLocalMeds];
+          } else if (localMeds.length > 0 && !isDemo) {
+            syncMedications(localMeds).catch(() => {});
+          }
+
+          const nextReminderEnabled = { ...current.medicationReminderEnabled };
+          for (const med of mergedMeds) {
+            if (nextReminderEnabled[med.id] === undefined) {
+              nextReminderEnabled[med.id] = med.status === 'active';
+            }
+          }
+
+          // 3. Two-way merge Appointments
+          const localAppts = isDemo
+            ? current.appointments
+            : current.appointments.filter((a) => !DEMO_APPT_IDS.has(a.id));
+          let mergedAppts = localAppts;
+
+          if (remoteAppointments !== null) {
+            const remoteApptIds = new Set(remoteAppointments.map((a) => a.id));
+            const unsyncedLocalAppts = localAppts.filter((a) => !remoteApptIds.has(a.id));
+            if (unsyncedLocalAppts.length > 0 && !isDemo) {
+              syncAppointments(unsyncedLocalAppts).catch(() => {});
+            }
+            mergedAppts = [...remoteAppointments, ...unsyncedLocalAppts];
+          } else if (localAppts.length > 0 && !isDemo) {
+            syncAppointments(localAppts).catch(() => {});
+          }
+
+          // 4. Two-way merge Diary Notes
+          const localNotes = isDemo
+            ? current.diaryNotes
+            : current.diaryNotes.filter((n) => !DEMO_DIARY_IDS.has(n.id));
+          let mergedNotes = localNotes;
+
+          if (remoteDiaryNotes !== null) {
+            const remoteNoteIds = new Set(remoteDiaryNotes.map((n) => n.id));
+            const unsyncedLocalNotes = localNotes.filter((n) => !remoteNoteIds.has(n.id));
+            if (unsyncedLocalNotes.length > 0 && !isDemo) {
+              syncDiaryNotes(unsyncedLocalNotes).catch(() => {});
+            }
+            mergedNotes = [...remoteDiaryNotes, ...unsyncedLocalNotes];
+          } else if (localNotes.length > 0 && !isDemo) {
+            syncDiaryNotes(localNotes).catch(() => {});
+          }
+
+          // 5. Two-way merge Patient Profile
+          const baseLocalProfile = isDemo
+            ? current.patientProfile
+            : stripDemoSeedProfile(current.patientProfile);
+          let mergedProfile = baseLocalProfile;
+
+          const hasRemoteProfile = Boolean(
+            remoteProfile &&
+              (remoteProfile.firstName ||
+                remoteProfile.lastName ||
+                remoteProfile.dateOfBirth ||
+                remoteProfile.bloodGroup)
+          );
+
+          if (hasRemoteProfile && remoteProfile) {
+            mergedProfile = {
+              ...baseLocalProfile,
+              firstName: remoteProfile.firstName || baseLocalProfile.firstName,
+              lastName: remoteProfile.lastName || baseLocalProfile.lastName,
+              preferredName:
+                remoteProfile.preferredName ||
+                remoteProfile.firstName ||
+                baseLocalProfile.preferredName,
+              dateOfBirth: remoteProfile.dateOfBirth || baseLocalProfile.dateOfBirth,
+              idNumber: remoteProfile.idNumber || baseLocalProfile.idNumber,
+              bloodGroup: remoteProfile.bloodGroup || baseLocalProfile.bloodGroup,
+              allergies:
+                remoteProfile.allergies && remoteProfile.allergies.length > 0
+                  ? remoteProfile.allergies
+                  : baseLocalProfile.allergies,
+              chronicConditions:
+                remoteProfile.chronicConditions && remoteProfile.chronicConditions.length > 0
+                  ? remoteProfile.chronicConditions
+                  : baseLocalProfile.chronicConditions,
+              emergencyContact:
+                remoteProfile.emergencyContact?.name || remoteProfile.emergencyContact?.phone
+                  ? remoteProfile.emergencyContact
+                  : baseLocalProfile.emergencyContact,
+              emergencyContacts:
+                remoteProfile.emergencyContacts && remoteProfile.emergencyContacts.length > 0
+                  ? remoteProfile.emergencyContacts
+                  : baseLocalProfile.emergencyContacts,
+              gender: remoteProfile.gender || baseLocalProfile.gender,
+              phone: remoteProfile.phone || baseLocalProfile.phone,
+              email: baseLocalProfile.email || remoteProfile.email || current.pendingEmail || '',
+              address: remoteProfile.address || baseLocalProfile.address,
+              province: remoteProfile.province || baseLocalProfile.province,
+              avatarUrl: baseLocalProfile.avatarUrl || remoteProfile.avatarUrl,
+              previousProcedures:
+                remoteProfile.previousProcedures && remoteProfile.previousProcedures.length > 0
+                  ? remoteProfile.previousProcedures
+                  : baseLocalProfile.previousProcedures,
+              medicalDevices:
+                remoteProfile.medicalDevices && remoteProfile.medicalDevices.length > 0
+                  ? remoteProfile.medicalDevices
+                  : baseLocalProfile.medicalDevices,
+              memberSince: remoteProfile.memberSince || baseLocalProfile.memberSince,
+            };
+
+            if (
+              !isDemo &&
+              ((baseLocalProfile.email && baseLocalProfile.email !== remoteProfile.email) ||
+                (baseLocalProfile.avatarUrl && baseLocalProfile.avatarUrl !== remoteProfile.avatarUrl))
+            ) {
+              syncPatientProfile(mergedProfile).catch(() => {});
+            }
+          } else if (
+            !isDemo &&
+            (baseLocalProfile.firstName || baseLocalProfile.email || baseLocalProfile.dateOfBirth)
+          ) {
+            syncPatientProfile(baseLocalProfile).catch(() => {});
+          }
+
+          set({
+            records: mergedRecords,
+            medications: mergedMeds,
+            medicationReminderEnabled: nextReminderEnabled,
+            appointments: mergedAppts,
+            diaryNotes: mergedNotes,
+            patientProfile: mergedProfile,
+            isSyncingCloud: false,
+            lastCloudSyncAt: new Date().toISOString(),
+          });
+
+          return true;
+        } catch (err) {
+          console.warn('[Cloud Hydration] Two-way sync error:', err);
+          set({ isSyncingCloud: false });
+          return false;
+        }
+      },
 
       patientProfile: patient,
       updatePatientProfile: (patch) =>
@@ -895,7 +1337,7 @@ export const useAppStore = create<AppState>()(
       name: 'siyashesha-app-store',
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => {
-        const { isAppLocked, ...rest } = state;
+        const { isAppLocked, isSyncingCloud, ...rest } = state;
         return rest;
       },
     }

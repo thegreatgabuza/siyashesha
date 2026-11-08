@@ -46,7 +46,6 @@ import {
   isWordDocument,
   type ExtractionSource,
 } from '@/lib/ocr/documentExtractor';
-import { syncRecordToDatabase } from '@/lib/supabase';
 import { FREE_RECORD_LIMIT, getPlanEntitlements, promptPlanUpgrade } from '@/lib/subscription';
 import { useAppStore } from '@/store/useAppStore';
 
@@ -380,7 +379,6 @@ export default function UploadRecordScreen() {
 
     try {
       addRecord(record);
-      syncRecordToDatabase(record).catch(() => {});
     } catch {
       toast.show('Could not save the record. Please try again.', 'warning');
       return;

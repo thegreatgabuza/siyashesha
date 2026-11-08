@@ -1,7 +1,8 @@
 import * as FileSystem from 'expo-file-system/legacy';
+import { Platform } from 'react-native';
 
 import type { OriginalFile } from '@/data/records';
-import { uploadRecordFile, deleteRecordFromDatabase } from '@/lib/supabase';
+import { deleteRecordFromDatabase, getSignedRecordUrl, uploadRecordFile } from '@/lib/supabase';
 
 const folder = () => `${FileSystem.documentDirectory}records/`;
 
@@ -37,10 +38,59 @@ export async function saveOriginal(
   return { uri, name, mimeType, remoteUrl, storagePath };
 }
 
+/**
+ * Ensures a record's original file is available locally on disk (`file://...`).
+ * If the record was hydrated from Supabase on a new device and the local file is missing,
+ * downloads it from private Supabase Storage (`storagePath` or `remoteUrl`) into the local vault.
+ */
+export async function ensureLocalOriginalFile(
+  file: OriginalFile,
+  recordId: string
+): Promise<string> {
+  if (Platform.OS === 'web') {
+    if (file.storagePath) {
+      const signed = await getSignedRecordUrl(file.storagePath);
+      if (signed) return signed;
+    }
+    return file.remoteUrl || file.uri;
+  }
+
+  if (file.uri && file.uri.startsWith('file://')) {
+    const info = await FileSystem.getInfoAsync(file.uri).catch(() => null);
+    if (info && info.exists) {
+      return file.uri;
+    }
+  }
+
+  let downloadUrl = file.remoteUrl;
+  if (file.storagePath) {
+    const freshSigned = await getSignedRecordUrl(file.storagePath);
+    if (freshSigned) {
+      downloadUrl = freshSigned;
+    }
+  } else if (!downloadUrl && file.uri.startsWith('http')) {
+    downloadUrl = file.uri;
+  }
+
+  if (!downloadUrl) {
+    throw new Error('No cloud backup available for this file.');
+  }
+
+  await FileSystem.makeDirectoryAsync(folder(), { intermediates: true });
+  const dot = (file.name || '').lastIndexOf('.');
+  const extension = dot > 0 ? file.name.slice(dot) : '';
+  const localTarget = `${folder()}${recordId}${extension}`;
+
+  const downloaded = await FileSystem.downloadAsync(downloadUrl, localTarget);
+  return downloaded.uri;
+}
+
 /** Deletes the stored copy of a record's original file, and cleans up remote storage if present. */
 export async function removeOriginal(file?: OriginalFile): Promise<void> {
   if (!file) return;
-  await FileSystem.deleteAsync(file.uri, { idempotent: true }).catch(() => {});
+  if (file.uri && file.uri.startsWith('file://')) {
+    await FileSystem.deleteAsync(file.uri, { idempotent: true }).catch(() => {});
+  }
   if (file.storagePath) {
     await deleteRecordFromDatabase('', file.storagePath).catch(() => {});
   }

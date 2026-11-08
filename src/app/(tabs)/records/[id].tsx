@@ -17,8 +17,7 @@ import { springs } from '@/design/tokens';
 import Animated, { ZoomIn } from 'react-native-reanimated';
 import { ClinicalCitationsModal } from '@/components/security/ClinicalCitationsModal';
 import { TranslationSheet } from '@/components/TranslationSheet';
-import { removeOriginal } from '@/lib/documents';
-import { deleteRecordFromDatabase } from '@/lib/supabase';
+import { ensureLocalOriginalFile, removeOriginal } from '@/lib/documents';
 import { formatEventDate, reviewLabel } from '@/lib/recordSearch';
 import { exportSingleRecordPdf } from '@/lib/pdf';
 import { getPlanEntitlements, promptPlanUpgrade } from '@/lib/subscription';
@@ -87,7 +86,6 @@ export default function RecordDetailScreen() {
         onPress: () => {
           removeOriginal(record.originalFile);
           deleteRecord(record.id);
-          deleteRecordFromDatabase(record.id).catch(() => {});
           toast.show('Record deleted', 'info');
           safeBack('/(tabs)/records');
         },
@@ -275,7 +273,13 @@ export default function RecordDetailScreen() {
               accessibilityLabel={`Open original file ${record.originalFile.name}`}
               onPress={async () => {
                 try {
-                  await Sharing.shareAsync(record.originalFile!.uri, {
+                  const localUri = await ensureLocalOriginalFile(record.originalFile!, record.id);
+                  if (localUri !== record.originalFile!.uri) {
+                    updateRecord(record.id, {
+                      originalFile: { ...record.originalFile!, uri: localUri },
+                    });
+                  }
+                  await Sharing.shareAsync(localUri, {
                     mimeType: record.originalFile!.mimeType,
                     dialogTitle: record.originalFile!.name,
                   });

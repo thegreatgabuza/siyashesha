@@ -11,6 +11,7 @@ import { useFonts } from 'expo-font';
 import { router, Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
+import { AppState } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -35,6 +36,24 @@ export default function RootLayout() {
   const colorScheme = useEffectiveColorScheme();
   const isDark = colorScheme === 'dark';
   useSyncColorScheme();
+
+  // Two-way cloud hydration & sync on app launch and foreground resume
+  useEffect(() => {
+    if (!isSignedIn || !hasCompletedOnboarding) return;
+    void useAppStore.getState().hydrateFromCloud();
+
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        const lastSync = useAppStore.getState().lastCloudSyncAt;
+        const elapsedMs = lastSync ? Date.now() - new Date(lastSync).getTime() : Infinity;
+        if (elapsedMs > 2 * 60 * 1000) {
+          void useAppStore.getState().hydrateFromCloud();
+        }
+      }
+    });
+
+    return () => sub.remove();
+  }, [isSignedIn, hasCompletedOnboarding]);
 
   // Keep scheduled reminders in step with the saved settings on launch and whenever anything
   // that feeds them changes (medications added during onboarding, toggles, appointments, notes).

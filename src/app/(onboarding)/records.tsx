@@ -17,7 +17,6 @@ import type { MedicalRecord } from '@/data/records';
 import type { StampId } from '@/store/useAppStore';
 import { saveOriginal } from '@/lib/documents';
 import { extractClinicalRecord } from '@/lib/ocr/documentExtractor';
-import { syncRecordToDatabase } from '@/lib/supabase';
 import { useAppStore } from '@/store/useAppStore';
 
 const SUPPORTED_MIME_TYPES = [
@@ -134,7 +133,6 @@ export default function RecordsOnboardingScreen() {
     };
 
     addRecord(newRecord);
-    syncRecordToDatabase(newRecord).catch(() => {});
     setAdded(extractedTitle);
     setSavedRecordSummary(newRecord);
     setMessage(null);

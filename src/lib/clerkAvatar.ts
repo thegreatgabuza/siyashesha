@@ -148,6 +148,8 @@ export function useClerkAvatarSync(): string | undefined {
   const session = sessionState.session;
   const client = (clerk as any)?.client;
 
+  const hydratedUserIdRef = useRef<string | null>(null);
+
   // Bridge Clerk user ID and session token into Supabase client for Row-Level Security
   useEffect(() => {
     const resolvedUserId =
@@ -159,6 +161,11 @@ export function useClerkAvatarSync(): string | undefined {
       userId: resolvedUserId,
       getToken: session && typeof session.getToken === 'function' ? () => session.getToken() : null,
     });
+
+    if (resolvedUserId && hydratedUserIdRef.current !== resolvedUserId) {
+      hydratedUserIdRef.current = resolvedUserId;
+      void useAppStore.getState().hydrateFromCloud();
+    }
   }, [user, session, client]);
 
   // Auto-restore active Clerk session if clerkSessionId or lastActiveSessionId is available

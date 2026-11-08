@@ -5,9 +5,16 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
-import type { MedicalRecord } from '@/data/records';
-import type { PatientProfile } from '@/data/patient';
+import type {
+  Appointment,
+  AppointmentReminderOption,
+  AppointmentStatus,
+  AppointmentType,
+} from '@/data/appointments';
+import type { DiaryAttachment, DiaryCategory, DiaryNote } from '@/data/diarySeed';
 import type { Medication } from '@/data/medications';
+import type { EmergencyContact, PatientProfile } from '@/data/patient';
+import type { MedicalRecord } from '@/data/records';
 import type { Database, Json } from '@/types/supabase';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
@@ -294,8 +301,33 @@ export async function uploadRecordFile(
 }
 
 /**
- * Syncs a single medical record's metadata to the 'medical_records' table,
- * strictly scoped to the current authenticated user's `user_id`.
+ * Creates a fresh 7-day signed URL for a file stored in the private 'medical-records' bucket.
+ */
+export async function getSignedRecordUrl(storagePath: string): Promise<string | null> {
+  if (!isSupabaseConfigured || !storagePath) return null;
+  try {
+    const { data, error } = await supabase.storage
+      .from(BUCKET_NAME)
+      .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
+    if (error || !data?.signedUrl) return null;
+    return data.signedUrl;
+  } catch {
+    return null;
+  }
+}
+
+function toScopedRowId(userId: string, rawId: string): string {
+  return rawId.startsWith(`${userId}_`) ? rawId : `${userId}_${rawId}`;
+}
+
+function fromScopedRowId(userId: string, rowId: string): string {
+  const prefix = `${userId}_`;
+  return rowId.startsWith(prefix) ? rowId.slice(prefix.length) : rowId;
+}
+
+/**
+ * Syncs a single medical record's metadata (and uploads its local binary file if not yet in cloud storage)
+ * to the 'medical_records' table, strictly scoped to the current authenticated user's `user_id`.
  */
 export async function syncRecordToDatabase(record: MedicalRecord): Promise<boolean> {
   if (!isSupabaseConfigured) return false;
@@ -304,8 +336,28 @@ export async function syncRecordToDatabase(record: MedicalRecord): Promise<boole
     const userId = await getCurrentUserId();
     if (!userId) return false;
 
+    let remoteUrl = record.originalFile?.remoteUrl ?? null;
+    let storagePath = record.originalFile?.storagePath ?? null;
+
+    // Ensure local file is uploaded to Supabase Storage if not yet uploaded
+    if (
+      record.originalFile?.uri &&
+      !storagePath &&
+      (record.originalFile.uri.startsWith('file://') || Platform.OS === 'web')
+    ) {
+      const uploaded = await uploadRecordFile(
+        record.originalFile.uri,
+        record.originalFile.name || `${record.id}.bin`,
+        record.originalFile.mimeType || 'application/octet-stream'
+      );
+      if (uploaded) {
+        remoteUrl = uploaded.remoteUrl;
+        storagePath = uploaded.storagePath;
+      }
+    }
+
     const row = {
-      id: record.id,
+      id: toScopedRowId(userId, record.id),
       user_id: userId,
       category: record.category,
       title: record.title,
@@ -323,8 +375,8 @@ export async function syncRecordToDatabase(record: MedicalRecord): Promise<boole
       original_file_uri: record.originalFile?.uri ?? null,
       original_file_name: record.originalFile?.name ?? null,
       original_file_mime: record.originalFile?.mimeType ?? null,
-      remote_url: record.originalFile?.remoteUrl ?? null,
-      storage_path: record.originalFile?.storagePath ?? null,
+      remote_url: remoteUrl,
+      storage_path: storagePath,
       updated_at: new Date().toISOString(),
     };
 
@@ -341,6 +393,19 @@ export async function syncRecordToDatabase(record: MedicalRecord): Promise<boole
 }
 
 /**
+ * Syncs multiple medical records to Supabase.
+ */
+export async function syncRecords(records: MedicalRecord[]): Promise<boolean> {
+  if (!isSupabaseConfigured || records.length === 0) return true;
+  let allOk = true;
+  for (const record of records) {
+    const ok = await syncRecordToDatabase(record);
+    if (!ok) allOk = false;
+  }
+  return allOk;
+}
+
+/**
  * Removes a single record and its private cloud storage file if owned by the current user.
  */
 export async function deleteRecordFromDatabase(id: string, storagePath?: string): Promise<boolean> {
@@ -353,10 +418,13 @@ export async function deleteRecordFromDatabase(id: string, storagePath?: string)
     if (storagePath && storagePath.startsWith(`${userId}/`)) {
       await supabase.storage.from(BUCKET_NAME).remove([storagePath]).catch(() => {});
     }
+    if (!id) return true;
+
+    const candidateIds = [id, toScopedRowId(userId, id)];
     const { error } = await supabase
       .from('medical_records')
       .delete()
-      .eq('id', id)
+      .in('id', candidateIds)
       .eq('user_id', userId);
     return !error;
   } catch {
@@ -365,7 +433,8 @@ export async function deleteRecordFromDatabase(id: string, storagePath?: string)
 }
 
 /**
- * Fetches medical records belonging strictly to the current user.
+ * Fetches medical records belonging strictly to the current user,
+ * refreshing private storage signed URLs when `storage_path` is present.
  */
 export async function fetchRecordsFromDatabase(): Promise<MedicalRecord[] | null> {
   if (!isSupabaseConfigured) return null;
@@ -384,34 +453,63 @@ export async function fetchRecordsFromDatabase(): Promise<MedicalRecord[] | null
       return null;
     }
 
-    return data.map((row: any) => ({
-      id: row.id,
-      category: row.category,
-      title: row.title,
-      facility: row.facility,
-      doctor: row.doctor || undefined,
-      diagnosis: row.diagnosis || undefined,
-      followUp: row.follow_up || undefined,
-      eventDate: row.event_date,
-      uploadedAt: row.uploaded_at,
-      sourceType: row.source_type,
-      documentType: row.document_type,
-      status: row.status,
-      clinicalNotes: row.clinical_notes || '',
-      fields: row.fields || [],
-      originalFile: row.original_file_uri
-        ? {
-            uri: row.original_file_uri,
-            name: row.original_file_name || 'Document',
-            mimeType: row.original_file_mime || 'application/octet-stream',
-            remoteUrl: row.remote_url || undefined,
-            storagePath: row.storage_path || undefined,
+    const mapped = await Promise.all(
+      data.map(async (row: any): Promise<MedicalRecord> => {
+        const hasFile = Boolean(row.original_file_uri || row.storage_path || row.remote_url);
+        let freshRemoteUrl: string | undefined = row.remote_url || undefined;
+
+        if (row.storage_path) {
+          const signed = await getSignedRecordUrl(row.storage_path);
+          if (signed) {
+            freshRemoteUrl = signed;
           }
-        : undefined,
-    }));
+        }
+
+        return {
+          id: fromScopedRowId(userId, row.id),
+          category: row.category,
+          title: row.title,
+          facility: row.facility,
+          doctor: row.doctor || undefined,
+          diagnosis: row.diagnosis || undefined,
+          followUp: row.follow_up || undefined,
+          eventDate: row.event_date,
+          uploadedAt: row.uploaded_at,
+          sourceType: row.source_type,
+          documentType: row.document_type,
+          status: row.status,
+          clinicalNotes: row.clinical_notes || '',
+          fields: Array.isArray(row.fields) ? row.fields : [],
+          originalFile: hasFile
+            ? {
+                uri: row.original_file_uri || freshRemoteUrl || '',
+                name: row.original_file_name || 'Document',
+                mimeType: row.original_file_mime || 'application/octet-stream',
+                remoteUrl: freshRemoteUrl,
+                storagePath: row.storage_path || undefined,
+              }
+            : undefined,
+        };
+      })
+    );
+
+    return mapped;
   } catch {
     return null;
   }
+}
+
+interface ExtendedProfileMeta {
+  facility?: string;
+  gender?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  province?: string;
+  avatarUrl?: string;
+  previousProcedures?: string[];
+  medicalDevices?: string[];
+  memberSince?: string;
 }
 
 /**
@@ -427,23 +525,36 @@ export async function syncPatientProfile(profile: PatientProfile): Promise<boole
     const contacts =
       profile.emergencyContacts && profile.emergencyContacts.length > 0
         ? profile.emergencyContacts
-        : profile.emergencyContact
+        : profile.emergencyContact && (profile.emergencyContact.name || profile.emergencyContact.phone)
         ? [profile.emergencyContact]
         : [];
+
+    const meta: ExtendedProfileMeta = {
+      facility: 'Rosebank Family Practice',
+      gender: profile.gender || undefined,
+      phone: profile.phone || undefined,
+      email: profile.email || undefined,
+      address: profile.address || undefined,
+      province: profile.province || undefined,
+      avatarUrl: profile.avatarUrl || undefined,
+      previousProcedures: profile.previousProcedures ?? [],
+      medicalDevices: profile.medicalDevices ?? [],
+      memberSince: profile.memberSince || undefined,
+    };
 
     const row = {
       id: userId,
       user_id: userId,
-      first_name: profile.firstName,
-      last_name: profile.lastName,
+      first_name: profile.firstName || '',
+      last_name: profile.lastName || '',
       preferred_name: profile.preferredName ?? null,
-      date_of_birth: profile.dateOfBirth,
+      date_of_birth: profile.dateOfBirth || '',
       national_id: profile.idNumber ?? null,
       blood_group: profile.bloodGroup ?? null,
       allergies: (profile.allergies ?? []) as unknown as Json,
       conditions: (profile.chronicConditions ?? []) as unknown as Json,
       emergency_contacts: contacts as unknown as Json,
-      primary_facility: 'Rosebank Family Practice',
+      primary_facility: JSON.stringify(meta),
       updated_at: new Date().toISOString(),
     };
 
@@ -457,32 +568,473 @@ export async function syncPatientProfile(profile: PatientProfile): Promise<boole
 export { syncPatientProfile as syncPatientProfileToDatabase };
 
 /**
- * Syncs active medications to Supabase scoped to the current user's `user_id`.
+ * Fetches the authenticated user's patient profile from Supabase.
+ */
+export async function fetchPatientProfileFromDatabase(): Promise<Partial<PatientProfile> | null> {
+  if (!isSupabaseConfigured) return null;
+
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) return null;
+
+    const { data, error } = await supabase
+      .from('patient_profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error || !data) {
+      return null;
+    }
+
+    let meta: ExtendedProfileMeta = {};
+    if (typeof data.primary_facility === 'string' && data.primary_facility.trim().startsWith('{')) {
+      try {
+        meta = JSON.parse(data.primary_facility) as ExtendedProfileMeta;
+      } catch {
+        meta = {};
+      }
+    }
+
+    const rawContacts = Array.isArray(data.emergency_contacts)
+      ? (data.emergency_contacts as unknown as EmergencyContact[])
+      : [];
+    const primaryContact: EmergencyContact = rawContacts[0] ?? {
+      name: '',
+      relationship: '',
+      phone: '',
+    };
+
+    const rawAllergies = Array.isArray(data.allergies)
+      ? (data.allergies as unknown as { substance: string; reaction: string }[])
+      : [];
+    const rawConditions = Array.isArray(data.conditions)
+      ? (data.conditions as unknown as string[])
+      : [];
+
+    return {
+      firstName: data.first_name || '',
+      lastName: data.last_name || '',
+      preferredName: data.preferred_name || data.first_name || '',
+      dateOfBirth: data.date_of_birth || '',
+      idNumber: data.national_id || '',
+      bloodGroup: data.blood_group || '',
+      allergies: rawAllergies,
+      chronicConditions: rawConditions,
+      emergencyContact: primaryContact,
+      emergencyContacts: rawContacts,
+      ...(meta.gender !== undefined ? { gender: meta.gender } : {}),
+      ...(meta.phone !== undefined ? { phone: meta.phone } : {}),
+      ...(meta.email !== undefined ? { email: meta.email } : {}),
+      ...(meta.address !== undefined ? { address: meta.address } : {}),
+      ...(meta.province !== undefined ? { province: meta.province } : {}),
+      ...(meta.avatarUrl !== undefined ? { avatarUrl: meta.avatarUrl } : {}),
+      ...(Array.isArray(meta.previousProcedures)
+        ? { previousProcedures: meta.previousProcedures }
+        : {}),
+      ...(Array.isArray(meta.medicalDevices) ? { medicalDevices: meta.medicalDevices } : {}),
+      memberSince:
+        meta.memberSince ||
+        (typeof data.created_at === 'string' ? data.created_at.slice(0, 10) : new Date().toISOString().slice(0, 10)),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function buildMedicationRow(userId: string, m: Medication) {
+  const timesPayload = {
+    schedule: m.times ?? [],
+    route: m.route ?? 'Oral',
+    facility: m.facility ?? '',
+    provenance: m.provenance ?? 'Patient Vault',
+    startDate: m.startDate ?? new Date().toISOString().slice(0, 10),
+    endDate: m.endDate ?? null,
+    note: m.note ?? null,
+  };
+  return {
+    id: toScopedRowId(userId, m.id),
+    user_id: userId,
+    name: m.name,
+    dose: m.strength,
+    frequency: m.frequency,
+    times: timesPayload as unknown as Json,
+    instructions: m.directions ?? null,
+    purpose: m.indication ?? null,
+    prescribed_by: m.prescriber ?? null,
+    status: m.status ?? 'active',
+  };
+}
+
+/**
+ * Syncs a single medication to Supabase scoped to the current user's `user_id`.
+ */
+export async function syncMedicationToDatabase(medication: Medication): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) return false;
+    const { error } = await supabase
+      .from('medications')
+      .upsert(buildMedicationRow(userId, medication));
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Syncs medications to Supabase scoped to the current user's `user_id`.
  */
 export async function syncMedications(medications: Medication[]): Promise<boolean> {
   if (!isSupabaseConfigured) return false;
+  if (medications.length === 0) return true;
 
   try {
     const userId = await getCurrentUserId();
     if (!userId) return false;
 
-    const rows = medications.map((m) => ({
-      id: `${userId}_${m.id}`,
-      user_id: userId,
-      name: m.name,
-      dose: m.strength,
-      frequency: m.frequency,
-      times: (m.times ?? []) as unknown as Json,
-      instructions: m.directions ?? null,
-      purpose: m.indication ?? null,
-      prescribed_by: m.prescriber ?? null,
-      status: m.status ?? 'active',
-    }));
-
+    const rows = medications.map((m) => buildMedicationRow(userId, m));
     const { error } = await supabase.from('medications').upsert(rows);
     return !error;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Deletes a single medication from Supabase scoped to the current user's `user_id`.
+ */
+export async function deleteMedicationFromDatabase(id: string): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) return false;
+    const candidateIds = [id, toScopedRowId(userId, id)];
+    const { error } = await supabase
+      .from('medications')
+      .delete()
+      .in('id', candidateIds)
+      .eq('user_id', userId);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Fetches medications belonging strictly to the current user from Supabase.
+ */
+export async function fetchMedicationsFromDatabase(): Promise<Medication[] | null> {
+  if (!isSupabaseConfigured) return null;
+
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) return null;
+
+    const { data, error } = await supabase
+      .from('medications')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true });
+
+    if (error || !data) return null;
+
+    return data.map((row: any): Medication => {
+      const rawTimes = row.times;
+      const isEnvelope =
+        rawTimes && typeof rawTimes === 'object' && !Array.isArray(rawTimes) && Array.isArray(rawTimes.schedule);
+
+      const times: string[] = isEnvelope
+        ? rawTimes.schedule
+        : Array.isArray(rawTimes)
+        ? rawTimes
+        : ['08:00'];
+
+      return {
+        id: fromScopedRowId(userId, row.id),
+        name: row.name,
+        strength: row.dose || 'As directed',
+        indication: row.purpose || 'Daily medication',
+        route: isEnvelope && rawTimes.route ? rawTimes.route : 'Oral',
+        frequency: row.frequency || 'Daily',
+        directions: row.instructions || 'Take as directed',
+        prescriber: row.prescribed_by || 'Healthcare Provider',
+        facility: isEnvelope && rawTimes.facility ? rawTimes.facility : 'Health Passport',
+        provenance: isEnvelope && rawTimes.provenance ? rawTimes.provenance : 'Cloud Synced',
+        times,
+        status: row.status === 'past' ? 'past' : 'active',
+        startDate:
+          isEnvelope && rawTimes.startDate
+            ? rawTimes.startDate
+            : typeof row.created_at === 'string'
+            ? row.created_at.slice(0, 10)
+            : new Date().toISOString().slice(0, 10),
+        endDate: isEnvelope && rawTimes.endDate ? rawTimes.endDate : undefined,
+        note: isEnvelope && rawTimes.note ? rawTimes.note : undefined,
+      };
+    });
+  } catch {
+    return null;
+  }
+}
+
+function buildAppointmentRow(userId: string, appt: Appointment) {
+  const categoryEncoded = [
+    appt.type || 'Appointment',
+    appt.reminderOption || '',
+    appt.linkedRecordId || '',
+  ].join('::');
+
+  return {
+    id: toScopedRowId(userId, appt.id),
+    user_id: userId,
+    title: appt.title,
+    category: categoryEncoded,
+    facility: appt.facility || 'Not recorded',
+    provider: appt.provider ?? null,
+    date: appt.date,
+    time: appt.time || '09:00',
+    status: appt.status ?? 'confirmed',
+    notes: appt.notes ?? null,
+  };
+}
+
+/**
+ * Syncs a single appointment to Supabase scoped to the current user's `user_id`.
+ */
+export async function syncAppointmentToDatabase(appointment: Appointment): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) return false;
+    const { error } = await supabase
+      .from('appointments')
+      .upsert(buildAppointmentRow(userId, appointment));
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Syncs multiple appointments to Supabase scoped to the current user's `user_id`.
+ */
+export async function syncAppointments(appointments: Appointment[]): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
+  if (appointments.length === 0) return true;
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) return false;
+    const rows = appointments.map((a) => buildAppointmentRow(userId, a));
+    const { error } = await supabase.from('appointments').upsert(rows);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Deletes an appointment from Supabase scoped to the current user's `user_id`.
+ */
+export async function deleteAppointmentFromDatabase(id: string): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) return false;
+    const candidateIds = [id, toScopedRowId(userId, id)];
+    const { error } = await supabase
+      .from('appointments')
+      .delete()
+      .in('id', candidateIds)
+      .eq('user_id', userId);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Fetches appointments belonging strictly to the current user from Supabase.
+ */
+export async function fetchAppointmentsFromDatabase(): Promise<Appointment[] | null> {
+  if (!isSupabaseConfigured) return null;
+
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) return null;
+
+    const { data, error } = await supabase
+      .from('appointments')
+      .select('*')
+      .eq('user_id', userId)
+      .order('date', { ascending: true });
+
+    if (error || !data) return null;
+
+    return data.map((row: any): Appointment => {
+      const parts = typeof row.category === 'string' ? row.category.split('::') : ['Appointment'];
+      const rawType = parts[0] === 'Medication Refill' ? 'Medication Refill' : 'Appointment';
+      const rawReminder = parts[1] as AppointmentReminderOption | undefined;
+      const rawLinkedRecordId = parts[2] || undefined;
+
+      return {
+        id: fromScopedRowId(userId, row.id),
+        title: row.title,
+        facility: row.facility,
+        provider: row.provider || undefined,
+        date: row.date,
+        time: row.time || '09:00',
+        type: rawType as AppointmentType,
+        notes: row.notes || undefined,
+        status: (row.status as AppointmentStatus) || 'confirmed',
+        reminderOption: rawReminder || undefined,
+        linkedRecordId: rawLinkedRecordId,
+      };
+    });
+  } catch {
+    return null;
+  }
+}
+
+function buildDiaryNoteRow(userId: string, note: DiaryNote) {
+  const voiceAttachment = note.attachments?.find((a) => a.kind === 'voice');
+  const tagsEnvelope = {
+    category: note.category ?? 'Personal',
+    pinned: Boolean(note.pinned),
+    attachments: note.attachments ?? [],
+    reminderAt: note.reminderAt ?? null,
+    linkedAppointmentId: note.linkedAppointmentId ?? null,
+    createdAt: note.createdAt,
+    updatedAt: note.updatedAt,
+  };
+
+  return {
+    id: toScopedRowId(userId, note.id),
+    user_id: userId,
+    date: note.entryDate,
+    title: note.title,
+    body: note.body,
+    mood: note.category ?? 'Personal',
+    tags: tagsEnvelope as unknown as Json,
+    audio_uri: voiceAttachment?.uri ?? null,
+    audio_duration_seconds: null,
+  };
+}
+
+/**
+ * Syncs a single diary note to Supabase scoped to the current user's `user_id`.
+ */
+export async function syncDiaryNoteToDatabase(note: DiaryNote): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) return false;
+    const { error } = await supabase
+      .from('diary_notes')
+      .upsert(buildDiaryNoteRow(userId, note));
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Syncs multiple diary notes to Supabase scoped to the current user's `user_id`.
+ */
+export async function syncDiaryNotes(notes: DiaryNote[]): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
+  if (notes.length === 0) return true;
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) return false;
+    const rows = notes.map((n) => buildDiaryNoteRow(userId, n));
+    const { error } = await supabase.from('diary_notes').upsert(rows);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Deletes a diary note from Supabase scoped to the current user's `user_id`.
+ */
+export async function deleteDiaryNoteFromDatabase(id: string): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) return false;
+    const candidateIds = [id, toScopedRowId(userId, id)];
+    const { error } = await supabase
+      .from('diary_notes')
+      .delete()
+      .in('id', candidateIds)
+      .eq('user_id', userId);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Fetches diary notes belonging strictly to the current user from Supabase.
+ */
+export async function fetchDiaryNotesFromDatabase(): Promise<DiaryNote[] | null> {
+  if (!isSupabaseConfigured) return null;
+
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) return null;
+
+    const { data, error } = await supabase
+      .from('diary_notes')
+      .select('*')
+      .eq('user_id', userId)
+      .order('date', { ascending: false });
+
+    if (error || !data) return null;
+
+    return data.map((row: any): DiaryNote => {
+      const rawTags = row.tags;
+      const isEnvelope =
+        rawTags && typeof rawTags === 'object' && !Array.isArray(rawTags);
+
+      const category = (
+        isEnvelope && rawTags.category
+          ? rawTags.category
+          : row.mood || 'Personal'
+      ) as DiaryCategory;
+
+      const attachments: DiaryAttachment[] =
+        isEnvelope && Array.isArray(rawTags.attachments) ? rawTags.attachments : [];
+
+      const createdAt =
+        isEnvelope && typeof rawTags.createdAt === 'string'
+          ? rawTags.createdAt
+          : row.created_at || new Date().toISOString();
+
+      const updatedAt =
+        isEnvelope && typeof rawTags.updatedAt === 'string'
+          ? rawTags.updatedAt
+          : createdAt;
+
+      return {
+        id: fromScopedRowId(userId, row.id),
+        title: row.title,
+        body: row.body,
+        entryDate: row.date,
+        createdAt,
+        updatedAt,
+        category,
+        pinned: isEnvelope ? Boolean(rawTags.pinned) : false,
+        attachments,
+        reminderAt: isEnvelope && rawTags.reminderAt ? rawTags.reminderAt : undefined,
+        linkedAppointmentId:
+          isEnvelope && rawTags.linkedAppointmentId ? rawTags.linkedAppointmentId : undefined,
+      };
+    });
+  } catch {
+    return null;
   }
 }
 
