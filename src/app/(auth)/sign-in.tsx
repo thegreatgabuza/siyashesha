@@ -17,7 +17,7 @@ import { GradientBackground } from '@/components/ui/GradientBackground';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { useToast } from '@/components/ui/Toast';
 import { LegalDocumentModal, type LegalDocKind } from '@/components/security/LegalDocumentModal';
-import { hasClerkKey, useSafeSignIn, useSafeSignUp } from '@/lib/clerkAvatar';
+import { deriveNamesFromEmail, hasClerkKey, useSafeSignIn, useSafeSignUp } from '@/lib/clerkAvatar';
 import { useAppStore } from '@/store/useAppStore';
 
 export default function SignInScreen() {
@@ -106,9 +106,18 @@ export default function SignInScreen() {
           ) || false;
 
         if (notFound) {
-          await signUp.create({
-            emailAddress: cleanEmail,
-          });
+          const { firstName, lastName } = deriveNamesFromEmail(cleanEmail);
+          try {
+            await signUp.create({
+              emailAddress: cleanEmail,
+              firstName,
+              lastName,
+            });
+          } catch {
+            await signUp.create({
+              emailAddress: cleanEmail,
+            });
+          }
 
           await signUp.prepareEmailAddressVerification({
             strategy: 'email_code',

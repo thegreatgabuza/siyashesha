@@ -18,6 +18,27 @@ export const hasClerkKey = isValidClerkPublishableKey(
 );
 
 /**
+ * Derives user-friendly first and last name from an email address
+ * to satisfy mandatory Clerk user attribute requirements during passwordless sign-up.
+ */
+export function deriveNamesFromEmail(email: string): { firstName: string; lastName: string } {
+  const local = (email || '').split('@')[0] || 'User';
+  const parts = local.split(/[._-]/).filter(Boolean);
+  const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+
+  if (parts.length >= 2) {
+    return {
+      firstName: capitalize(parts[0]),
+      lastName: capitalize(parts[parts.length - 1]),
+    };
+  }
+  return {
+    firstName: capitalize(parts[0] || 'User'),
+    lastName: 'Patient',
+  };
+}
+
+/**
  * Tracks whether `<ClerkProvider>` is actually mounted above the tree.
  * Prevents fatal `@clerk/clerk-react: useClerk can only be used within the <ClerkProvider /> component`
  * native crashes when `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` is absent in standalone/preview builds.
