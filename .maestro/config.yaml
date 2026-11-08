@@ -1,0 +1,8 @@
+appId: za.co.siyashesha.healthpassport
+tags:
+  - e2e
+  - clinical-safety
+flows:
+  - 01-emergency-ice-flow.yaml
+  - 02-records-and-clinician-share.yaml
+  - 03-language-and-cloud-sync.yaml

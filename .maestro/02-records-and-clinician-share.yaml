@@ -1,0 +1,21 @@
+appId: za.co.siyashesha.healthpassport
+name: Medical Records Vault & Clinician PIN-Protected Sharing Flow
+tags:
+  - records
+  - sharing
+---
+- launchApp
+- tapOn: "Records"
+- assertVisible: "Medical Records"
+- tapOn:
+    label: "Search medical records"
+- inputText: "HbA1c"
+- hideKeyboard
+- tapOn:
+    label: "Clear search"
+- tapOn: "More"
+- assertVisible: "Doctor & Clinician Sharing"
+- tapOn: "Doctor & Clinician Sharing"
+- assertVisible:
+    text: ".*Share.*"
+- back

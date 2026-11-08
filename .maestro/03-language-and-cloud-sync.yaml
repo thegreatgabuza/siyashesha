@@ -1,0 +1,21 @@
+appId: za.co.siyashesha.healthpassport
+name: Multi-Language (i18n) Switch & Two-Way Cloud Vault Sync Flow
+tags:
+  - i18n
+  - cloud-sync
+---
+- launchApp
+- tapOn: "More"
+- tapOn: "Language"
+- assertVisible: "Choose a language"
+- tapOn: "isiZulu"
+- assertVisible: "Ulimi lwamanje"
+- back
+- tapOn: "Izilungiselelo Nokuphepha"
+- assertVisible: "Ukugcina Nokuvumelanisa Emafini"
+- tapOn:
+    label: "Sync health passport with cloud now"
+- back
+- tapOn: "Ulimi"
+- tapOn: "English"
+- back

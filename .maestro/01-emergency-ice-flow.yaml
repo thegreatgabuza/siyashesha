@@ -1,0 +1,19 @@
+appId: za.co.siyashesha.healthpassport
+name: Emergency ICE Card & Offline Readiness Flow
+tags:
+  - emergency
+  - smoke
+---
+- launchApp
+- assertVisible:
+    text: ".*Emergency.*"
+- tapOn:
+    text: "Emergency"
+    index: 0
+- assertVisible:
+    text: ".*Blood.*"
+- assertVisible:
+    text: ".*Allerg.*"
+- assertVisible:
+    text: ".*112.*"
+- back
