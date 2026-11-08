@@ -6,7 +6,7 @@
   "build": {
     "base": {
       "env": {
-        "EXPO_PUBLIC_USE_MOCK_DATA": "true",
+        "EXPO_PUBLIC_USE_MOCK_DATA": "false",
         "EXPO_PUBLIC_EMERGENCY_PORTAL_URL": "https://siyashesha-health-passport.lovable.app",
         "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_YnJpZ2h0LWRlZXItNDguY2xlcmsuYWNjb3VudHMuZGV2JA",
         "EXPO_PUBLIC_SUPABASE_URL": "https://bwsarnrbcdrfanhohwwe.supabase.co",
