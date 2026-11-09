@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  initialDoctorBookings,
   initialDoctors,
   type DoctorProfile,
   type DoctorService,
@@ -36,7 +37,31 @@ describe('Doctor Role, Services Management & Patient Booking', () => {
     assert.equal(doc.fullName, 'Thobani Gabuza');
     assert.equal(doc.specialty, 'General Practitioner');
     assert.equal(doc.hpcsaNumber, 'MP 0849210');
-    assert.ok(doc.services.length >= 4, 'Expected at least 4 published clinical services');
+    assert.ok(doc.services.length >= 6, 'Expected at least 6 published clinical services');
+  });
+
+  it('seeds realistic patient bookings for Dr. Thobani Gabuza', () => {
+    assert.ok(initialDoctorBookings.length >= 6, 'Expected at least 6 pre-seeded doctor bookings');
+    const doc = initialDoctors.find((d) => d.id === 'doc-thobani-gabuza');
+    assert.ok(doc, 'Doctor profile must exist');
+    const serviceIds = new Set(doc.services.map((s) => s.id));
+
+    for (const booking of initialDoctorBookings) {
+      assert.equal(booking.doctorId, 'doc-thobani-gabuza');
+      assert.ok(serviceIds.has(booking.serviceId), `Booking references valid service: ${booking.serviceId}`);
+      assert.ok(booking.patientName.length > 2, 'Patient must have valid name');
+      assert.ok(booking.patientPhone.startsWith('+27'), 'Phone must be valid SA number (+27)');
+      assert.ok(booking.patientEmail.includes('@'), 'Must have valid patient email');
+      assert.ok(['confirmed', 'completed', 'cancelled'].includes(booking.status));
+      assert.ok(['in_person', 'video'].includes(booking.mode));
+      assert.ok(booking.priceZar > 0);
+    }
+
+    const stats = calculateDoctorBookingStats(initialDoctorBookings);
+    assert.ok(stats.confirmedCount >= 3, 'Expected at least 3 confirmed upcoming bookings');
+    assert.ok(stats.completedCount >= 2, 'Expected at least 2 completed bookings');
+    assert.ok(stats.cancelledCount >= 1, 'Expected at least 1 cancelled booking');
+    assert.ok(stats.totalRevenueZar > 0, 'Revenue from completed bookings must be positive');
   });
 
   it('validates South African professional council numbers', () => {

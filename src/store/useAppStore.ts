@@ -18,6 +18,7 @@ import {
   type DoctorBooking,
   type DoctorProfile,
   type DoctorService,
+  initialDoctorBookings,
   initialDoctors,
 } from '@/data/doctors';
 import type { LanguageCode } from '@/i18n/translations';
@@ -474,10 +475,13 @@ export const useAppStore = create<AppState>()(
             clerkSessionId: options?.clerkSessionId ?? s.clerkSessionId,
             userRole: isDoctorAccount ? 'doctor' : s.userRole,
             doctorProfile: matchedDoctor ?? s.doctorProfile,
-            registeredDoctors:
-              matchedDoctor && !s.registeredDoctors.some((d) => d.id === matchedDoctor.id)
-                ? [matchedDoctor, ...s.registeredDoctors]
-                : s.registeredDoctors,
+            registeredDoctors: matchedDoctor
+              ? [matchedDoctor, ...s.registeredDoctors.filter((d) => d.id !== matchedDoctor.id)]
+              : s.registeredDoctors,
+            doctorBookings:
+              s.doctorBookings && s.doctorBookings.length > 0
+                ? s.doctorBookings
+                : initialDoctorBookings,
             patientProfile: nextProfile,
             records: cleanedRecords,
             medications: cleanedMeds,
@@ -1668,7 +1672,7 @@ export const useAppStore = create<AppState>()(
       setUserRole: (role) => set({ userRole: role }),
       doctorProfile: null,
       registeredDoctors: initialDoctors,
-      doctorBookings: [],
+      doctorBookings: initialDoctorBookings,
       registerAsDoctor: (profileData, initialServices = []) => {
         const id = makeId('doc');
         const now = new Date().toISOString();
@@ -1865,7 +1869,7 @@ export const useAppStore = create<AppState>()(
           hasCompletedOnboarding: false,
           userRole: 'patient',
           doctorProfile: null,
-          doctorBookings: [],
+          doctorBookings: initialDoctorBookings,
           registeredDoctors: initialDoctors,
           pendingEmail: '',
           clerkSessionId: undefined,
@@ -1950,6 +1954,14 @@ export const useAppStore = create<AppState>()(
         const cleanedProfile = persistedState.patientProfile
           ? stripDemoSeedProfile(persistedState.patientProfile)
           : emptyPatientProfile;
+        const doctorBookings =
+          Array.isArray(persistedState.doctorBookings) && persistedState.doctorBookings.length > 0
+            ? persistedState.doctorBookings
+            : initialDoctorBookings;
+        const registeredDoctors =
+          Array.isArray(persistedState.registeredDoctors) && persistedState.registeredDoctors.length > 0
+            ? persistedState.registeredDoctors
+            : initialDoctors;
 
         return {
           ...persistedState,
@@ -1960,6 +1972,8 @@ export const useAppStore = create<AppState>()(
           sharedLinks: cleanedShares,
           auditEvents: cleanedAudits,
           patientProfile: cleanedProfile,
+          doctorBookings,
+          registeredDoctors,
         };
       },
       partialize: (state) => {
