@@ -139,3 +139,176 @@ export function createDoctorBookingPayload(params: {
 
   return { booking, appointment };
 }
+
+export const COMMON_MEDICAL_AIDS = [
+  'All Medical Aids',
+  'Discovery Health',
+  'Momentum Health',
+  'Bonitas',
+  'Medscheme',
+  'Cash / Self-Pay',
+] as const;
+
+export const COMMON_SA_CITIES = [
+  'All Cities',
+  'Johannesburg',
+  'Sandton',
+  'Rosebank',
+  'Cape Town',
+  'Durban',
+] as const;
+
+export interface DoctorDaySlotSchedule {
+  dateStr: string; // YYYY-MM-DD
+  dayLabel: string; // "Today", "Tomorrow", "Wed, 11 Nov"
+  dayOfWeek: string; // "Mon", "Tue", ...
+  slots: string[]; // ["09:30", "11:00", "14:30"]
+}
+
+/**
+ * Generates realistic real-time doctor availability slots across upcoming days (Zocdoc schedule layout).
+ */
+export function generateDoctorSlotSchedule(
+  doctor: DoctorProfile,
+  daysCount: number = 3,
+  startDate?: Date
+): DoctorDaySlotSchedule[] {
+  const base = startDate ? new Date(startDate) : new Date();
+  const schedule: DoctorDaySlotSchedule[] = [];
+  const daysOfWeekMap: ('Sun' | 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat')[] = [
+    'Sun',
+    'Mon',
+    'Tue',
+    'Wed',
+    'Thu',
+    'Fri',
+    'Sat',
+  ];
+
+  const defaultSlots = [
+    '09:00',
+    '09:30',
+    '10:15',
+    '11:00',
+    '11:45',
+    '14:00',
+    '14:30',
+    '15:15',
+    '16:00',
+    '16:30',
+  ];
+
+  for (let i = 0; i < daysCount; i++) {
+    const cur = new Date(base);
+    cur.setDate(base.getDate() + i);
+    const dayOfWeek = daysOfWeekMap[cur.getDay()];
+    const dateStr = cur.toISOString().slice(0, 10);
+
+    const isAvailableDay =
+      doctor.availability?.days?.includes(dayOfWeek) ??
+      !['Sun'].includes(dayOfWeek);
+
+    const dayLabel =
+      i === 0
+        ? 'Today'
+        : i === 1
+        ? 'Tomorrow'
+        : cur.toLocaleDateString('en-ZA', { weekday: 'short', day: 'numeric', month: 'short' });
+
+    let slots: string[] = [];
+    if (isAvailableDay) {
+      // Deterministically pick 3-4 realistic slots for this day
+      const charCode = doctor.id.charCodeAt(doctor.id.length - 1) || 7;
+      const offset = (charCode + i * 2) % defaultSlots.length;
+      slots = [
+        defaultSlots[offset % defaultSlots.length],
+        defaultSlots[(offset + 3) % defaultSlots.length],
+        defaultSlots[(offset + 6) % defaultSlots.length],
+      ].sort();
+    }
+
+    schedule.push({
+      dateStr,
+      dayLabel,
+      dayOfWeek,
+      slots,
+    });
+  }
+
+  return schedule;
+}
+
+export interface ZocdocFilterParams {
+  specialty?: string;
+  query?: string;
+  city?: string;
+  mode?: 'all' | 'in_person' | 'video';
+  availability?: 'all' | 'today' | 'next_3_days';
+  medicalAid?: string;
+}
+
+/**
+ * Enhanced multi-dimensional Zocdoc filter supporting specialty, query, city, visit mode, and medical aid.
+ */
+export function filterDoctorsZocdoc(
+  doctors: DoctorProfile[],
+  filters: ZocdocFilterParams
+): DoctorProfile[] {
+  const cleanQuery = (filters.query || '').trim().toLowerCase();
+  const cleanSpecialty = (filters.specialty || 'all').trim().toLowerCase();
+  const cleanCity = (filters.city || 'all').trim().toLowerCase();
+  const mode = filters.mode || 'all';
+  const cleanMedicalAid = (filters.medicalAid || 'all').trim().toLowerCase();
+
+  return doctors.filter((doc) => {
+    // 1. Specialty filter
+    if (cleanSpecialty !== 'all' && doc.specialty.toLowerCase() !== cleanSpecialty) {
+      return false;
+    }
+
+    // 2. City filter
+    if (
+      cleanCity !== 'all' &&
+      cleanCity !== 'all cities' &&
+      !doc.city.toLowerCase().includes(cleanCity) &&
+      !doc.practiceAddress.toLowerCase().includes(cleanCity)
+    ) {
+      return false;
+    }
+
+    // 3. Consultation Mode filter
+    if (mode !== 'all' && !doc.consultationModes.includes(mode)) {
+      return false;
+    }
+
+    // 4. Medical aid filter
+    if (cleanMedicalAid !== 'all' && cleanMedicalAid !== 'all medical aids') {
+      const aids = (doc.medicalAids || ['Discovery Health', 'Bonitas', 'Momentum', 'Cash']).map(
+        (a) => a.toLowerCase()
+      );
+      if (!aids.some((a) => a.includes(cleanMedicalAid))) {
+        return false;
+      }
+    }
+
+    // 5. Query filter
+    if (cleanQuery) {
+      const match =
+        doc.fullName.toLowerCase().includes(cleanQuery) ||
+        doc.specialty.toLowerCase().includes(cleanQuery) ||
+        doc.practiceName.toLowerCase().includes(cleanQuery) ||
+        doc.city.toLowerCase().includes(cleanQuery) ||
+        doc.practiceAddress.toLowerCase().includes(cleanQuery) ||
+        doc.bio?.toLowerCase().includes(cleanQuery) ||
+        doc.services.some(
+          (s) =>
+            s.name.toLowerCase().includes(cleanQuery) ||
+            s.description.toLowerCase().includes(cleanQuery) ||
+            s.category.toLowerCase().includes(cleanQuery)
+        );
+      if (!match) return false;
+    }
+
+    return true;
+  });
+}

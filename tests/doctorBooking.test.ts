@@ -11,7 +11,9 @@ import {
   calculateDoctorBookingStats,
   createDoctorBookingPayload,
   filterDoctorsDirectory,
+  filterDoctorsZocdoc,
   formatZarPrice,
+  generateDoctorSlotSchedule,
   isValidCouncilNumber,
 } from '@/lib/doctorBooking';
 
@@ -199,5 +201,50 @@ describe('Doctor Role, Services Management & Patient Booking', () => {
     assert.equal(stats.cancelledCount, 1);
     assert.equal(stats.totalRevenueZar, 550);
     assert.equal(formatZarPrice(stats.totalRevenueZar), 'R550');
+  });
+
+  it('generates real-time Zocdoc availability slot schedules for doctors', () => {
+    const doc = initialDoctors[0]; // Dr. Thobani Gabuza
+    const schedule = generateDoctorSlotSchedule(doc, 3);
+
+    assert.equal(schedule.length, 3, 'Expected 3-day schedule');
+    assert.equal(schedule[0].dayLabel, 'Today');
+    assert.equal(schedule[1].dayLabel, 'Tomorrow');
+
+    for (const day of schedule) {
+      assert.ok(day.dateStr.length === 10, 'Expected valid YYYY-MM-DD date');
+      assert.ok(Array.isArray(day.slots), 'Expected slots array');
+    }
+  });
+
+  it('filters doctors with multi-dimensional Zocdoc criteria (specialty, location, mode, medical aid)', () => {
+    // 1. Specialty: Paediatrician
+    const paediatricians = filterDoctorsZocdoc(initialDoctors, { specialty: 'Paediatrician' });
+    assert.ok(paediatricians.length >= 1);
+    assert.equal(paediatricians[0].fullName, 'Amina Patel');
+
+    // 2. City: Cape Town
+    const cdtDocs = filterDoctorsZocdoc(initialDoctors, { city: 'Cape Town' });
+    assert.ok(cdtDocs.length >= 1);
+    assert.equal(cdtDocs[0].city, 'Cape Town');
+
+    // 3. Consultation Mode: Video
+    const videoDocs = filterDoctorsZocdoc(initialDoctors, { mode: 'video' });
+    assert.ok(videoDocs.length >= 4);
+    assert.ok(videoDocs.every((d) => d.consultationModes.includes('video')));
+
+    // 4. Medical Aid: Bonitas
+    const bonitasDocs = filterDoctorsZocdoc(initialDoctors, { medicalAid: 'Bonitas' });
+    assert.ok(bonitasDocs.length >= 2);
+
+    // 5. Query: "ECG"
+    const ecgDocs = filterDoctorsZocdoc(initialDoctors, { query: 'ECG' });
+    assert.ok(ecgDocs.length >= 1);
+    assert.ok(ecgDocs.some((d) => d.fullName.includes('Gabuza') || d.fullName.includes('Ndlovu')));
+
+    // 6. Query: "Dentist"
+    const dentists = filterDoctorsZocdoc(initialDoctors, { query: 'Dentist' });
+    assert.equal(dentists.length, 1);
+    assert.equal(dentists[0].fullName, 'Sibusiso Khumalo');
   });
 });

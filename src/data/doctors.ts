@@ -38,6 +38,8 @@ export interface DoctorProfile {
   consultationModes: ('in_person' | 'video')[];
   availability: DoctorAvailability;
   services: DoctorService[];
+  medicalAids?: string[];
+  patientHighlight?: string;
   createdAt: string;
 }
 
@@ -117,6 +119,8 @@ export const initialDoctors: DoctorProfile[] = [
       endTime: '17:00',
       slotDurationMinutes: 30,
     },
+    medicalAids: ['Discovery Health', 'Momentum Health', 'Bonitas', 'Medscheme', 'Cash / Self-Pay'],
+    patientHighlight: 'Dr. Gabuza was very empathetic, punctual, and gave clear guidance on my treatment plan.',
     services: [
       {
         id: 'srv-thobani-1',
@@ -211,6 +215,8 @@ export const initialDoctors: DoctorProfile[] = [
       endTime: '17:00',
       slotDurationMinutes: 30,
     },
+    medicalAids: ['Discovery Health', 'Bonitas', 'Bankmed', 'Medscheme', 'Cash / Self-Pay'],
+    patientHighlight: 'Prompt service, attentive staff, and excellent follow-up after urgent consult.',
     services: [
       {
         id: 'srv-001-1',
@@ -283,6 +289,8 @@ export const initialDoctors: DoctorProfile[] = [
       endTime: '16:00',
       slotDurationMinutes: 45,
     },
+    medicalAids: ['Discovery Health', 'Momentum Health', 'Profmed', 'Cash / Self-Pay'],
+    patientHighlight: 'Wonderful bedside manner with our newborn; answered every question with patience.',
     services: [
       {
         id: 'srv-002-1',
@@ -344,6 +352,8 @@ export const initialDoctors: DoctorProfile[] = [
       endTime: '17:30',
       slotDurationMinutes: 50,
     },
+    medicalAids: ['Discovery Health', 'Medscheme', 'Bankmed', 'Cash / Self-Pay'],
+    patientHighlight: 'Warm, compassionate environment that made opening up comfortable from day one.',
     services: [
       {
         id: 'srv-003-1',
@@ -394,6 +404,8 @@ export const initialDoctors: DoctorProfile[] = [
       endTime: '16:30',
       slotDurationMinutes: 45,
     },
+    medicalAids: ['Discovery Health', 'Bonitas', 'KeyHealth', 'Cash / Self-Pay'],
+    patientHighlight: 'Gentle and completely pain-free dental checkup. High-tech equipment in clinic.',
     services: [
       {
         id: 'srv-004-1',
@@ -444,6 +456,8 @@ export const initialDoctors: DoctorProfile[] = [
       endTime: '16:30',
       slotDurationMinutes: 40,
     },
+    medicalAids: ['Discovery Health', 'Momentum Health', 'Bonitas', 'Fedhealth', 'Cash / Self-Pay'],
+    patientHighlight: 'Superb antenatal care throughout pregnancy. Always felt in the safest hands.',
     services: [
       {
         id: 'srv-005-1',
