@@ -44,7 +44,9 @@ export default function DoctorPortalScreen() {
 
   // If user has a registered profile, use it; otherwise fallback to primary community doctor for preview
   const currentDoctor =
-    doctorProfile ?? registeredDoctors.find((d) => d.id === 'doc-001') ?? registeredDoctors[0];
+    doctorProfile ??
+    registeredDoctors.find((d) => d.email.toLowerCase() === 'thobanisgabuzam2@gmail.com') ??
+    registeredDoctors[0];
 
   const [activeTab, setActiveTab] = useState<'bookings' | 'services' | 'settings'>('bookings');
   const [serviceModalOpen, setServiceModalOpen] = useState(false);

@@ -30,6 +30,15 @@ describe('Doctor Role, Services Management & Patient Booking', () => {
     }
   });
 
+  it('has verified doctor account for Dr. Thobani Gabuza (thobanisgabuzam2@gmail.com)', () => {
+    const doc = initialDoctors.find((d) => d.email.toLowerCase() === 'thobanisgabuzam2@gmail.com');
+    assert.ok(doc, 'Expected Dr. Thobani Gabuza account in verified directory');
+    assert.equal(doc.fullName, 'Thobani Gabuza');
+    assert.equal(doc.specialty, 'General Practitioner');
+    assert.equal(doc.hpcsaNumber, 'MP 0849210');
+    assert.ok(doc.services.length >= 4, 'Expected at least 4 published clinical services');
+  });
+
   it('validates South African professional council numbers', () => {
     assert.equal(isValidCouncilNumber('MP 0784920'), true);
     assert.equal(isValidCouncilNumber('PS 0148293'), true);

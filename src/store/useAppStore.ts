@@ -439,10 +439,24 @@ export const useAppStore = create<AppState>()(
             timestamp: new Date().toISOString(),
           };
 
+          const matchedDoctor =
+            s.registeredDoctors.find((d) => d.email.toLowerCase() === email) ||
+            initialDoctors.find((d) => d.email.toLowerCase() === email) ||
+            (email === 'thobanisgabuzam2@gmail.com' ? initialDoctors[0] : null);
+          const isDoctorAccount = Boolean(matchedDoctor);
+
           const cleanedBaseProfile = stripDemoSeedProfile(s.patientProfile);
           const nextProfile: PatientProfile = {
             ...cleanedBaseProfile,
             ...(email ? { email } : {}),
+            ...(matchedDoctor
+              ? {
+                  firstName: matchedDoctor.fullName.split(' ')[0] || 'Thobani',
+                  lastName: matchedDoctor.fullName.split(' ').slice(1).join(' ') || 'Gabuza',
+                  preferredName: matchedDoctor.fullName.split(' ')[0] || 'Thobani',
+                  phone: matchedDoctor.phone || s.patientProfile.phone,
+                }
+              : {}),
           };
           const cleanedRecords = s.records.filter((r) => !DEMO_RECORD_IDS.has(r.id));
           const cleanedMeds = s.medications.filter((m) => !DEMO_MED_IDS.has(m.id));
@@ -455,9 +469,15 @@ export const useAppStore = create<AppState>()(
           return {
             isSignedIn: true,
             // New sign-ups run guided onboarding exactly once; returning users skip it.
-            hasCompletedOnboarding: s.hasCompletedOnboarding || s.clerkFlow !== 'sign_up',
+            hasCompletedOnboarding: isDoctorAccount ? true : (s.hasCompletedOnboarding || s.clerkFlow !== 'sign_up'),
             clerkFlow: 'sign_in',
             clerkSessionId: options?.clerkSessionId ?? s.clerkSessionId,
+            userRole: isDoctorAccount ? 'doctor' : s.userRole,
+            doctorProfile: matchedDoctor ?? s.doctorProfile,
+            registeredDoctors:
+              matchedDoctor && !s.registeredDoctors.some((d) => d.id === matchedDoctor.id)
+                ? [matchedDoctor, ...s.registeredDoctors]
+                : s.registeredDoctors,
             patientProfile: nextProfile,
             records: cleanedRecords,
             medications: cleanedMeds,
