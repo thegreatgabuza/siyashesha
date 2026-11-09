@@ -15,6 +15,7 @@ import {
   FileText,
   Flame,
   PhoneCall,
+  Stethoscope,
 } from 'lucide-react-native';
 import { useState } from 'react';
 import { Alert, Linking, View } from 'react-native';
@@ -67,6 +68,9 @@ export default function MoreScreen() {
   const activeMedCount = (medications ?? activeMedications).filter((m) => m.status === 'active').length;
   const language = useAppStore((s) => s.language);
   const subscriptionPlan = useAppStore((s) => s.subscriptionPlan);
+  const userRole = useAppStore((s) => s.userRole);
+  const doctorProfile = useAppStore((s) => s.doctorProfile);
+  const registeredDoctors = useAppStore((s) => s.registeredDoctors);
   const entitlements = getPlanEntitlements(subscriptionPlan);
   const signOut = useAppStore((s) => s.signOut);
   const { signOut: clerkSignOut } = useSafeClerk();
@@ -171,6 +175,42 @@ export default function MoreScreen() {
           route: '/more/emergency',
           tint: '#DC1F26',
         },
+      ],
+    },
+    {
+      title: 'Practitioners & Clinical Bookings',
+      items: [
+        {
+          id: 'doctors',
+          label: 'Find & Book Doctors',
+          subtitle: 'Search verified practitioners & book appointments',
+          icon: Stethoscope,
+          route: '/more/doctors',
+          tint: '#0284C7',
+          badge: `${registeredDoctors.length} Doctors`,
+          badgeTone: 'muted',
+        },
+        userRole === 'doctor' || doctorProfile
+          ? {
+              id: 'doctor_portal',
+              label: 'Doctor Practice Portal',
+              subtitle: doctorProfile?.practiceName || 'Manage Services & Bookings',
+              icon: Stethoscope,
+              route: '/more/doctor-portal',
+              tint: '#16A34A',
+              badge: 'Doctor Mode',
+              badgeTone: 'success',
+            }
+          : {
+              id: 'doctor_signup',
+              label: 'Healthcare Practitioner Sign Up',
+              subtitle: 'List your practice and offer services to patients',
+              icon: Stethoscope,
+              route: '/more/doctor-signup',
+              tint: '#16A34A',
+              badge: 'Join',
+              badgeTone: 'muted',
+            },
       ],
     },
     {

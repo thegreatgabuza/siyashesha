@@ -218,6 +218,19 @@ export default function SignInScreen() {
             />
           </View>
 
+          {/* Healthcare Practitioner Registration Link */}
+          <View className="mt-4 items-center">
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push('/(auth)/doctor-signup')}
+              className="flex-row items-center gap-1.5 rounded-full border border-brand-500/20 bg-brand-50/80 px-4 py-2"
+            >
+              <Text className="font-sans-bold text-[12px] text-brand-700">
+                Are you a Doctor? Register your practice →
+              </Text>
+            </Pressable>
+          </View>
+
           {/* Apple Guideline 5.1.1(i) Pre-Authentication Terms of Use & Privacy Policy Links */}
           <View className="mt-6 items-center">
             <Text className="text-center font-sans text-[11px] leading-[16px] text-ink-muted">

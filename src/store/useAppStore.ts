@@ -14,6 +14,12 @@ import { todaysReminders, type Medication } from '@/data/medications';
 import type { EmergencyContact, PatientProfile } from '@/data/patient';
 import type { MedicalRecord } from '@/data/records';
 import type { SharedLink, ShareDuration } from '@/data/sharing';
+import {
+  type DoctorBooking,
+  type DoctorProfile,
+  type DoctorService,
+  initialDoctors,
+} from '@/data/doctors';
 import type { LanguageCode } from '@/i18n/translations';
 import { clearAllStoredFiles } from '@/lib/documents';
 import { verifyActiveStoreKitEntitlements } from '@/lib/iap';
@@ -372,6 +378,36 @@ interface AppState {
   isSyncingCloud: boolean;
   lastCloudSyncAt?: string;
   hydrateFromCloud: () => Promise<boolean>;
+
+  // Role & Doctor Practice Portal
+  userRole: 'patient' | 'doctor';
+  setUserRole: (role: 'patient' | 'doctor') => void;
+  doctorProfile: DoctorProfile | null;
+  registeredDoctors: DoctorProfile[];
+  doctorBookings: DoctorBooking[];
+  registerAsDoctor: (
+    profile: Omit<DoctorProfile, 'id' | 'createdAt' | 'services'>,
+    initialServices?: Omit<DoctorService, 'id' | 'doctorId'>[]
+  ) => DoctorProfile;
+  updateDoctorProfile: (patch: Partial<DoctorProfile>) => void;
+  addDoctorService: (service: Omit<DoctorService, 'id' | 'doctorId'>) => DoctorService;
+  updateDoctorService: (serviceId: string, patch: Partial<DoctorService>) => void;
+  deleteDoctorService: (serviceId: string) => void;
+  bookDoctorService: (bookingData: {
+    doctorId: string;
+    serviceId: string;
+    date: string;
+    time: string;
+    mode: 'in_person' | 'video';
+    notes?: string;
+    patientName?: string;
+    patientPhone?: string;
+    patientEmail?: string;
+  }) => { booking: DoctorBooking; appointment: Appointment };
+  updateDoctorBookingStatus: (
+    bookingId: string,
+    status: 'confirmed' | 'completed' | 'cancelled'
+  ) => void;
 
   // POPIA §24 / HIPAA Data Subject Erasure
   eraseAllPatientData: () => Promise<void>;
@@ -1607,6 +1643,188 @@ export const useAppStore = create<AppState>()(
           return { patientProfile: nextProfile };
         }),
 
+      // Role & Doctor Practice Implementation
+      userRole: 'patient',
+      setUserRole: (role) => set({ userRole: role }),
+      doctorProfile: null,
+      registeredDoctors: initialDoctors,
+      doctorBookings: [],
+      registerAsDoctor: (profileData, initialServices = []) => {
+        const id = makeId('doc');
+        const now = new Date().toISOString();
+        const services: DoctorService[] = initialServices.map((s, index) => ({
+          ...s,
+          id: `srv-${Date.now()}-${index + 1}`,
+          doctorId: id,
+        }));
+        const newDoctor: DoctorProfile = {
+          ...profileData,
+          id,
+          services,
+          createdAt: now,
+        };
+        set((s) => ({
+          userRole: 'doctor',
+          doctorProfile: newDoctor,
+          registeredDoctors: [newDoctor, ...s.registeredDoctors.filter((d) => d.id !== id)],
+          auditEvents: [
+            {
+              id: makeId('audit'),
+              type: 'login',
+              description: `Registered as healthcare provider: ${newDoctor.title} ${newDoctor.fullName} (${newDoctor.specialty})`,
+              timestamp: now,
+            },
+            ...s.auditEvents,
+          ],
+        }));
+        return newDoctor;
+      },
+      updateDoctorProfile: (patch) =>
+        set((s) => {
+          if (!s.doctorProfile) return s;
+          const updated = { ...s.doctorProfile, ...patch };
+          return {
+            doctorProfile: updated,
+            registeredDoctors: s.registeredDoctors.map((d) =>
+              d.id === updated.id ? updated : d
+            ),
+          };
+        }),
+      addDoctorService: (serviceData) => {
+        const serviceId = `srv-${Date.now()}`;
+        let createdService: DoctorService | null = null;
+        set((s) => {
+          if (!s.doctorProfile) return s;
+          createdService = {
+            ...serviceData,
+            id: serviceId,
+            doctorId: s.doctorProfile.id,
+          };
+          const nextServices = [...s.doctorProfile.services, createdService];
+          const updatedDoctor = { ...s.doctorProfile, services: nextServices };
+          return {
+            doctorProfile: updatedDoctor,
+            registeredDoctors: s.registeredDoctors.map((d) =>
+              d.id === updatedDoctor.id ? updatedDoctor : d
+            ),
+          };
+        });
+        return createdService!;
+      },
+      updateDoctorService: (serviceId, patch) =>
+        set((s) => {
+          if (!s.doctorProfile) return s;
+          const nextServices = s.doctorProfile.services.map((srv) =>
+            srv.id === serviceId ? { ...srv, ...patch } : srv
+          );
+          const updatedDoctor = { ...s.doctorProfile, services: nextServices };
+          return {
+            doctorProfile: updatedDoctor,
+            registeredDoctors: s.registeredDoctors.map((d) =>
+              d.id === updatedDoctor.id ? updatedDoctor : d
+            ),
+          };
+        }),
+      deleteDoctorService: (serviceId) =>
+        set((s) => {
+          if (!s.doctorProfile) return s;
+          const nextServices = s.doctorProfile.services.filter((srv) => srv.id !== serviceId);
+          const updatedDoctor = { ...s.doctorProfile, services: nextServices };
+          return {
+            doctorProfile: updatedDoctor,
+            registeredDoctors: s.registeredDoctors.map((d) =>
+              d.id === updatedDoctor.id ? updatedDoctor : d
+            ),
+          };
+        }),
+      bookDoctorService: (bookingData) => {
+        const state = get();
+        const doctor = state.registeredDoctors.find((d) => d.id === bookingData.doctorId);
+        if (!doctor) throw new Error('Doctor not found');
+        const service = doctor.services.find((s) => s.id === bookingData.serviceId);
+        if (!service) throw new Error('Service not found');
+
+        const bookingId = makeId('bk');
+        const apptId = makeId('appt');
+        const now = new Date().toISOString();
+
+        const patientName =
+          bookingData.patientName ||
+          [state.patientProfile.firstName, state.patientProfile.lastName].filter(Boolean).join(' ') ||
+          'Patient';
+        const patientPhone = bookingData.patientPhone || state.patientProfile.phone || '';
+        const patientEmail = bookingData.patientEmail || state.patientProfile.email || '';
+
+        const newBooking: DoctorBooking = {
+          id: bookingId,
+          doctorId: doctor.id,
+          doctorName: `${doctor.title} ${doctor.fullName}`,
+          doctorSpecialty: doctor.specialty,
+          practiceName: doctor.practiceName,
+          practiceAddress: doctor.practiceAddress,
+          patientId: state.patientProfile.idNumber || makeId('pat'),
+          patientName,
+          patientPhone,
+          patientEmail,
+          serviceId: service.id,
+          serviceName: service.name,
+          durationMinutes: service.durationMinutes,
+          priceZar: service.priceZar,
+          date: bookingData.date,
+          time: bookingData.time,
+          mode: bookingData.mode,
+          notes: bookingData.notes,
+          status: 'confirmed',
+          linkedAppointmentId: apptId,
+          createdAt: now,
+        };
+
+        const newAppointment: Appointment = {
+          id: apptId,
+          title: `${service.name} — ${doctor.title} ${doctor.fullName}`,
+          facility: doctor.practiceName,
+          provider: `${doctor.title} ${doctor.fullName} (${doctor.specialty})`,
+          date: bookingData.date,
+          time: bookingData.time,
+          type: 'Appointment',
+          notes: `${bookingData.mode === 'video' ? 'Video Telehealth Consult' : 'In-person at ' + doctor.practiceAddress}. Consultation Fee: R${service.priceZar}. ${bookingData.notes ? 'Notes: ' + bookingData.notes : ''}`,
+          status: 'confirmed',
+          reminderOption: '1_day',
+        };
+
+        set((s) => ({
+          doctorBookings: [newBooking, ...s.doctorBookings],
+          appointments: [...s.appointments, newAppointment],
+          auditEvents: [
+            {
+              id: makeId('audit'),
+              type: 'upload',
+              description: `Booked appointment with ${doctor.title} ${doctor.fullName}: ${service.name} (R${service.priceZar})`,
+              timestamp: now,
+            },
+            ...s.auditEvents,
+          ],
+        }));
+
+        syncAppointmentToDatabase(newAppointment).catch(() => {});
+        return { booking: newBooking, appointment: newAppointment };
+      },
+      updateDoctorBookingStatus: (bookingId, status) =>
+        set((s) => {
+          let linkedApptId: string | undefined;
+          const nextBookings = s.doctorBookings.map((b) => {
+            if (b.id === bookingId) {
+              linkedApptId = b.linkedAppointmentId;
+              return { ...b, status };
+            }
+            return b;
+          });
+          const nextAppts = linkedApptId
+            ? s.appointments.map((a) => (a.id === linkedApptId ? { ...a, status } : a))
+            : s.appointments;
+          return { doctorBookings: nextBookings, appointments: nextAppts };
+        }),
+
       eraseAllPatientData: async () => {
         // 1. Wipe remote Supabase database and storage
         await eraseAllCloudData().catch(() => {});
@@ -1625,6 +1843,10 @@ export const useAppStore = create<AppState>()(
         set({
           isSignedIn: false,
           hasCompletedOnboarding: false,
+          userRole: 'patient',
+          doctorProfile: null,
+          doctorBookings: [],
+          registeredDoctors: initialDoctors,
           pendingEmail: '',
           clerkSessionId: undefined,
           clerkFlow: 'sign_in',

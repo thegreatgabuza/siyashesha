@@ -18,6 +18,9 @@ export default function MoreLayout() {
       <Stack.Screen name="assistant" />
       <Stack.Screen name="language" />
       <Stack.Screen name="notifications" />
+      <Stack.Screen name="doctors" />
+      <Stack.Screen name="doctor-portal" />
+      <Stack.Screen name="doctor-signup" />
     </Stack>
   );
 }

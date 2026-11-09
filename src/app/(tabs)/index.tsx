@@ -1,7 +1,8 @@
 import dayjs from 'dayjs';
 import { router } from 'expo-router';
+import { Stethoscope } from 'lucide-react-native';
 import { useMemo } from 'react';
-import { View } from 'react-native';
+import { Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { AskBar } from '@/components/home/AskBar';
@@ -16,7 +17,7 @@ import { PressableScale } from '@/components/ui/PressableScale';
 import { Screen } from '@/components/ui/Screen';
 import { useToast } from '@/components/ui/Toast';
 import { Txt } from '@/components/ui/Txt';
-import { fonts, motion, springs } from '@/design/tokens';
+import { elevation, fonts, motion, springs } from '@/design/tokens';
 import { useTokens } from '@/design/useTokens';
 import { activeMedications } from '@/data/medications';
 import { useI18n } from '@/i18n/useI18n';
@@ -94,8 +95,35 @@ export default function HomeScreen() {
         <EmergencyReadinessCard />
       </Animated.View>
 
-      <Animated.View entering={enter(2)} style={{ marginTop: 28 }}>
+      <Animated.View entering={enter(2)} style={{ marginTop: 28, gap: 12 }}>
         <AskBar />
+        <PressableScale
+          accessibilityLabel="Find and book a doctor"
+          onPress={() => router.push('/more/doctors')}
+          haptic="selection"
+          style={[{ borderRadius: 20 }, elevation[1]]}
+        >
+          <View className="flex-row items-center justify-between rounded-2xl border border-brand-500/20 bg-brand-50/70 p-3.5 dark:border-brand-500/15 dark:bg-brand-500/10">
+            <View className="flex-row items-center gap-3">
+              <View className="h-10 w-10 items-center justify-center rounded-xl bg-brand-500">
+                <Stethoscope size={18} color="#FFFFFF" />
+              </View>
+              <View>
+                <Text className="font-sans-bold text-[14px] text-brand-950 dark:text-white">
+                  Find & Book a Doctor
+                </Text>
+                <Text className="font-sans text-[12px] text-brand-700 dark:text-brand-300">
+                  Verified GPs, specialists & telehealth consults
+                </Text>
+              </View>
+            </View>
+            <View className="rounded-full bg-brand-500/10 px-2.5 py-1 dark:bg-brand-500/20">
+              <Text className="font-sans-bold text-[11px] text-brand-700 dark:text-brand-300">
+                Book →
+              </Text>
+            </View>
+          </View>
+        </PressableScale>
       </Animated.View>
 
       <Animated.View entering={enter(3)} style={{ marginTop: 28 }}>

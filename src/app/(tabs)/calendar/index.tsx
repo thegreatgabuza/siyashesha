@@ -19,7 +19,7 @@ import {
   Trash2,
 } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
-import { Alert, FlatList, Platform, Text, View } from 'react-native';
+import { Alert, FlatList, Platform, Pressable, Text, View } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 
 import { CalendarDayCell } from '@/components/CalendarDayCell';
@@ -238,10 +238,15 @@ export default function CalendarScreen() {
               setSelectedDate(today);
             }}
           />
+          <HeroAction
+            label="Book Doctor"
+            icon={<Stethoscope size={16} color="#FFFFFF" />}
+            onPress={() => router.push('/more/doctors')}
+          />
           {next ? (
             <HeroAction
               label="Visit notes"
-              icon={<Stethoscope size={16} color="#FFFFFF" />}
+              icon={<FileText size={16} color="#FFFFFF" />}
               onPress={() => openAppointmentDiary(next)}
             />
           ) : null}
@@ -266,6 +271,27 @@ export default function CalendarScreen() {
           <Text className="mt-0.5 font-sans text-[11px] text-ink-muted dark:text-slate-500">WHO awareness days</Text>
         </View>
       </View>
+
+      {/* Book Doctor Banner */}
+      <Pressable
+        onPress={() => router.push('/more/doctors')}
+        className="mt-3 flex-row items-center justify-between rounded-3xl border border-brand-500/25 bg-brand-50/70 p-4 shadow-2xs dark:border-brand-400/20 dark:bg-brand-500/10"
+      >
+        <View className="flex-1 pr-3">
+          <View className="flex-row items-center gap-1.5">
+            <Stethoscope size={15} color="#0B2559" />
+            <Text className="font-sans-bold text-[14px] text-brand-950 dark:text-white">
+              Need to see a doctor or specialist?
+            </Text>
+          </View>
+          <Text className="mt-0.5 font-sans text-[12px] text-brand-700 dark:text-brand-300">
+            Browse verified GPs, Paediatricians & Dentists. In-person & video consults from R320.
+          </Text>
+        </View>
+        <View className="rounded-xl bg-brand-500 px-3.5 py-2">
+          <Text className="font-sans-bold text-[12px] text-white">Book Now</Text>
+        </View>
+      </Pressable>
 
       {/* Calendar Grid */}
       <View className="pt-6">
