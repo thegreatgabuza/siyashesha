@@ -244,6 +244,46 @@ export default function EmergencyProfileScreen() {
           </Txt>
         </PressableScale>
 
+        {/* National Helplines Navigation Banner */}
+        <PressableScale
+          accessibilityLabel="Open National Emergency and Crisis Helplines Directory"
+          onPress={() => router.push('/more/emergency-services')}
+          style={{
+            minHeight: 56,
+            borderRadius: radii.xl,
+            backgroundColor: red[50],
+            borderWidth: 1,
+            borderColor: red[100],
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 12,
+            paddingHorizontal: 16,
+            paddingVertical: 12,
+          }}
+        >
+          <View
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              backgroundColor: red[500],
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Phone size={18} color="#FFFFFF" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Txt variant="bodyStrong" color={red[600]}>
+              24/7 National Emergency & Crisis Lines
+            </Txt>
+            <Txt variant="footnote" color={red[600]}>
+              112, 10177, 10111, Netcare, ER24, Poison Info & SADAG
+            </Txt>
+          </View>
+          <ChevronRight size={18} color={red[500]} />
+        </PressableScale>
+
         {/* Visibility */}
         <View style={{ marginTop: 12, gap: 10 }}>
           <Txt variant="label" tone="muted" style={{ paddingHorizontal: 2 }}>

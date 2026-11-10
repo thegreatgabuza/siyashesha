@@ -333,6 +333,14 @@ export default function FindDoctorsScreen() {
                     );
                   })}
                 </ScrollView>
+                <Pressable
+                  onPress={() => router.push('/more/medical-aid-directory')}
+                  className="mt-1 flex-row items-center gap-1"
+                >
+                  <Text className="font-sans-medium text-[10px] text-brand-600 dark:text-brand-300">
+                    Browse All 16 SA Medical Aids &rarr;
+                  </Text>
+                </Pressable>
               </View>
             </View>
 

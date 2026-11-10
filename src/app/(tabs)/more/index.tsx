@@ -175,6 +175,16 @@ export default function MoreScreen() {
           route: '/more/emergency',
           tint: '#DC1F26',
         },
+        {
+          id: 'emergency_helplines',
+          label: 'Emergency & Crisis Helplines',
+          subtitle: '24/7 National dispatch, ambulance & SADAG lines',
+          icon: PhoneCall,
+          route: '/more/emergency-services',
+          tint: '#DC1F26',
+          badge: '30 Helplines',
+          badgeTone: 'brand',
+        },
       ],
     },
     {
@@ -188,6 +198,16 @@ export default function MoreScreen() {
           route: '/more/doctors',
           tint: '#0284C7',
           badge: `${registeredDoctors.length} Doctors`,
+          badgeTone: 'muted',
+        },
+        {
+          id: 'medical_aid_directory',
+          label: 'Medical Aid & Insurance Directory',
+          subtitle: '16 South African schemes, insurers & gap cover',
+          icon: CreditCard,
+          route: '/more/medical-aid-directory',
+          tint: '#2563EB',
+          badge: '16 Schemes',
           badgeTone: 'muted',
         },
         userRole === 'doctor' || doctorProfile

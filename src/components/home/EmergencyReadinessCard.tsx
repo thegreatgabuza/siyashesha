@@ -5,7 +5,7 @@ import { Linking, View } from 'react-native';
 import { Chip } from '@/components/ui/Chip';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Txt } from '@/components/ui/Txt';
-import { elevation, fonts, radii } from '@/design/tokens';
+import { elevation, fonts, radii, red } from '@/design/tokens';
 import { useTokens } from '@/design/useTokens';
 import { useEmergencyCard } from '@/hooks/useEmergencyCard';
 import { impactFeedback } from '@/lib/feedback';
@@ -198,6 +198,36 @@ export function EmergencyReadinessCard() {
             </Txt>
           </View>
           <ChevronRight size={18} color={t.textMuted} />
+        </PressableScale>
+
+        <PressableScale
+          accessibilityLabel="24/7 National Emergency Helplines"
+          onPress={() => router.push('/more/emergency-services')}
+          haptic="selection"
+          style={{
+            minHeight: 48,
+            borderRadius: radii.md,
+            backgroundColor: red[50],
+            borderWidth: 1,
+            borderColor: red[100],
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 12,
+            paddingHorizontal: 14,
+          }}
+        >
+          <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: red[500], alignItems: 'center', justifyContent: 'center' }}>
+            <Phone size={16} color="#FFFFFF" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Txt variant="callout" style={{ fontFamily: fonts.semibold, color: red[600] }}>
+              24/7 Emergency & Crisis Lines
+            </Txt>
+            <Txt variant="footnote" style={{ color: red[600] }}>
+              112, 10177, 10111, Netcare & SADAG
+            </Txt>
+          </View>
+          <ChevronRight size={16} color={red[500]} />
         </PressableScale>
       </View>
     </View>
