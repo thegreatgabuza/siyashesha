@@ -20,6 +20,7 @@ import {
 import { useState } from 'react';
 import { Alert, Linking, View } from 'react-native';
 
+import { DoctorPracticeInfoScreen } from '@/components/doctors/DoctorPracticeInfoScreen';
 import { AccountDeletionModal } from '@/components/security/AccountDeletionModal';
 import { DsarExportModal } from '@/components/security/DsarExportModal';
 import { LegalDocumentModal, type LegalDocKind } from '@/components/security/LegalDocumentModal';
@@ -59,6 +60,16 @@ interface MenuSection {
 }
 
 export default function MoreScreen() {
+  const userRole = useAppStore((s) => s.userRole);
+
+  if (userRole === 'doctor') {
+    return <DoctorPracticeInfoScreen />;
+  }
+
+  return <PatientMoreScreen />;
+}
+
+function PatientMoreScreen() {
   const { accent } = useAccent();
   const t = useTokens();
   const { t: tr } = useI18n();

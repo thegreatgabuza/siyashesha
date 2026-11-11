@@ -37,6 +37,7 @@ import { Txt } from '@/components/ui/Txt';
 import { nextAppointment, type Appointment } from '@/data/appointments';
 import { elevation, fonts, radii } from '@/design/tokens';
 import { useTokens } from '@/design/useTokens';
+import { DoctorPracticeScheduleScreen } from '@/components/doctors/DoctorPracticeScheduleScreen';
 import { useAccent } from '@/hooks/useAccent';
 import { getDayAgenda, getMonthMarks, upcomingHealthDays } from '@/lib/calendarMarks';
 import { formatDayMonth, formatFriendlyDate, formatTime12 } from '@/lib/date';
@@ -45,6 +46,16 @@ import { useI18n } from '@/i18n/useI18n';
 import { useAppStore } from '@/store/useAppStore';
 
 export default function CalendarScreen() {
+  const userRole = useAppStore((s) => s.userRole);
+
+  if (userRole === 'doctor') {
+    return <DoctorPracticeScheduleScreen />;
+  }
+
+  return <PatientCalendarScreen />;
+}
+
+function PatientCalendarScreen() {
   const { accent, accentSoft } = useAccent();
   const t = useTokens();
   const { t: tr } = useI18n();

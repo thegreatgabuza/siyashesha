@@ -43,6 +43,7 @@ import {
   sortRecords,
   type RecordSort,
 } from '@/lib/recordSearch';
+import { DoctorPatientRecordsScreen } from '@/components/doctors/DoctorPatientRecordsScreen';
 import { FREE_RECORD_LIMIT, getPlanEntitlements, promptPlanUpgrade } from '@/lib/subscription';
 import { useI18n } from '@/i18n/useI18n';
 import { useAppStore } from '@/store/useAppStore';
@@ -51,6 +52,16 @@ const HERO_HEIGHT = 164;
 const COLLAPSE_AT = 140;
 
 export default function RecordsScreen() {
+  const userRole = useAppStore((s) => s.userRole);
+
+  if (userRole === 'doctor') {
+    return <DoctorPatientRecordsScreen />;
+  }
+
+  return <PatientRecordsScreen />;
+}
+
+function PatientRecordsScreen() {
   const insets = useSafeAreaInsets();
   const toast = useToast();
   const { t: tr } = useI18n();

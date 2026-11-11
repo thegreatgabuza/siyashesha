@@ -1,4 +1,4 @@
-import { CalendarDays, FileText, Home, MoreHorizontal, Sparkles, Stethoscope } from 'lucide-react-native';
+import { CalendarDays, FileText, Home, MoreHorizontal, Sparkles, Stethoscope, Users } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Keyboard, Platform, Pressable, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeIn, useAnimatedStyle, useReducedMotion, withSpring } from 'react-native-reanimated';
@@ -12,13 +12,21 @@ import { useI18n } from '@/i18n/useI18n';
 import { tapFeedback } from '@/lib/feedback';
 import { useAppStore } from '@/store/useAppStore';
 
-/** The five tabs shown in the bar, in order. Diary is routable but lives under Calendar. */
-const tabs = [
+/** The patient tabs shown in the bar, in order. Diary is routable but lives under Calendar. */
+const patientTabs = [
   { name: 'index', icon: Home, label: 'tabs.home' },
   { name: 'records', icon: FileText, label: 'tabs.records' },
   { name: 'assistant', icon: Sparkles, label: 'tabs.assistant' },
   { name: 'calendar', icon: CalendarDays, label: 'tabs.calendar' },
   { name: 'more', icon: MoreHorizontal, label: 'tabs.more' },
+] as const;
+
+/** Dedicated 4-tab bar for verified doctors focusing exclusively on bookings and patient info. */
+const doctorTabs = [
+  { name: 'index', icon: Stethoscope, label: 'Practice' },
+  { name: 'records', icon: Users, label: 'Patients' },
+  { name: 'calendar', icon: CalendarDays, label: 'Schedule' },
+  { name: 'more', icon: MoreHorizontal, label: 'Practice Info' },
 ] as const;
 
 /** Routes that light up another tab. */
@@ -91,23 +99,13 @@ export function TabBar({ state, navigation, emitter, navigateToTab }: TabBarProp
             borderColor: 'rgba(255,255,255,0.10)',
           }}
         >
-          {tabs.map((tab) => {
+          {(isDoctor ? doctorTabs : patientTabs).map((tab) => {
             const route = state.routes.find((r) => r.name === tab.name);
             if (!route) return null;
             const isFocused = activeName === tab.name;
 
-            let Icon = tab.icon;
-            let label = t(tab.label);
-            if (isDoctor) {
-              if (tab.name === 'index') {
-                Icon = Stethoscope;
-                label = 'Practice';
-              } else if (tab.name === 'calendar') {
-                label = 'Schedule';
-              } else if (tab.name === 'more') {
-                label = 'Practice Info';
-              }
-            }
+            const Icon = tab.icon;
+            const label = isDoctor ? tab.label : t(tab.label as any);
 
             return (
               <TabItem

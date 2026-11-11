@@ -1,5 +1,6 @@
 import { router, usePathname } from 'expo-router';
 import {
+  Building,
   CalendarDays,
   CloudCheck,
   FileText,
@@ -10,6 +11,7 @@ import {
   ShieldAlert,
   Sparkles,
   Stethoscope,
+  Users,
 } from 'lucide-react-native';
 import { Pressable, Text, View } from 'react-native';
 
@@ -20,13 +22,20 @@ import { useAppStore } from '@/store/useAppStore';
 const NAVY = '#0B1E40';
 const RED = '#DC1F26';
 
-const items = [
+const patientItems = [
   { href: '/', match: (p: string) => p === '/' || p === '/index', icon: Home, label: 'tabs.home' },
   { href: '/records', match: (p: string) => p.startsWith('/records'), icon: FileText, label: 'tabs.records' },
   { href: '/assistant', match: (p: string) => p.startsWith('/assistant'), icon: Sparkles, label: 'tabs.assistant' },
   { href: '/calendar', match: (p: string) => p.startsWith('/calendar'), icon: CalendarDays, label: 'tabs.calendar' },
   { href: '/diary', match: (p: string) => p.startsWith('/diary'), icon: NotebookPen, label: 'tabs.diary' },
   { href: '/more', match: (p: string) => p.startsWith('/more'), icon: Settings, label: 'tabs.more' },
+] as const;
+
+const doctorItems = [
+  { href: '/', match: (p: string) => p === '/' || p === '/index', icon: Stethoscope, label: 'Practice' },
+  { href: '/records', match: (p: string) => p.startsWith('/records'), icon: Users, label: 'Patients' },
+  { href: '/calendar', match: (p: string) => p.startsWith('/calendar'), icon: CalendarDays, label: 'Schedule' },
+  { href: '/more', match: (p: string) => p.startsWith('/more'), icon: Building, label: 'Practice Info' },
 ] as const;
 
 /** Persistent desktop navigation for the web app. */
@@ -56,11 +65,6 @@ export function WebSidebar() {
   const initial = (name[0] ?? 'S').toUpperCase();
 
   const label = (key: string) => {
-    if (isDoctor) {
-      if (key === 'tabs.home') return 'Practice';
-      if (key === 'tabs.calendar') return 'Schedule';
-      if (key === 'tabs.more') return 'Practice Info';
-    }
     return key.includes('.') ? t(key as any) : key;
   };
 
@@ -123,7 +127,7 @@ export function WebSidebar() {
       )}
 
       <View style={{ gap: 2 }}>
-        {items.map((it) => {
+        {(isDoctor ? doctorItems : patientItems).map((it) => {
           const active = it.match(pathname);
           const Icon = it.icon;
           return (

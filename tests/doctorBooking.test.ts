@@ -398,4 +398,69 @@ describe('Doctor Role, Services Management & Patient Booking', () => {
     assert.ok(html.includes('MP 0849210'));
     assert.ok(html.includes(booking.patientName));
   });
+
+  it('aggregates doctor practice schedule appointments distinguishing physical vs video visits', () => {
+    const doctorId = 'doc-thobani-gabuza';
+    const doctorBookings = initialDoctorBookings.filter((b) => b.doctorId === doctorId);
+
+    const physicalBookings = doctorBookings.filter((b) => b.mode === 'in_person');
+    const videoBookings = doctorBookings.filter((b) => b.mode === 'video');
+
+    assert.ok(physicalBookings.length > 0, 'Must have scheduled physical room consultations');
+    assert.ok(videoBookings.length > 0, 'Must have scheduled online video consultations');
+    assert.equal(
+      physicalBookings.length + videoBookings.length,
+      doctorBookings.length,
+      'Every consultation must have a valid mode'
+    );
+
+    // Each booking must contain required clinical context
+    for (const b of doctorBookings) {
+      assert.ok(b.patientName, 'Booking must have patient name');
+      assert.ok(b.date, 'Booking must have date');
+      assert.ok(b.time, 'Booking must have time');
+      assert.ok(b.durationMinutes > 0, 'Booking must have duration');
+      assert.ok(b.priceZar > 0, 'Booking must have consultation tariff');
+    }
+  });
+
+  it('extracts unique patient records directory with clinical safety summaries for doctor view', () => {
+    const doctorId = 'doc-thobani-gabuza';
+    const doctorBookings = initialDoctorBookings.filter((b) => b.doctorId === doctorId);
+
+    const patientsMap = new Map<string, {
+      name: string;
+      phone: string;
+      email: string;
+      visitsCount: number;
+      hasAllergies: boolean;
+      hasChronic: boolean;
+    }>();
+
+    for (const b of doctorBookings) {
+      const existing = patientsMap.get(b.patientId);
+      if (!existing) {
+        patientsMap.set(b.patientId, {
+          name: b.patientName,
+          phone: b.patientPhone,
+          email: b.patientEmail,
+          visitsCount: 1,
+          hasAllergies: (b.patientSummary?.allergies?.length ?? 0) > 0,
+          hasChronic: (b.patientSummary?.chronicConditions?.length ?? 0) > 0,
+        });
+      } else {
+        existing.visitsCount += 1;
+      }
+    }
+
+    assert.ok(patientsMap.size >= 2, 'Doctor practice must have multiple registered patients');
+    const kagiso = patientsMap.get('pat-thobani-p1');
+    assert.ok(kagiso, 'Kagiso Sithole must exist in patient records');
+    assert.ok(kagiso.hasAllergies, 'Kagiso must have critical allergies on record');
+    assert.ok(kagiso.hasChronic, 'Kagiso must have chronic conditions on record');
+
+    const lerato = patientsMap.get('pat-thobani-p2');
+    assert.ok(lerato, 'Lerato Molefe must exist in patient records');
+    assert.ok(lerato.hasAllergies, 'Lerato must have recorded allergy');
+  });
 });
