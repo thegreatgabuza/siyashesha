@@ -9,6 +9,7 @@ import {
   Settings,
   ShieldAlert,
   Sparkles,
+  Stethoscope,
 } from 'lucide-react-native';
 import { Pressable, Text, View } from 'react-native';
 
@@ -33,16 +34,35 @@ export function WebSidebar() {
   const pathname = usePathname();
   const { t } = useI18n();
   const patient = useAppStore((s) => s.patientProfile);
+  const userRole = useAppStore((s) => s.userRole);
+  const doctorProfile = useAppStore((s) => s.doctorProfile);
+  const registeredDoctors = useAppStore((s) => s.registeredDoctors);
+  const isDoctor = userRole === 'doctor';
+
+  const currentDoctor =
+    doctorProfile ??
+    registeredDoctors.find((d) => d.email.toLowerCase() === 'thobanisgabuzam2@gmail.com') ??
+    registeredDoctors[0];
+
   const signOut = useAppStore((s) => s.signOut);
   const isSyncing = useAppStore((s) => s.isSyncingCloud);
   const lastSync = useAppStore((s) => s.lastCloudSyncAt);
   const hydrate = useAppStore((s) => s.hydrateFromCloud);
   const { signOut: clerkSignOut } = useSafeClerk();
 
-  const name = [patient.preferredName || patient.firstName, patient.lastName].filter(Boolean).join(' ') || 'Your passport';
+  const name = isDoctor && currentDoctor
+    ? `${currentDoctor.title} ${currentDoctor.fullName}`
+    : [patient.preferredName || patient.firstName, patient.lastName].filter(Boolean).join(' ') || 'Your passport';
   const initial = (name[0] ?? 'S').toUpperCase();
 
-  const label = (key: string) => (key.includes('.') ? t(key as any) : key);
+  const label = (key: string) => {
+    if (isDoctor) {
+      if (key === 'tabs.home') return 'Practice';
+      if (key === 'tabs.calendar') return 'Schedule';
+      if (key === 'tabs.more') return 'Practice Info';
+    }
+    return key.includes('.') ? t(key as any) : key;
+  };
 
   return (
     <View
@@ -57,27 +77,50 @@ export function WebSidebar() {
     >
       <View style={{ paddingHorizontal: 12, paddingBottom: 20 }}>
         <Text style={{ fontFamily: 'BebasNeue_400Regular', fontSize: 28, letterSpacing: 1, color: RED }}>SIYASHESHA</Text>
-        <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 12, color: '#5B6478' }}>Health Passport</Text>
+        <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 12, color: '#5B6478' }}>
+          {isDoctor ? 'Practice Portal · Doctor' : 'Health Passport'}
+        </Text>
       </View>
 
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => router.push('/more/emergency' as any)}
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 8,
-          marginHorizontal: 4,
-          marginBottom: 16,
-          paddingHorizontal: 12,
-          paddingVertical: 10,
-          borderRadius: 12,
-          backgroundColor: '#FEF2F2',
-        }}
-      >
-        <ShieldAlert size={16} color={RED} />
-        <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 13, color: RED }}>Emergency ICE card</Text>
-      </Pressable>
+      {isDoctor ? (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
+            marginHorizontal: 4,
+            marginBottom: 16,
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+            borderRadius: 12,
+            backgroundColor: '#EFF6FF',
+          }}
+        >
+          <Stethoscope size={16} color="#0B2559" />
+          <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 13, color: '#0B2559' }}>
+            Doctor Mode · Active
+          </Text>
+        </View>
+      ) : (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/more/emergency' as any)}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
+            marginHorizontal: 4,
+            marginBottom: 16,
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+            borderRadius: 12,
+            backgroundColor: '#FEF2F2',
+          }}
+        >
+          <ShieldAlert size={16} color={RED} />
+          <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 13, color: RED }}>Emergency ICE card</Text>
+        </Pressable>
+      )}
 
       <View style={{ gap: 2 }}>
         {items.map((it) => {

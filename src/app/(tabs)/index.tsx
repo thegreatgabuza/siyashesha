@@ -5,6 +5,7 @@ import { useMemo } from 'react';
 import { Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
+import { DoctorPracticeDashboard } from '@/components/doctors/DoctorPracticeDashboard';
 import { AskBar } from '@/components/home/AskBar';
 import { EmergencyReadinessCard } from '@/components/home/EmergencyReadinessCard';
 import { HealthAwarenessSpotlight } from '@/components/home/HealthAwarenessSpotlight';
@@ -37,6 +38,18 @@ const enter = (i: number) =>
  * → recent activity. The passport card and its emergency actions are never delayed.
  */
 export default function HomeScreen() {
+  const userRole = useAppStore((s) => s.userRole);
+  const doctorProfile = useAppStore((s) => s.doctorProfile);
+
+  // If user is a verified doctor, automatically render role-locked Doctor Practice Dashboard
+  if (userRole === 'doctor') {
+    return <DoctorPracticeDashboard doctor={doctorProfile} />;
+  }
+
+  return <PatientHomeScreen />;
+}
+
+function PatientHomeScreen() {
   const t = useTokens();
   const toast = useToast();
   const { t: tr } = useI18n();

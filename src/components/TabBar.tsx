@@ -1,4 +1,4 @@
-import { CalendarDays, FileText, Home, MoreHorizontal, Sparkles } from 'lucide-react-native';
+import { CalendarDays, FileText, Home, MoreHorizontal, Sparkles, Stethoscope } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Keyboard, Platform, Pressable, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeIn, useAnimatedStyle, useReducedMotion, withSpring } from 'react-native-reanimated';
@@ -10,6 +10,7 @@ import { elevation, fonts, navy, springs } from '@/design/tokens';
 import { TAB_BAR_GAP, TAB_BAR_HEIGHT } from '@/hooks/useTabBarInset';
 import { useI18n } from '@/i18n/useI18n';
 import { tapFeedback } from '@/lib/feedback';
+import { useAppStore } from '@/store/useAppStore';
 
 /** The five tabs shown in the bar, in order. Diary is routable but lives under Calendar. */
 const tabs = [
@@ -54,6 +55,8 @@ export function TabBar({ state, navigation, emitter, navigateToTab }: TabBarProp
   const { width } = useWindowDimensions();
   const { t } = useI18n();
   const [keyboard, setKeyboard] = useState(false);
+  const userRole = useAppStore((s) => s.userRole);
+  const isDoctor = userRole === 'doctor';
 
   useEffect(() => {
     const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setKeyboard(true));
@@ -92,12 +95,25 @@ export function TabBar({ state, navigation, emitter, navigateToTab }: TabBarProp
             const route = state.routes.find((r) => r.name === tab.name);
             if (!route) return null;
             const isFocused = activeName === tab.name;
-            const label = t(tab.label);
+
+            let Icon = tab.icon;
+            let label = t(tab.label);
+            if (isDoctor) {
+              if (tab.name === 'index') {
+                Icon = Stethoscope;
+                label = 'Practice';
+              } else if (tab.name === 'calendar') {
+                label = 'Schedule';
+              } else if (tab.name === 'more') {
+                label = 'Practice Info';
+              }
+            }
+
             return (
               <TabItem
                 key={tab.name}
                 label={label}
-                Icon={tab.icon}
+                Icon={Icon}
                 isFocused={isFocused}
                 onPress={() => {
                   tapFeedback();

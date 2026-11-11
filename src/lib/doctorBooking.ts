@@ -9,6 +9,29 @@ export function isValidCouncilNumber(councilNumber: string): boolean {
   return /^(MP|DP|PS|PT|CH|PH|SANC)\s?[0-9A-Z]{5,8}$/.test(clean);
 }
 
+/**
+ * Resolves the application user role and active practitioner profile based on account email.
+ *
+ * Strict Role Separation:
+ * - If email matches a registered doctor (e.g. Dr. Thobani Gabuza), the user role is strictly locked to 'doctor'.
+ * - If email is not a registered doctor, the role is strictly 'patient'.
+ * - In-app switching is disallowed; patients must authenticate with their personal email.
+ */
+export function resolveUserRoleForEmail(
+  email: string | undefined | null,
+  registeredDoctors: DoctorProfile[]
+): { userRole: 'doctor' | 'patient'; doctor: DoctorProfile | null } {
+  if (!email) {
+    return { userRole: 'patient', doctor: null };
+  }
+  const cleanEmail = email.trim().toLowerCase();
+  const matched = registeredDoctors.find((d) => d.email.toLowerCase() === cleanEmail) || null;
+  if (matched) {
+    return { userRole: 'doctor', doctor: matched };
+  }
+  return { userRole: 'patient', doctor: null };
+}
+
 /** Formats price in South African Rand (ZAR) */
 export function formatZarPrice(amount: number): string {
   return `R${Math.max(0, Math.round(amount)).toLocaleString('en-ZA')}`;

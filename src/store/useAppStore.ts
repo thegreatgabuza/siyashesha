@@ -22,6 +22,7 @@ import {
   initialDoctors,
 } from '@/data/doctors';
 import type { LanguageCode } from '@/i18n/translations';
+import { resolveUserRoleForEmail } from '@/lib/doctorBooking';
 import { clearAllStoredFiles } from '@/lib/documents';
 import { verifyActiveStoreKitEntitlements } from '@/lib/iap';
 import { clearEnclaveKeys } from '@/lib/security/enclaveSecurity';
@@ -440,11 +441,11 @@ export const useAppStore = create<AppState>()(
             timestamp: new Date().toISOString(),
           };
 
-          const matchedDoctor =
-            s.registeredDoctors.find((d) => d.email.toLowerCase() === email) ||
-            initialDoctors.find((d) => d.email.toLowerCase() === email) ||
-            (email === 'thobanisgabuzam2@gmail.com' ? initialDoctors[0] : null);
-          const isDoctorAccount = Boolean(matchedDoctor);
+          const { userRole, doctor: matchedDoctor } = resolveUserRoleForEmail(
+            email,
+            s.registeredDoctors.length > 0 ? s.registeredDoctors : initialDoctors
+          );
+          const isDoctorAccount = userRole === 'doctor';
 
           const cleanedBaseProfile = stripDemoSeedProfile(s.patientProfile);
           const nextProfile: PatientProfile = {
@@ -473,8 +474,8 @@ export const useAppStore = create<AppState>()(
             hasCompletedOnboarding: isDoctorAccount ? true : (s.hasCompletedOnboarding || s.clerkFlow !== 'sign_up'),
             clerkFlow: 'sign_in',
             clerkSessionId: options?.clerkSessionId ?? s.clerkSessionId,
-            userRole: isDoctorAccount ? 'doctor' : s.userRole,
-            doctorProfile: matchedDoctor ?? s.doctorProfile,
+            userRole: isDoctorAccount ? 'doctor' : 'patient',
+            doctorProfile: isDoctorAccount ? matchedDoctor : null,
             registeredDoctors: matchedDoctor
               ? [matchedDoctor, ...s.registeredDoctors.filter((d) => d.id !== matchedDoctor.id)]
               : s.registeredDoctors,
@@ -1669,7 +1670,19 @@ export const useAppStore = create<AppState>()(
 
       // Role & Doctor Practice Implementation
       userRole: 'patient',
-      setUserRole: (role) => set({ userRole: role }),
+      setUserRole: (role) => {
+        set((s) => {
+          const email = (s.patientProfile?.email || '').toLowerCase().trim();
+          const isDoctor =
+            s.registeredDoctors.some((d) => d.email.toLowerCase() === email) ||
+            Boolean(s.doctorProfile);
+          if (isDoctor) {
+            // Role-locked: Doctor accounts cannot switch to patient inside the app
+            return { userRole: 'doctor' };
+          }
+          return { userRole: role };
+        });
+      },
       doctorProfile: null,
       registeredDoctors: initialDoctors,
       doctorBookings: initialDoctorBookings,
@@ -1963,8 +1976,21 @@ export const useAppStore = create<AppState>()(
             ? persistedState.registeredDoctors
             : initialDoctors;
 
+        const activeEmail = (cleanedProfile?.email || '').toLowerCase().trim();
+        const { userRole: resolvedRole, doctor: matchedDoctor } = resolveUserRoleForEmail(
+          activeEmail,
+          registeredDoctors
+        );
+        const isDoctorAccount =
+          resolvedRole === 'doctor' ||
+          Boolean(persistedState.doctorProfile && persistedState.userRole === 'doctor');
+        const userRole: 'doctor' | 'patient' = isDoctorAccount ? 'doctor' : 'patient';
+        const doctorProfile = isDoctorAccount ? (matchedDoctor || persistedState.doctorProfile) : null;
+
         return {
           ...persistedState,
+          userRole,
+          doctorProfile,
           records: cleanedRecords,
           medications: cleanedMeds,
           appointments: cleanedAppts,

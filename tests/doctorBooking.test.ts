@@ -15,6 +15,7 @@ import {
   formatZarPrice,
   generateDoctorSlotSchedule,
   isValidCouncilNumber,
+  resolveUserRoleForEmail,
 } from '@/lib/doctorBooking';
 
 describe('Doctor Role, Services Management & Patient Booking', () => {
@@ -246,5 +247,36 @@ describe('Doctor Role, Services Management & Patient Booking', () => {
     const dentists = filterDoctorsZocdoc(initialDoctors, { query: 'Dentist' });
     assert.equal(dentists.length, 1);
     assert.equal(dentists[0].fullName, 'Sibusiso Khumalo');
+  });
+
+  it('enforces strict role separation: doctor view is automatic and locked by account email', () => {
+    // 1. Doctor email resolution
+    const doctorAuth = resolveUserRoleForEmail('thobanisgabuzam2@gmail.com', initialDoctors);
+    assert.equal(doctorAuth.userRole, 'doctor', 'Doctor email must automatically resolve to doctor role');
+    assert.ok(doctorAuth.doctor, 'Must resolve to doctor profile');
+    assert.equal(doctorAuth.doctor?.fullName, 'Thobani Gabuza');
+
+    // 2. Case insensitivity check
+    const upperDoctorAuth = resolveUserRoleForEmail('THOBANISGABUZAM2@GMAIL.COM', initialDoctors);
+    assert.equal(upperDoctorAuth.userRole, 'doctor');
+
+    // 3. Another community doctor
+    const aminaAuth = resolveUserRoleForEmail('info@rosebankpaediatrics.co.za', initialDoctors);
+    assert.equal(aminaAuth.userRole, 'doctor');
+    assert.equal(aminaAuth.doctor?.fullName, 'Amina Patel');
+
+    // 4. Patient email resolution (must never be granted doctor role)
+    const patientAuth = resolveUserRoleForEmail('jessica.tebatso@gmail.com', initialDoctors);
+    assert.equal(patientAuth.userRole, 'patient', 'Patient email must strictly resolve to patient role');
+    assert.equal(patientAuth.doctor, null);
+
+    // 5. Empty / undefined email resolution
+    const emptyAuth = resolveUserRoleForEmail('', initialDoctors);
+    assert.equal(emptyAuth.userRole, 'patient');
+    assert.equal(emptyAuth.doctor, null);
+
+    const nullAuth = resolveUserRoleForEmail(null, initialDoctors);
+    assert.equal(nullAuth.userRole, 'patient');
+    assert.equal(nullAuth.doctor, null);
   });
 });
