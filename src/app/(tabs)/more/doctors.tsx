@@ -8,9 +8,9 @@ import {
   CreditCard,
   Filter,
   MapPin,
+  RotateCcw,
   Search,
   ShieldCheck,
-  Sparkles,
   Star,
   Stethoscope,
   User,
@@ -33,29 +33,13 @@ import {
 import { tapFeedback } from '@/lib/feedback';
 import { useAppStore } from '@/store/useAppStore';
 
-const SPECIALTY_EMOJIS: Record<string, string> = {
-  All: '🩺',
-  'General Practitioner': '👨‍⚕️',
-  Paediatrician: '👶',
-  Dentist: '🦷',
-  'Clinical Psychologist': '🧠',
-  'Obstetrician & Gynaecologist': '🤰',
-  Cardiologist: '❤️',
-  Dermatologist: '🧴',
-  Physiotherapist: '🏃',
-  Psychiatrist: '💭',
-  'Orthopaedic Surgeon': '🦴',
-  Optometrist: '👓',
-  Dietitian: '🥗',
-};
-
 export default function FindDoctorsScreen() {
   const insets = useSafeAreaInsets();
   const registeredDoctors = useAppStore((s) => s.registeredDoctors);
   const userRole = useAppStore((s) => s.userRole);
   const doctorProfile = useAppStore((s) => s.doctorProfile);
 
-  // Zocdoc Filters State
+  // Filter State
   const [search, setSearch] = useState('');
   const [selectedSpecialty, setSelectedSpecialty] = useState<string>('All');
   const [selectedCity, setSelectedCity] = useState<string>('All Cities');
@@ -63,7 +47,7 @@ export default function FindDoctorsScreen() {
   const [selectedMedicalAid, setSelectedMedicalAid] = useState<string>('All Medical Aids');
   const [showFiltersDrawer, setShowFiltersDrawer] = useState(false);
 
-  // Booking Modal State (with Zocdoc instant slot pre-selection)
+  // Booking Modal State (with instant slot pre-selection)
   const [bookingDoctor, setBookingDoctor] = useState<DoctorProfile | null>(null);
   const [bookingInitialDate, setBookingInitialDate] = useState<string | undefined>(undefined);
   const [bookingInitialTime, setBookingInitialTime] = useState<string | undefined>(undefined);
@@ -117,7 +101,7 @@ export default function FindDoctorsScreen() {
       {/* Top Header Bar */}
       <View
         style={{ paddingTop: insets.top + 6 }}
-        className="border-b border-slate-200/80 bg-white px-5 pb-3 shadow-xs dark:border-slate-800 dark:bg-canvasdark-card"
+        className="border-b border-slate-200/80 bg-white px-5 pb-3.5 shadow-2xs dark:border-slate-800 dark:bg-canvasdark-card"
       >
         <View className="flex-row items-center justify-between">
           <View className="flex-row items-center gap-3">
@@ -125,23 +109,16 @@ export default function FindDoctorsScreen() {
               accessibilityRole="button"
               accessibilityLabel="Go back"
               onPress={() => router.back()}
-              className="h-10 w-10 items-center justify-center rounded-full border border-slate-200/80 bg-slate-50 dark:border-slate-700 dark:bg-slate-800"
+              className="h-9 w-9 items-center justify-center rounded-full border border-slate-200/80 bg-slate-50 active:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:active:bg-slate-700"
             >
-              <ChevronLeft size={20} color="#0B2559" />
+              <ChevronLeft size={18} color="#0B2559" />
             </Pressable>
             <View>
-              <View className="flex-row items-center gap-1.5">
-                <Text className="font-display text-[24px] uppercase text-brand-900 dark:text-white">
-                  Book a Doctor
-                </Text>
-                <View className="rounded-full bg-emerald-100 px-2 py-0.5 dark:bg-emerald-950/40">
-                  <Text className="font-sans-bold text-[10px] uppercase text-emerald-700 dark:text-emerald-400">
-                    Zocdoc Care
-                  </Text>
-                </View>
-              </View>
+              <Text className="font-display text-[22px] uppercase text-brand-900 dark:text-white">
+                Book a Doctor
+              </Text>
               <Text className="font-sans text-[12px] text-slate-500 dark:text-slate-400">
-                Instant Online Booking · Verified South African Doctors
+                Verified South African Healthcare Practitioners
               </Text>
             </View>
           </View>
@@ -153,9 +130,9 @@ export default function FindDoctorsScreen() {
                 tapFeedback();
                 router.push('/more/doctor-portal');
               }}
-              className="flex-row items-center gap-1.5 rounded-full border border-brand-500/20 bg-brand-50 px-3 py-1.5 dark:border-brand-400 dark:bg-brand-500/20"
+              className="flex-row items-center gap-1.5 rounded-full border border-brand-500/20 bg-brand-50 px-3 py-1.5 dark:border-brand-400/30 dark:bg-brand-500/15"
             >
-              <Stethoscope size={14} color="#0B2559" />
+              <Stethoscope size={13} color="#0B2559" />
               <Text className="font-sans-bold text-[11px] text-brand-700 dark:text-brand-300">
                 My Practice
               </Text>
@@ -166,27 +143,27 @@ export default function FindDoctorsScreen() {
                 tapFeedback();
                 router.push('/more/doctor-signup');
               }}
-              className="rounded-full bg-brand-500 px-3 py-1.5 shadow-2xs active:bg-brand-600"
+              className="rounded-full bg-brand-500 px-3.5 py-1.5 shadow-2xs active:bg-brand-600"
             >
               <Text className="font-sans-bold text-[11px] text-white">Join as Doctor</Text>
             </Pressable>
           )}
         </View>
 
-        {/* Zocdoc Search Input */}
+        {/* Search Input & Filter Button */}
         <View className="mt-3.5 flex-row items-center gap-2">
           <View className="flex-1 flex-row items-center rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 dark:border-slate-700 dark:bg-slate-800">
-            <Search size={18} color="#94A3B8" />
+            <Search size={16} color="#94A3B8" />
             <TextInput
               value={search}
               onChangeText={setSearch}
-              placeholder="Condition, specialty, doctor, or clinic..."
+              placeholder="Search condition, doctor, or clinic..."
               placeholderTextColor="#94A3B8"
-              className="ml-2 flex-1 font-sans text-[14px] text-slate-900 dark:text-white"
+              className="ml-2 flex-1 font-sans text-[13px] text-slate-900 dark:text-white"
             />
             {search.length > 0 ? (
               <Pressable onPress={() => setSearch('')} className="p-1">
-                <X size={16} color="#94A3B8" />
+                <X size={15} color="#94A3B8" />
               </Pressable>
             ) : null}
           </View>
@@ -197,15 +174,15 @@ export default function FindDoctorsScreen() {
               tapFeedback();
               setShowFiltersDrawer(!showFiltersDrawer);
             }}
-            className={`h-11 px-3.5 flex-row items-center gap-1.5 rounded-2xl border ${
+            className={`h-11 px-3 flex-row items-center gap-1.5 rounded-2xl border ${
               activeFiltersCount > 0
                 ? 'border-brand-500 bg-brand-50 dark:border-brand-400 dark:bg-brand-500/20'
                 : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800'
             }`}
           >
-            <Filter size={16} color={activeFiltersCount > 0 ? '#0B2559' : '#64748B'} />
+            <Filter size={15} color={activeFiltersCount > 0 ? '#0B2559' : '#64748B'} />
             <Text
-              className={`font-sans-bold text-[12px] ${
+              className={`font-sans-semibold text-[12px] ${
                 activeFiltersCount > 0
                   ? 'text-brand-900 dark:text-white'
                   : 'text-slate-600 dark:text-slate-400'
@@ -216,13 +193,13 @@ export default function FindDoctorsScreen() {
           </Pressable>
         </View>
 
-        {/* Secondary Filter Drawer / Chips (Collapsible / Expandable) */}
+        {/* Collapsible Filter Panel */}
         {showFiltersDrawer ? (
           <View className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3.5 dark:border-slate-800 dark:bg-slate-800/80">
             {/* City Selector */}
             <View className="mb-2.5">
-              <Text className="mb-1.5 font-sans-bold text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Location / City
+              <Text className="mb-1.5 font-sans-bold text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                City / Location
               </Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row gap-1.5">
                 {COMMON_SA_CITIES.map((city) => {
@@ -236,7 +213,7 @@ export default function FindDoctorsScreen() {
                       }}
                       className={`rounded-full px-3 py-1 border ${
                         isSelected
-                          ? 'border-brand-500 bg-brand-500 text-white'
+                          ? 'border-brand-500 bg-brand-500'
                           : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-700'
                       }`}
                     >
@@ -256,10 +233,10 @@ export default function FindDoctorsScreen() {
             {/* Visit Mode & Medical Aid Row */}
             <View className="flex-row gap-3">
               <View className="flex-1">
-                <Text className="mb-1.5 font-sans-bold text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                <Text className="mb-1.5 font-sans-bold text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Visit Format
                 </Text>
-                <View className="flex-row rounded-xl bg-slate-200/80 p-0.5 dark:bg-slate-700">
+                <View className="flex-row rounded-xl bg-slate-200/70 p-0.5 dark:bg-slate-700">
                   <Pressable
                     onPress={() => {
                       tapFeedback();
@@ -269,7 +246,7 @@ export default function FindDoctorsScreen() {
                       selectedMode === 'all' ? 'bg-white shadow-2xs dark:bg-slate-800' : ''
                     }`}
                   >
-                    <Text className="font-sans-bold text-[11px] text-slate-800 dark:text-white">
+                    <Text className="font-sans-semibold text-[11px] text-slate-800 dark:text-white">
                       All
                     </Text>
                   </Pressable>
@@ -282,7 +259,7 @@ export default function FindDoctorsScreen() {
                       selectedMode === 'in_person' ? 'bg-white shadow-2xs dark:bg-slate-800' : ''
                     }`}
                   >
-                    <Text className="font-sans-bold text-[11px] text-slate-800 dark:text-white">
+                    <Text className="font-sans-semibold text-[11px] text-slate-800 dark:text-white">
                       In-Person
                     </Text>
                   </Pressable>
@@ -295,7 +272,7 @@ export default function FindDoctorsScreen() {
                       selectedMode === 'video' ? 'bg-white shadow-2xs dark:bg-slate-800' : ''
                     }`}
                   >
-                    <Text className="font-sans-bold text-[11px] text-slate-800 dark:text-white">
+                    <Text className="font-sans-semibold text-[11px] text-slate-800 dark:text-white">
                       Video
                     </Text>
                   </Pressable>
@@ -303,7 +280,7 @@ export default function FindDoctorsScreen() {
               </View>
 
               <View className="flex-1">
-                <Text className="mb-1.5 font-sans-bold text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                <Text className="mb-1.5 font-sans-bold text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Medical Aid
                 </Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row gap-1">
@@ -318,7 +295,7 @@ export default function FindDoctorsScreen() {
                         }}
                         className={`rounded-lg px-2.5 py-1.5 border ${
                           isSelected
-                            ? 'border-brand-500 bg-brand-500 text-white'
+                            ? 'border-brand-500 bg-brand-500'
                             : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-700'
                         }`}
                       >
@@ -338,7 +315,7 @@ export default function FindDoctorsScreen() {
                   className="mt-1 flex-row items-center gap-1"
                 >
                   <Text className="font-sans-medium text-[10px] text-brand-600 dark:text-brand-300">
-                    Browse All 16 SA Medical Aids &rarr;
+                    Browse 16 Medical Aids &rarr;
                   </Text>
                 </Pressable>
               </View>
@@ -347,9 +324,9 @@ export default function FindDoctorsScreen() {
             {activeFiltersCount > 0 ? (
               <Pressable
                 onPress={handleClearFilters}
-                className="mt-3 flex-row items-center justify-center gap-1 py-1"
+                className="mt-2.5 flex-row items-center justify-center gap-1 py-1"
               >
-                <X size={12} color="#DC1F26" />
+                <RotateCcw size={11} color="#DC2626" />
                 <Text className="font-sans-semibold text-[11px] text-rose-600 dark:text-rose-400">
                   Reset All Filters
                 </Text>
@@ -358,15 +335,14 @@ export default function FindDoctorsScreen() {
           </View>
         ) : null}
 
-        {/* Specialty Filter Horizontal Carousel */}
+        {/* Clean Specialty Filter Chips (No emoji spam) */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          className="mt-3 flex-row gap-2"
+          className="mt-3 flex-row gap-1.5"
         >
           {specialtiesFilter.map((sp) => {
             const isSelected = selectedSpecialty === sp;
-            const emoji = SPECIALTY_EMOJIS[sp] || '🩺';
             return (
               <Pressable
                 key={sp}
@@ -374,15 +350,14 @@ export default function FindDoctorsScreen() {
                   tapFeedback();
                   setSelectedSpecialty(sp);
                 }}
-                className={`flex-row items-center gap-1.5 rounded-full px-3.5 py-1.5 border ${
+                className={`rounded-full px-3 py-1.5 border ${
                   isSelected
-                    ? 'border-brand-500 bg-brand-500 text-white shadow-2xs'
-                    : 'border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800'
+                    ? 'border-brand-500 bg-brand-500 shadow-2xs'
+                    : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800'
                 }`}
               >
-                <Text className="text-[13px]">{emoji}</Text>
                 <Text
-                  className={`font-sans-semibold text-[12px] ${
+                  className={`font-sans-semibold text-[11px] ${
                     isSelected ? 'text-white' : 'text-slate-700 dark:text-slate-300'
                   }`}
                 >
@@ -396,42 +371,39 @@ export default function FindDoctorsScreen() {
 
       {/* Main Doctors Stream */}
       <ScrollView
-        className="flex-1 px-5 pt-4"
+        className="flex-1 px-5 pt-3.5"
         contentContainerStyle={{ paddingBottom: 60 }}
         showsVerticalScrollIndicator={false}
       >
         {/* Results Header Count */}
-        <View className="mb-3.5 flex-row items-center justify-between">
-          <Text className="font-sans-bold text-[13px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        <View className="mb-3 flex-row items-center justify-between">
+          <Text className="font-sans-bold text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
             {filteredDoctors.length} {filteredDoctors.length === 1 ? 'Doctor' : 'Doctors'} Available
           </Text>
-          <View className="flex-row items-center gap-1">
-            <Sparkles size={13} color="#16A34A" />
-            <Text className="font-sans-medium text-[12px] text-emerald-700 dark:text-emerald-400">
-              Instant Online Confirmation
-            </Text>
-          </View>
+          <Text className="font-sans text-[11px] text-slate-400">
+            Direct Calendar Booking
+          </Text>
         </View>
 
         {filteredDoctors.length === 0 ? (
           <View className="items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-white py-14 px-6 dark:border-slate-800 dark:bg-canvasdark-card">
-            <Stethoscope size={44} color="#94A3B8" />
-            <Text className="mt-3.5 font-sans-bold text-[17px] text-slate-800 dark:text-white">
-              No Doctors Matching Your Search
+            <Stethoscope size={40} color="#94A3B8" />
+            <Text className="mt-3 font-sans-bold text-[16px] text-slate-800 dark:text-white">
+              No Doctors Matching Search
             </Text>
-            <Text className="mt-1 text-center font-sans text-[13px] leading-[18px] text-slate-500 dark:text-slate-400">
+            <Text className="mt-1 text-center font-sans text-[12px] leading-[17px] text-slate-500 dark:text-slate-400">
               We couldn&rsquo;t find healthcare providers matching your current filters. Try
-              adjusting your specialty, location, or clearing search keywords.
+              adjusting specialty or clearing search terms.
             </Text>
             <Pressable
               onPress={handleClearFilters}
-              className="mt-5 rounded-full bg-brand-500 px-6 py-2.5 shadow-sm"
+              className="mt-4 rounded-full bg-brand-500 px-5 py-2 shadow-2xs"
             >
-              <Text className="font-sans-bold text-[13px] text-white">Reset All Filters</Text>
+              <Text className="font-sans-bold text-[12px] text-white">Reset Filters</Text>
             </Pressable>
           </View>
         ) : (
-          <View className="gap-4">
+          <View className="gap-3.5">
             {filteredDoctors.map((doc) => {
               const activeServices = doc.services.filter((s) => s.isActive);
               const lowestPrice =
@@ -439,19 +411,19 @@ export default function FindDoctorsScreen() {
                   ? Math.min(...activeServices.map((s) => s.priceZar))
                   : null;
 
-              // Generate Zocdoc-style inline slot grid for next 3 days
+              // Inline slot schedule for next 3 days
               const slotSchedule = generateDoctorSlotSchedule(doc, 3);
               const hasAnySlot = slotSchedule.some((day) => day.slots.length > 0);
 
               return (
                 <View
                   key={doc.id}
-                  className="rounded-3xl border border-slate-200/90 bg-white p-4.5 shadow-xs dark:border-slate-800 dark:bg-canvasdark-card"
+                  className="rounded-3xl border border-slate-200/80 bg-white p-4 shadow-2xs dark:border-slate-800 dark:bg-canvasdark-card"
                 >
                   {/* Doctor Profile Row */}
-                  <View className="flex-row items-start gap-3.5">
+                  <View className="flex-row items-start gap-3">
                     <View className="relative">
-                      <View className="h-16 w-16 overflow-hidden rounded-2xl bg-brand-100 dark:bg-brand-500/20">
+                      <View className="h-14 w-14 overflow-hidden rounded-2xl bg-brand-100 dark:bg-brand-500/20">
                         {doc.avatarUrl ? (
                           <Image
                             source={{ uri: doc.avatarUrl }}
@@ -460,32 +432,32 @@ export default function FindDoctorsScreen() {
                           />
                         ) : (
                           <View className="h-full w-full items-center justify-center">
-                            <User size={28} color="#0B2559" />
+                            <User size={24} color="#0B2559" />
                           </View>
                         )}
                       </View>
-                      {/* Verified Green Dot */}
-                      <View className="absolute -bottom-1 -right-1 h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-emerald-500 dark:border-slate-900">
-                        <Check size={10} color="#FFFFFF" strokeWidth={3} />
+                      {/* Verified Badge */}
+                      <View className="absolute -bottom-1 -right-1 h-4 w-4 items-center justify-center rounded-full border-2 border-white bg-emerald-500 dark:border-slate-900">
+                        <Check size={9} color="#FFFFFF" strokeWidth={3} />
                       </View>
                     </View>
 
                     <View className="flex-1">
                       <View className="flex-row items-center gap-1.5">
-                        <Text className="font-sans-bold text-[17px] text-slate-900 dark:text-white">
+                        <Text className="font-sans-bold text-[16px] text-slate-900 dark:text-white">
                           {doc.title} {doc.fullName}
                         </Text>
-                        <ShieldCheck size={16} color="#16A34A" />
+                        <ShieldCheck size={15} color="#16A34A" />
                       </View>
 
-                      <Text className="font-sans-semibold text-[13px] text-brand-700 dark:text-brand-300">
+                      <Text className="font-sans-semibold text-[12px] text-brand-600 dark:text-brand-300">
                         {doc.specialty}
                       </Text>
 
-                      <View className="mt-1 flex-row items-center gap-1">
-                        <MapPin size={12} color="#64748B" />
+                      <View className="mt-0.5 flex-row items-center gap-1">
+                        <MapPin size={11} color="#64748B" />
                         <Text
-                          className="font-sans text-[12px] text-slate-500 dark:text-slate-400"
+                          className="font-sans text-[11px] text-slate-500 dark:text-slate-400"
                           numberOfLines={1}
                         >
                           {doc.practiceName} · {doc.city}
@@ -493,9 +465,9 @@ export default function FindDoctorsScreen() {
                       </View>
 
                       {/* Ratings & Qualifications */}
-                      <View className="mt-1.5 flex-row flex-wrap items-center gap-2">
+                      <View className="mt-1 flex-row flex-wrap items-center gap-2">
                         <View className="flex-row items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 dark:bg-amber-500/15">
-                          <Star size={11} color="#D97706" fill="#D97706" />
+                          <Star size={10} color="#D97706" fill="#D97706" />
                           <Text className="font-sans-bold text-[11px] text-amber-800 dark:text-amber-300">
                             {doc.rating ?? 4.9}
                           </Text>
@@ -513,17 +485,17 @@ export default function FindDoctorsScreen() {
 
                   {/* Patient Testimonial Quote */}
                   {doc.patientHighlight ? (
-                    <View className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 dark:bg-slate-800/60">
-                      <Text className="font-sans text-[12px] italic text-slate-600 dark:text-slate-300">
+                    <View className="mt-2.5 rounded-xl bg-slate-50 px-3 py-1.5 dark:bg-slate-800/50">
+                      <Text className="font-sans text-[11px] italic text-slate-600 dark:text-slate-300">
                         &ldquo;{doc.patientHighlight}&rdquo;
                       </Text>
                     </View>
                   ) : null}
 
                   {/* Medical Aids & Price Badge */}
-                  <View className="mt-3 flex-row items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800">
-                    <View className="flex-row items-center gap-1.5">
-                      <CreditCard size={13} color="#64748B" />
+                  <View className="mt-3 flex-row items-center justify-between border-t border-slate-100 pt-2.5 dark:border-slate-800">
+                    <View className="flex-row items-center gap-1.5 flex-1 pr-2">
+                      <CreditCard size={12} color="#64748B" />
                       <Text
                         className="font-sans text-[11px] text-slate-500 dark:text-slate-400"
                         numberOfLines={1}
@@ -532,47 +504,47 @@ export default function FindDoctorsScreen() {
                       </Text>
                     </View>
 
-                    <Text className="font-display text-[18px] text-emerald-600 dark:text-emerald-400">
+                    <Text className="font-sans-bold text-[16px] text-slate-900 dark:text-white">
                       {lowestPrice !== null ? `From R${lowestPrice}` : 'Free'}
                     </Text>
                   </View>
 
                   {/* ======================================================== */}
-                  {/* SIGNATURE ZOCDOC INLINE AVAILABILITY SCHEDULE GRID        */}
+                  {/* INLINE AVAILABILITY SCHEDULE GRID                        */}
                   {/* ======================================================== */}
-                  <View className="mt-3.5 rounded-2xl bg-slate-50 p-3 dark:bg-slate-800/50">
+                  <View className="mt-3 rounded-2xl border border-slate-100 bg-slate-50/70 p-2.5 dark:border-slate-800 dark:bg-slate-800/40">
                     <View className="mb-2 flex-row items-center justify-between">
                       <View className="flex-row items-center gap-1.5">
-                        <Calendar size={13} color="#0B2559" />
-                        <Text className="font-sans-bold text-[12px] uppercase text-slate-700 dark:text-slate-200">
+                        <Calendar size={12} color="#0B2559" />
+                        <Text className="font-sans-bold text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-300">
                           Next Available Slots
                         </Text>
                       </View>
-                      <Text className="font-sans text-[11px] text-brand-600 dark:text-brand-300">
+                      <Text className="font-sans-medium text-[10px] text-brand-600 dark:text-brand-300">
                         Tap slot to book
                       </Text>
                     </View>
 
                     {hasAnySlot ? (
-                      <View className="flex-row gap-2">
+                      <View className="flex-row gap-1.5">
                         {slotSchedule.map((day) => (
                           <View
                             key={day.dateStr}
-                            className="flex-1 rounded-xl border border-slate-200/90 bg-white p-2 dark:border-slate-700 dark:bg-slate-800"
+                            className="flex-1 rounded-xl border border-slate-200/70 bg-white p-1.5 dark:border-slate-700/70 dark:bg-slate-800"
                           >
-                            <Text className="text-center font-sans-bold text-[11px] uppercase text-brand-900 dark:text-white">
+                            <Text className="text-center font-sans-bold text-[10px] uppercase text-slate-700 dark:text-slate-300">
                               {day.dayLabel}
                             </Text>
 
-                            <View className="mt-2 gap-1.5">
+                            <View className="mt-1.5 gap-1">
                               {day.slots.length > 0 ? (
                                 day.slots.map((slot) => (
                                   <Pressable
                                     key={slot}
                                     onPress={() => handleOpenBooking(doc, day.dateStr, slot)}
-                                    className="items-center justify-center rounded-lg bg-emerald-50 py-1.5 active:bg-emerald-600 active:text-white dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800"
+                                    className="items-center justify-center rounded-lg border border-emerald-200/80 bg-emerald-50 py-1 active:bg-emerald-600 dark:border-emerald-800/80 dark:bg-emerald-950/40"
                                   >
-                                    <Text className="font-sans-bold text-[12px] text-emerald-700 dark:text-emerald-300">
+                                    <Text className="font-sans-bold text-[11px] text-emerald-800 dark:text-emerald-300">
                                       {slot}
                                     </Text>
                                   </Pressable>
@@ -589,8 +561,8 @@ export default function FindDoctorsScreen() {
                         ))}
                       </View>
                     ) : (
-                      <View className="items-center justify-center py-3">
-                        <Text className="font-sans text-[12px] text-slate-400">
+                      <View className="items-center justify-center py-2">
+                        <Text className="font-sans text-[11px] text-slate-400">
                           Contact practice directly for availability
                         </Text>
                       </View>
@@ -598,21 +570,21 @@ export default function FindDoctorsScreen() {
                   </View>
 
                   {/* Card Bottom CTA Row */}
-                  <View className="mt-3.5 flex-row items-center justify-between">
+                  <View className="mt-3 flex-row items-center justify-between">
                     <View className="flex-row items-center gap-1.5">
                       <Clock size={12} color="#64748B" />
                       <Text className="font-sans text-[11px] text-slate-500 dark:text-slate-400">
-                        {activeServices.length} {activeServices.length === 1 ? 'service' : 'services'} available
+                        {activeServices.length} {activeServices.length === 1 ? 'service' : 'services'}
                       </Text>
                     </View>
 
                     <Pressable
                       onPress={() => handleOpenBooking(doc)}
-                      className="flex-row items-center gap-1.5 rounded-2xl bg-brand-500 px-4 py-2 shadow-xs active:bg-brand-600"
+                      className="flex-row items-center gap-1.5 rounded-xl bg-brand-500 px-3.5 py-1.5 shadow-2xs active:bg-brand-600"
                     >
-                      <Video size={13} color="#FFFFFF" />
-                      <Text className="font-sans-bold text-[12px] text-white">
-                        View All Times & Services
+                      <Video size={12} color="#FFFFFF" />
+                      <Text className="font-sans-bold text-[11px] text-white">
+                        View Times & Book
                       </Text>
                     </Pressable>
                   </View>
@@ -623,7 +595,7 @@ export default function FindDoctorsScreen() {
         )}
       </ScrollView>
 
-      {/* Zocdoc Fast Booking Modal */}
+      {/* Doctor Fast Booking Modal */}
       <DoctorBookingModal
         visible={Boolean(bookingDoctor)}
         doctor={bookingDoctor}
