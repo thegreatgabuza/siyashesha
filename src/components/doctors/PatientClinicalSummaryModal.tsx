@@ -2,7 +2,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   Droplet,
-  FileText,
   Heart,
   Mail,
   Phone,
@@ -22,16 +21,12 @@ interface PatientClinicalSummaryModalProps {
   visible: boolean;
   booking: DoctorBooking | null;
   onClose: () => void;
-  onOpenClinicalNotes?: () => void;
-  onOpenSickNote?: () => void;
 }
 
 export function PatientClinicalSummaryModal({
   visible,
   booking,
   onClose,
-  onOpenClinicalNotes,
-  onOpenSickNote,
 }: PatientClinicalSummaryModalProps) {
   const insets = useSafeAreaInsets();
 
@@ -68,22 +63,22 @@ export function PatientClinicalSummaryModal({
           <View className="flex-1 pr-3">
             <View className="flex-row items-center gap-1.5">
               <Text className="font-display text-[20px] uppercase text-brand-900 dark:text-white">
-                Patient Passport
+                Patient Info
               </Text>
               <View className="rounded-full bg-brand-100 px-2 py-0.5 dark:bg-brand-900/40">
                 <Text className="font-sans-bold text-[10px] uppercase text-brand-700 dark:text-brand-300">
-                  Pre-Consult
+                  Medical Passport
                 </Text>
               </View>
             </View>
             <Text className="font-sans text-[12px] text-slate-500 dark:text-slate-400">
-              Clinical summary for {booking.patientName}
+              Health details for {booking.patientName}
             </Text>
           </View>
 
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Close patient passport modal"
+            accessibilityLabel="Close patient info modal"
             onPress={() => {
               tapFeedback();
               onClose();
@@ -163,12 +158,12 @@ export function PatientClinicalSummaryModal({
             </View>
           </View>
 
-          {/* Chief Complaint / Consultation Booking Reason */}
+          {/* Booked Service & Consultation Reason */}
           <View className="mt-3.5 rounded-3xl border border-brand-200 bg-brand-50/70 p-4 dark:border-brand-900/50 dark:bg-brand-950/20">
             <View className="flex-row items-center gap-1.5">
               <Stethoscope size={15} color="#0B2559" />
               <Text className="font-sans-bold text-[12px] uppercase tracking-wider text-brand-900 dark:text-brand-300">
-                Booked Service & Chief Complaint
+                Booked Service & Patient Notes
               </Text>
             </View>
             <Text className="mt-1 font-sans-bold text-[14px] text-slate-900 dark:text-white">
@@ -317,39 +312,19 @@ export function PatientClinicalSummaryModal({
             </View>
           ) : null}
 
-          {/* QUICK DOCTOR CLINICAL SHORTCUTS */}
-          <View className="mt-5 gap-2.5">
-            {onOpenClinicalNotes ? (
-              <Pressable
-                onPress={() => {
-                  tapFeedback();
-                  onClose();
-                  onOpenClinicalNotes();
-                }}
-                className="flex-row items-center justify-center gap-2 rounded-2xl bg-brand-500 py-3.5 shadow-2xs active:bg-brand-600"
-              >
-                <Stethoscope size={16} color="#FFFFFF" />
-                <Text className="font-sans-bold text-[13px] text-white">
-                  Open Clinical Notes & Prescription
-                </Text>
-              </Pressable>
-            ) : null}
-
-            {onOpenSickNote ? (
-              <Pressable
-                onPress={() => {
-                  tapFeedback();
-                  onClose();
-                  onOpenSickNote();
-                }}
-                className="flex-row items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white py-3 active:bg-slate-50 dark:border-slate-700 dark:bg-canvasdark-card"
-              >
-                <FileText size={15} color="#0B2559" />
-                <Text className="font-sans-bold text-[13px] text-brand-900 dark:text-white">
-                  Issue Medical Sick Certificate (HPCSA)
-                </Text>
-              </Pressable>
-            ) : null}
+          {/* CLOSE ACTION BUTTON */}
+          <View className="mt-5">
+            <Pressable
+              onPress={() => {
+                tapFeedback();
+                onClose();
+              }}
+              className="flex-row items-center justify-center gap-2 rounded-2xl bg-brand-500 py-3.5 shadow-2xs active:bg-brand-600"
+            >
+              <Text className="font-sans-bold text-[13px] text-white">
+                Done Viewing Patient Info
+              </Text>
+            </Pressable>
           </View>
         </ScrollView>
       </View>

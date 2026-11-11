@@ -1,16 +1,17 @@
 import dayjs from 'dayjs';
 import { router } from 'expo-router';
 import {
+  Calendar,
   CheckCircle2,
   Clock,
+  Droplet,
   Edit2,
-  FileCheck2,
-  FileText,
   LogOut,
   MapPin,
   Phone,
-  Pill,
   Plus,
+  Search,
+  ShieldAlert,
   ShieldCheck,
   Stethoscope,
   Trash2,
@@ -20,17 +21,15 @@ import {
   Video,
   XCircle,
 } from 'lucide-react-native';
-import { useState } from 'react';
-import { Alert, Linking, Pressable, ScrollView, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Alert, Linking, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { DoctorClinicalEncounterModal } from '@/components/doctors/DoctorClinicalEncounterModal';
 import { DoctorServiceModal } from '@/components/doctors/DoctorServiceModal';
-import { DoctorSickNoteModal } from '@/components/doctors/DoctorSickNoteModal';
 import { PatientClinicalSummaryModal } from '@/components/doctors/PatientClinicalSummaryModal';
 import { Screen } from '@/components/ui/Screen';
 import { useToast } from '@/components/ui/Toast';
-import { initialDoctors, type DoctorBooking, type DoctorProfile, type DoctorService } from '@/data/doctors';
+import { initialDoctors, type DoctorBooking, type DoctorProfile, type DoctorService, type PatientClinicalSummary } from '@/data/doctors';
 import { tapFeedback } from '@/lib/feedback';
 import { useAppStore } from '@/store/useAppStore';
 
@@ -49,7 +48,6 @@ export function DoctorPracticeDashboard({ doctor }: DoctorPracticeDashboardProps
   const updateDoctorService = useAppStore((s) => s.updateDoctorService);
   const deleteDoctorService = useAppStore((s) => s.deleteDoctorService);
   const updateDoctorBookingStatus = useAppStore((s) => s.updateDoctorBookingStatus);
-  const updateDoctorBookingClinical = useAppStore((s) => s.updateDoctorBookingClinical);
   const signOut = useAppStore((s) => s.signOut);
 
   // Active doctor profile resolution
@@ -59,22 +57,88 @@ export function DoctorPracticeDashboard({ doctor }: DoctorPracticeDashboardProps
     registeredDoctors.find((d) => d.email.toLowerCase() === 'thobanisgabuzam2@gmail.com') ??
     initialDoctors[0];
 
-  const [activeTab, setActiveTab] = useState<'bookings' | 'services' | 'settings'>('bookings');
+  // Core navigation: Focus strictly on Bookings and Patient Info
+  const [activeTab, setActiveTab] = useState<'bookings' | 'patients' | 'settings'>('bookings');
+  const [bookingStatusFilter, setBookingStatusFilter] = useState<'all' | 'confirmed' | 'completed' | 'cancelled'>('all');
+  const [patientSearchQuery, setPatientSearchQuery] = useState('');
+
+  // Modals state
   const [serviceModalOpen, setServiceModalOpen] = useState(false);
   const [editingService, setEditingService] = useState<DoctorService | null>(null);
-
-  // Clinical encounter modals state
-  const [passportModalBooking, setPassportModalBooking] = useState<DoctorBooking | null>(null);
-  const [clinicalEncounterBooking, setClinicalEncounterBooking] = useState<DoctorBooking | null>(null);
-  const [sickNoteBooking, setSickNoteBooking] = useState<DoctorBooking | null>(null);
+  const [selectedPatientBooking, setSelectedPatientBooking] = useState<DoctorBooking | null>(null);
 
   // Filter bookings for this doctor
-  const myBookings = doctorBookings.filter(
-    (b) => currentDoctor && b.doctorId === currentDoctor.id
+  const myBookings = useMemo(
+    () => doctorBookings.filter((b) => currentDoctor && b.doctorId === currentDoctor.id),
+    [doctorBookings, currentDoctor]
   );
 
   const totalValue = myBookings.reduce((sum, b) => sum + (b.priceZar || 0), 0);
   const confirmedCount = myBookings.filter((b) => b.status === 'confirmed').length;
+  const completedCount = myBookings.filter((b) => b.status === 'completed').length;
+  const cancelledCount = myBookings.filter((b) => b.status === 'cancelled').length;
+
+  // Filtered bookings according to status selection
+  const displayedBookings = useMemo(() => {
+    if (bookingStatusFilter === 'all') return myBookings;
+    return myBookings.filter((b) => b.status === bookingStatusFilter);
+  }, [myBookings, bookingStatusFilter]);
+
+  // Aggregate unique patients from doctor's bookings for the "Patient Info" directory
+  const uniquePatients = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        patientId: string;
+        patientName: string;
+        patientPhone: string;
+        patientEmail: string;
+        patientSummary?: PatientClinicalSummary;
+        bookingsCount: number;
+        lastBookingDate: string;
+        lastBooking: DoctorBooking;
+      }
+    >();
+
+    for (const b of myBookings) {
+      const key = b.patientEmail?.toLowerCase().trim() || b.patientName.toLowerCase().trim();
+      const existing = map.get(key);
+      if (!existing) {
+        map.set(key, {
+          patientId: b.patientId,
+          patientName: b.patientName,
+          patientPhone: b.patientPhone,
+          patientEmail: b.patientEmail,
+          patientSummary: b.patientSummary,
+          bookingsCount: 1,
+          lastBookingDate: b.date,
+          lastBooking: b,
+        });
+      } else {
+        existing.bookingsCount += 1;
+        if (b.date > existing.lastBookingDate) {
+          existing.lastBookingDate = b.date;
+          existing.lastBooking = b;
+        }
+        if (!existing.patientSummary && b.patientSummary) {
+          existing.patientSummary = b.patientSummary;
+        }
+      }
+    }
+
+    let list = Array.from(map.values());
+    if (patientSearchQuery.trim()) {
+      const q = patientSearchQuery.toLowerCase().trim();
+      list = list.filter(
+        (p) =>
+          p.patientName.toLowerCase().includes(q) ||
+          p.patientPhone.includes(q) ||
+          p.patientEmail.toLowerCase().includes(q) ||
+          p.patientSummary?.bloodGroup?.toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [myBookings, patientSearchQuery]);
 
   const handleStatusChange = (bookingId: string, status: 'completed' | 'cancelled') => {
     tapFeedback();
@@ -152,7 +216,7 @@ export function DoctorPracticeDashboard({ doctor }: DoctorPracticeDashboardProps
             </Text>
           </View>
 
-          {/* Sign Out Button (to use patient email if desired) */}
+          {/* Sign Out Button */}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Sign out of doctor account"
@@ -187,15 +251,15 @@ export function DoctorPracticeDashboard({ doctor }: DoctorPracticeDashboardProps
 
           <View className="items-end">
             <Text className="font-sans-bold text-[10px] uppercase tracking-wider text-slate-400">
-              Account
+              Mode
             </Text>
             <Text className="font-sans-semibold text-[11px] text-brand-800 dark:text-brand-200">
-              Doctor Mode
+              Doctor Account
             </Text>
           </View>
         </View>
 
-        {/* Segmented Tabs */}
+        {/* Segmented Navigation Tabs: Focused strictly on Bookings, Patient Info, and Practice */}
         <View className="mt-3.5 flex-row rounded-2xl bg-slate-100 p-1 dark:bg-slate-800">
           <Pressable
             onPress={() => {
@@ -220,20 +284,20 @@ export function DoctorPracticeDashboard({ doctor }: DoctorPracticeDashboardProps
           <Pressable
             onPress={() => {
               tapFeedback();
-              setActiveTab('services');
+              setActiveTab('patients');
             }}
             className={`flex-1 items-center justify-center rounded-xl py-2 ${
-              activeTab === 'services' ? 'bg-white shadow-2xs dark:bg-slate-700' : ''
+              activeTab === 'patients' ? 'bg-white shadow-2xs dark:bg-slate-700' : ''
             }`}
           >
             <Text
               className={`font-sans-bold text-[12px] ${
-                activeTab === 'services'
+                activeTab === 'patients'
                   ? 'text-brand-900 dark:text-white'
                   : 'text-slate-600 dark:text-slate-400'
               }`}
             >
-              Services ({currentDoctor.services.length})
+              Patient Info ({uniquePatients.length})
             </Text>
           </Pressable>
 
@@ -259,14 +323,14 @@ export function DoctorPracticeDashboard({ doctor }: DoctorPracticeDashboardProps
         </View>
       </View>
 
-      {/* Main Tab Content Stream */}
+      {/* Main Content Stream */}
       <ScrollView
         className="flex-1 px-5 pt-3.5"
         contentContainerStyle={{ paddingBottom: 60 }}
         showsVerticalScrollIndicator={false}
       >
         {/* ======================================================== */}
-        {/* TAB 1: PATIENT BOOKINGS                                  */}
+        {/* TAB 1: BOOKINGS                                          */}
         {/* ======================================================== */}
         {activeTab === 'bookings' ? (
           <View>
@@ -292,50 +356,64 @@ export function DoctorPracticeDashboard({ doctor }: DoctorPracticeDashboardProps
                   R{totalValue}
                 </Text>
                 <Text className="font-sans text-[11px] text-slate-400">
-                  Direct Claims & Cash
+                  {completedCount} completed
                 </Text>
               </View>
             </View>
 
-            {/* Bookings Section Header */}
-            <View className="mb-3 flex-row items-center justify-between">
-              <Text className="font-sans-bold text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Patient Consultations
-              </Text>
-              <Pressable
-                onPress={() => router.push('/more/doctors')}
-                className="flex-row items-center gap-1"
-              >
-                <Text className="font-sans-semibold text-[11px] text-brand-600 dark:text-brand-300">
-                  View Patient Directory &rarr;
-                </Text>
-              </Pressable>
+            {/* Status Filter Chips */}
+            <View className="mb-3.5 flex-row gap-1.5">
+              {[
+                { key: 'all', label: `All (${myBookings.length})` },
+                { key: 'confirmed', label: `Upcoming (${confirmedCount})` },
+                { key: 'completed', label: `Completed (${completedCount})` },
+                { key: 'cancelled', label: `Cancelled (${cancelledCount})` },
+              ].map((tab) => {
+                const isSelected = bookingStatusFilter === tab.key;
+                return (
+                  <Pressable
+                    key={tab.key}
+                    onPress={() => {
+                      tapFeedback();
+                      setBookingStatusFilter(tab.key as any);
+                    }}
+                    className={`rounded-full px-3 py-1 border ${
+                      isSelected
+                        ? 'border-brand-500 bg-brand-500'
+                        : 'border-slate-200 bg-white active:bg-slate-50 dark:border-slate-700 dark:bg-slate-800'
+                    }`}
+                  >
+                    <Text
+                      className={`font-sans-bold text-[11px] ${
+                        isSelected ? 'text-white' : 'text-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      {tab.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
 
-            {myBookings.length === 0 ? (
+            {displayedBookings.length === 0 ? (
               <View className="items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-white py-12 px-6 dark:border-slate-800 dark:bg-canvasdark-card">
-                <Users size={36} color="#94A3B8" />
+                <Calendar size={36} color="#94A3B8" />
                 <Text className="mt-3 font-sans-bold text-[16px] text-slate-800 dark:text-white">
-                  No Patient Bookings Yet
+                  No Bookings Found
                 </Text>
                 <Text className="mt-1 text-center font-sans text-[12px] leading-[17px] text-slate-500 dark:text-slate-400">
-                  Patients booking your published services on Siyashesha will appear here in real-time.
+                  {bookingStatusFilter === 'all'
+                    ? 'Patients booking your published services will appear here in real-time.'
+                    : `No ${bookingStatusFilter} appointments at this moment.`}
                 </Text>
-                <Pressable
-                  onPress={() => router.push('/more/doctors')}
-                  className="mt-4 rounded-full bg-brand-500 px-5 py-2 shadow-2xs"
-                >
-                  <Text className="font-sans-bold text-[12px] text-white">
-                    Browse Directory
-                  </Text>
-                </Pressable>
               </View>
             ) : (
               <View className="gap-3">
-                {myBookings.map((b) => {
+                {displayedBookings.map((b) => {
                   const isConfirmed = b.status === 'confirmed';
                   const isCompleted = b.status === 'completed';
                   const isCancelled = b.status === 'cancelled';
+                  const summary = b.patientSummary;
 
                   return (
                     <View
@@ -387,7 +465,15 @@ export function DoctorPracticeDashboard({ doctor }: DoctorPracticeDashboardProps
                             <Text className="font-sans-bold text-[13px] text-slate-900 dark:text-white">
                               {b.patientName}
                             </Text>
+                            {summary?.bloodGroup ? (
+                              <View className="rounded-full bg-rose-100 px-2 py-0.2 border border-rose-200 dark:bg-rose-950/40">
+                                <Text className="font-sans-bold text-[9px] text-rose-700 dark:text-rose-300">
+                                  {summary.bloodGroup}
+                                </Text>
+                              </View>
+                            ) : null}
                           </View>
+
                           <Text className="font-sans-bold text-[14px] text-emerald-600 dark:text-emerald-400">
                             R{b.priceZar}
                           </Text>
@@ -428,99 +514,34 @@ export function DoctorPracticeDashboard({ doctor }: DoctorPracticeDashboardProps
                             </View>
                           )}
 
-                          {/* Badges for Recorded Clinical Artifacts */}
-                          {b.clinicalNotes ? (
-                            <Pressable
-                              onPress={() => {
-                                tapFeedback();
-                                setClinicalEncounterBooking(b);
-                              }}
-                              className="flex-row items-center gap-1 rounded-md bg-emerald-100 px-2 py-0.5 dark:bg-emerald-950/40"
-                            >
-                              <CheckCircle2 size={10} color="#16A34A" />
-                              <Text className="font-sans-bold text-[10px] text-emerald-800 dark:text-emerald-300">
-                                Notes Recorded
+                          {summary?.allergies && summary.allergies.length > 0 ? (
+                            <View className="flex-row items-center gap-1 rounded-md bg-rose-100 px-2 py-0.5 dark:bg-rose-950/40">
+                              <ShieldAlert size={10} color="#DC2626" />
+                              <Text className="font-sans-bold text-[10px] text-rose-700 dark:text-rose-300">
+                                {summary.allergies.length} {summary.allergies.length === 1 ? 'Allergy' : 'Allergies'}
                               </Text>
-                            </Pressable>
-                          ) : null}
-
-                          {b.prescriptions && b.prescriptions.length > 0 ? (
-                            <Pressable
-                              onPress={() => {
-                                tapFeedback();
-                                setClinicalEncounterBooking(b);
-                              }}
-                              className="flex-row items-center gap-1 rounded-md bg-purple-100 px-2 py-0.5 dark:bg-purple-950/40"
-                            >
-                              <Pill size={10} color="#9333EA" />
-                              <Text className="font-sans-bold text-[10px] text-purple-800 dark:text-purple-300">
-                                Rx: {b.prescriptions.length} {b.prescriptions.length === 1 ? 'Item' : 'Items'}
-                              </Text>
-                            </Pressable>
-                          ) : null}
-
-                          {b.sickNote ? (
-                            <Pressable
-                              onPress={() => {
-                                tapFeedback();
-                                setSickNoteBooking(b);
-                              }}
-                              className="flex-row items-center gap-1 rounded-md bg-blue-100 px-2 py-0.5 dark:bg-blue-950/40"
-                            >
-                              <FileText size={10} color="#2563EB" />
-                              <Text className="font-sans-bold text-[10px] text-blue-800 dark:text-blue-300">
-                                Sick Note
-                              </Text>
-                            </Pressable>
+                            </View>
                           ) : null}
                         </View>
                       </View>
 
-                      {/* Clinical Actions Bar (Available on ALL bookings) */}
-                      <View className="mt-3 flex-row gap-2 border-t border-slate-100 pt-2.5 dark:border-slate-800">
-                        <Pressable
-                          onPress={() => {
-                            tapFeedback();
-                            setPassportModalBooking(b);
-                          }}
-                          className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white py-2 active:bg-slate-50 dark:border-slate-700 dark:bg-slate-800"
-                        >
-                          <UserCheck size={12} color="#0B2559" />
-                          <Text className="font-sans-bold text-[11px] text-slate-800 dark:text-white">
-                            Passport
-                          </Text>
-                        </Pressable>
+                      {/* PRIMARY ACTION: VIEW PATIENT INFO */}
+                      <Pressable
+                        onPress={() => {
+                          tapFeedback();
+                          setSelectedPatientBooking(b);
+                        }}
+                        className="mt-3 flex-row items-center justify-center gap-2 rounded-2xl border border-brand-200 bg-brand-50/70 py-2.5 active:bg-brand-100 dark:border-brand-900/50 dark:bg-brand-950/30"
+                      >
+                        <UserCheck size={14} color="#0B2559" />
+                        <Text className="font-sans-bold text-[12px] text-brand-900 dark:text-brand-200">
+                          View Patient Info (Health Passport)
+                        </Text>
+                      </Pressable>
 
-                        <Pressable
-                          onPress={() => {
-                            tapFeedback();
-                            setClinicalEncounterBooking(b);
-                          }}
-                          className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl border border-brand-200 bg-brand-50/80 py-2 active:bg-brand-100 dark:border-brand-900/60 dark:bg-brand-950/40"
-                        >
-                          <Stethoscope size={12} color="#0B2559" />
-                          <Text className="font-sans-bold text-[11px] text-brand-900 dark:text-brand-300">
-                            Notes & Rx
-                          </Text>
-                        </Pressable>
-
-                        <Pressable
-                          onPress={() => {
-                            tapFeedback();
-                            setSickNoteBooking(b);
-                          }}
-                          className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/80 py-2 active:bg-emerald-100 dark:border-emerald-900/60 dark:bg-emerald-950/40"
-                        >
-                          <FileCheck2 size={12} color="#16A34A" />
-                          <Text className="font-sans-bold text-[11px] text-emerald-800 dark:text-emerald-300">
-                            Sick Note
-                          </Text>
-                        </Pressable>
-                      </View>
-
-                      {/* Doctor Consultation Status Actions */}
+                      {/* Booking Operational Actions */}
                       {isConfirmed ? (
-                        <View className="mt-2 flex-row gap-2">
+                        <View className="mt-2.5 flex-row gap-2 border-t border-slate-100 pt-2.5 dark:border-slate-800">
                           <Pressable
                             onPress={() => handleStatusChange(b.id, 'completed')}
                             className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2 shadow-2xs active:bg-emerald-700"
@@ -575,108 +596,136 @@ export function DoctorPracticeDashboard({ doctor }: DoctorPracticeDashboardProps
         ) : null}
 
         {/* ======================================================== */}
-        {/* TAB 2: PRACTICE SERVICES                                 */}
+        {/* TAB 2: PATIENT INFO (PATIENTS DIRECTORY)                 */}
         {/* ======================================================== */}
-        {activeTab === 'services' ? (
+        {activeTab === 'patients' ? (
           <View>
-            <View className="mb-3.5 flex-row items-center justify-between">
-              <View>
-                <Text className="font-sans-bold text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Published Services ({currentDoctor.services.length})
+            <View className="mb-3.5">
+              <Text className="font-sans-bold text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Practice Patients ({uniquePatients.length})
+              </Text>
+              <Text className="font-sans text-[11px] text-slate-400">
+                Patients who have booked appointments with your practice
+              </Text>
+            </View>
+
+            {/* Patient Search Input */}
+            <View className="mb-3.5 flex-row items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 shadow-2xs dark:border-slate-800 dark:bg-canvasdark-card">
+              <Search size={14} color="#94A3B8" />
+              <TextInput
+                value={patientSearchQuery}
+                onChangeText={setPatientSearchQuery}
+                placeholder="Search patient by name, phone, or blood group..."
+                placeholderTextColor="#94A3B8"
+                className="flex-1 font-sans text-[12px] text-slate-900 dark:text-white"
+              />
+            </View>
+
+            {uniquePatients.length === 0 ? (
+              <View className="items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-white py-12 px-6 dark:border-slate-800 dark:bg-canvasdark-card">
+                <Users size={36} color="#94A3B8" />
+                <Text className="mt-3 font-sans-bold text-[16px] text-slate-800 dark:text-white">
+                  No Patients Found
                 </Text>
-                <Text className="font-sans text-[11px] text-slate-400">
-                  Visible to patients for online booking
+                <Text className="mt-1 text-center font-sans text-[12px] text-slate-500 dark:text-slate-400">
+                  {patientSearchQuery
+                    ? `No patients match "${patientSearchQuery}"`
+                    : 'Patients will be listed here after their first booking.'}
                 </Text>
               </View>
-
-              <Pressable
-                onPress={() => {
-                  tapFeedback();
-                  setEditingService(null);
-                  setServiceModalOpen(true);
-                }}
-                className="flex-row items-center gap-1.5 rounded-full bg-brand-500 px-3.5 py-1.5 shadow-2xs active:bg-brand-600"
-              >
-                <Plus size={13} color="#FFFFFF" />
-                <Text className="font-sans-bold text-[11px] text-white">Add Service</Text>
-              </Pressable>
-            </View>
-
-            <View className="gap-3">
-              {currentDoctor.services.map((srv) => (
-                <View
-                  key={srv.id}
-                  className="rounded-3xl border border-slate-200/80 bg-white p-4 shadow-2xs dark:border-slate-800 dark:bg-canvasdark-card"
-                >
-                  <View className="flex-row items-start justify-between">
-                    <View className="flex-1 pr-3">
-                      <View className="flex-row items-center gap-2">
-                        <Text className="font-sans-bold text-[15px] text-slate-900 dark:text-white">
-                          {srv.name}
-                        </Text>
-                        <View className="rounded-full bg-slate-100 px-2 py-0.5 dark:bg-slate-700">
-                          <Text className="font-sans-medium text-[10px] text-slate-600 dark:text-slate-300">
-                            {srv.durationMinutes} mins
-                          </Text>
+            ) : (
+              <View className="gap-3">
+                {uniquePatients.map((p, idx) => {
+                  const summary = p.patientSummary;
+                  return (
+                    <View
+                      key={idx}
+                      className="rounded-3xl border border-slate-200/80 bg-white p-4 shadow-2xs dark:border-slate-800 dark:bg-canvasdark-card"
+                    >
+                      <View className="flex-row items-start justify-between">
+                        <View className="flex-row items-center gap-3">
+                          <View className="h-11 w-11 items-center justify-center rounded-2xl bg-brand-100 dark:bg-brand-950/60">
+                            <User size={20} color="#0B2559" />
+                          </View>
+                          <View>
+                            <Text className="font-sans-bold text-[15px] text-slate-900 dark:text-white">
+                              {p.patientName}
+                            </Text>
+                            <Text className="font-sans text-[11px] text-slate-500 dark:text-slate-400">
+                              {p.bookingsCount} {p.bookingsCount === 1 ? 'consultation' : 'consultations'} · Last: {dayjs(p.lastBookingDate).format('D MMM YYYY')}
+                            </Text>
+                          </View>
                         </View>
+
+                        {summary?.bloodGroup ? (
+                          <View className="flex-row items-center gap-1 rounded-full bg-rose-50 px-2.5 py-1 border border-rose-200 dark:bg-rose-950/40 dark:border-rose-900/40">
+                            <Droplet size={11} color="#DC2626" />
+                            <Text className="font-sans-bold text-[11px] text-rose-700 dark:text-rose-400">
+                              {summary.bloodGroup}
+                            </Text>
+                          </View>
+                        ) : null}
                       </View>
 
-                      {srv.description ? (
-                        <Text className="mt-1 font-sans text-[12px] leading-[17px] text-slate-500 dark:text-slate-400">
-                          {srv.description}
-                        </Text>
+                      {/* Contact row */}
+                      <View className="mt-3 flex-row gap-2">
+                        {p.patientPhone ? (
+                          <Pressable
+                            onPress={() => Linking.openURL(`tel:${p.patientPhone}`)}
+                            className="flex-row items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-slate-700 dark:bg-slate-800"
+                          >
+                            <Phone size={11} color="#16A34A" />
+                            <Text className="font-sans-medium text-[11px] text-slate-700 dark:text-slate-200">
+                              {p.patientPhone}
+                            </Text>
+                          </Pressable>
+                        ) : null}
+                      </View>
+
+                      {/* Health details tags */}
+                      {summary ? (
+                        <View className="mt-2.5 flex-row flex-wrap gap-1.5">
+                          {summary.allergies && summary.allergies.length > 0 ? (
+                            <View className="rounded-md bg-rose-50 px-2 py-0.5 border border-rose-200 dark:bg-rose-950/30">
+                              <Text className="font-sans-semibold text-[10px] text-rose-700 dark:text-rose-300">
+                                Allergies: {summary.allergies.map((a) => a.substance).join(', ')}
+                              </Text>
+                            </View>
+                          ) : null}
+
+                          {summary.chronicConditions && summary.chronicConditions.length > 0 ? (
+                            <View className="rounded-md bg-slate-100 px-2 py-0.5 dark:bg-slate-800">
+                              <Text className="font-sans-semibold text-[10px] text-slate-700 dark:text-slate-300">
+                                {summary.chronicConditions.join(' · ')}
+                              </Text>
+                            </View>
+                          ) : null}
+                        </View>
                       ) : null}
 
-                      <View className="mt-2.5 flex-row items-center gap-2">
-                        <View className="rounded-md bg-brand-50 px-2 py-0.5 dark:bg-brand-500/20">
-                          <Text className="font-sans-semibold text-[10px] text-brand-700 dark:text-brand-300">
-                            {srv.category}
-                          </Text>
-                        </View>
-                        <Text className="font-sans text-[10px] text-slate-400">
-                          {srv.mode === 'video'
-                            ? 'Video Only'
-                            : srv.mode === 'in_person'
-                            ? 'In-Person Only'
-                            : 'In-Person & Video'}
+                      {/* View Full Patient Info Button */}
+                      <Pressable
+                        onPress={() => {
+                          tapFeedback();
+                          setSelectedPatientBooking(p.lastBooking);
+                        }}
+                        className="mt-3.5 flex-row items-center justify-center gap-1.5 rounded-2xl bg-brand-500 py-2.5 shadow-2xs active:bg-brand-600"
+                      >
+                        <UserCheck size={14} color="#FFFFFF" />
+                        <Text className="font-sans-bold text-[12px] text-white">
+                          View Full Patient Info
                         </Text>
-                      </View>
+                      </Pressable>
                     </View>
-
-                    <View className="items-end">
-                      <Text className="font-display text-[22px] text-emerald-600 dark:text-emerald-400">
-                        R{srv.priceZar}
-                      </Text>
-
-                      <View className="mt-2.5 flex-row items-center gap-1.5">
-                        <Pressable
-                          onPress={() => {
-                            tapFeedback();
-                            setEditingService(srv);
-                            setServiceModalOpen(true);
-                          }}
-                          className="h-8 w-8 items-center justify-center rounded-full bg-slate-100 active:bg-slate-200 dark:bg-slate-800 dark:active:bg-slate-700"
-                        >
-                          <Edit2 size={13} color="#0B2559" />
-                        </Pressable>
-
-                        <Pressable
-                          onPress={() => handleDeleteService(srv)}
-                          className="h-8 w-8 items-center justify-center rounded-full bg-rose-50 active:bg-rose-100 dark:bg-rose-950/40 dark:active:bg-rose-900/60"
-                        >
-                          <Trash2 size={13} color="#DC2626" />
-                        </Pressable>
-                      </View>
-                    </View>
-                  </View>
-                </View>
-              ))}
-            </View>
+                  );
+                })}
+              </View>
+            )}
           </View>
         ) : null}
 
         {/* ======================================================== */}
-        {/* TAB 3: PRACTICE INFO & ROLE SETTINGS                     */}
+        {/* TAB 3: PRACTICE INFO & SETTINGS                          */}
         {/* ======================================================== */}
         {activeTab === 'settings' ? (
           <View className="gap-3.5">
@@ -757,6 +806,64 @@ export function DoctorPracticeDashboard({ doctor }: DoctorPracticeDashboardProps
               </Text>
             </View>
 
+            {/* Published Services Section */}
+            <View className="rounded-3xl border border-slate-200/80 bg-white p-4 shadow-2xs dark:border-slate-800 dark:bg-canvasdark-card">
+              <View className="mb-3 flex-row items-center justify-between">
+                <Text className="font-sans-bold text-[14px] text-slate-900 dark:text-white">
+                  Consultation Services ({currentDoctor.services.length})
+                </Text>
+                <Pressable
+                  onPress={() => {
+                    tapFeedback();
+                    setEditingService(null);
+                    setServiceModalOpen(true);
+                  }}
+                  className="flex-row items-center gap-1 rounded-full bg-brand-500 px-3 py-1 shadow-2xs active:bg-brand-600"
+                >
+                  <Plus size={12} color="#FFFFFF" />
+                  <Text className="font-sans-bold text-[10px] text-white">Add</Text>
+                </Pressable>
+              </View>
+
+              <View className="gap-2.5">
+                {currentDoctor.services.map((srv) => (
+                  <View
+                    key={srv.id}
+                    className="flex-row items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-800/40"
+                  >
+                    <View className="flex-1 pr-2">
+                      <Text className="font-sans-bold text-[13px] text-slate-900 dark:text-white">
+                        {srv.name}
+                      </Text>
+                      <Text className="font-sans text-[11px] text-slate-500 dark:text-slate-400">
+                        {srv.durationMinutes}m · R{srv.priceZar} · {srv.category}
+                      </Text>
+                    </View>
+
+                    <View className="flex-row items-center gap-1">
+                      <Pressable
+                        onPress={() => {
+                          tapFeedback();
+                          setEditingService(srv);
+                          setServiceModalOpen(true);
+                        }}
+                        className="h-7 w-7 items-center justify-center rounded-full bg-slate-200/70 active:bg-slate-300 dark:bg-slate-700"
+                      >
+                        <Edit2 size={11} color="#0B2559" />
+                      </Pressable>
+
+                      <Pressable
+                        onPress={() => handleDeleteService(srv)}
+                        className="h-7 w-7 items-center justify-center rounded-full bg-rose-100 active:bg-rose-200 dark:bg-rose-950/40"
+                      >
+                        <Trash2 size={11} color="#DC2626" />
+                      </Pressable>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </View>
+
             {/* Strict Role Separation Banner */}
             <View className="rounded-3xl border border-brand-200 bg-brand-50/70 p-4 dark:border-brand-900/60 dark:bg-brand-950/30">
               <View className="flex-row items-center gap-2">
@@ -782,6 +889,13 @@ export function DoctorPracticeDashboard({ doctor }: DoctorPracticeDashboardProps
         ) : null}
       </ScrollView>
 
+      {/* Patient Health Info Modal */}
+      <PatientClinicalSummaryModal
+        visible={selectedPatientBooking !== null}
+        booking={selectedPatientBooking}
+        onClose={() => setSelectedPatientBooking(null)}
+      />
+
       {/* Service Modal for Adding / Editing Practice Offerings */}
       <DoctorServiceModal
         visible={serviceModalOpen}
@@ -795,56 +909,6 @@ export function DoctorPracticeDashboard({ doctor }: DoctorPracticeDashboardProps
             updateDoctorService(editingId, data);
           } else {
             addDoctorService(data);
-          }
-        }}
-      />
-
-      {/* Patient Clinical Passport Modal */}
-      <PatientClinicalSummaryModal
-        visible={passportModalBooking !== null}
-        booking={passportModalBooking}
-        onClose={() => setPassportModalBooking(null)}
-        onOpenClinicalNotes={() => {
-          if (passportModalBooking) {
-            setClinicalEncounterBooking(passportModalBooking);
-          }
-        }}
-        onOpenSickNote={() => {
-          if (passportModalBooking) {
-            setSickNoteBooking(passportModalBooking);
-          }
-        }}
-      />
-
-      {/* Doctor Clinical Encounter & e-Script Modal */}
-      <DoctorClinicalEncounterModal
-        visible={clinicalEncounterBooking !== null}
-        booking={clinicalEncounterBooking}
-        doctor={currentDoctor}
-        onClose={() => setClinicalEncounterBooking(null)}
-        onSave={({ clinicalNotes, prescriptions, markCompleted }) => {
-          if (clinicalEncounterBooking) {
-            updateDoctorBookingClinical(clinicalEncounterBooking.id, {
-              clinicalNotes,
-              prescriptions,
-              status: markCompleted ? 'completed' : clinicalEncounterBooking.status,
-            });
-          }
-        }}
-      />
-
-      {/* HPCSA Medical Sick Certificate Modal */}
-      <DoctorSickNoteModal
-        visible={sickNoteBooking !== null}
-        booking={sickNoteBooking}
-        doctor={currentDoctor}
-        existingSickNote={sickNoteBooking?.sickNote}
-        onClose={() => setSickNoteBooking(null)}
-        onSave={(sickNote) => {
-          if (sickNoteBooking) {
-            updateDoctorBookingClinical(sickNoteBooking.id, {
-              sickNote,
-            });
           }
         }}
       />
