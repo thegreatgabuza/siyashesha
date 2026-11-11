@@ -62,7 +62,7 @@ export function LandingPage() {
 
   const handleStart = () => {
     if (email.trim()) {
-      router.push({ pathname: '/(auth)/sign-up', params: { email: email.trim() } } as any);
+      router.push({ pathname: '/sign-in', params: { mode: 'signup', email: email.trim() } } as any);
     } else {
       goSignUp();
     }

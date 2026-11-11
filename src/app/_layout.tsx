@@ -31,7 +31,8 @@ const clerkPublishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
 SplashScreen.preventAutoHideAsync();
 
 export const unstable_settings = {
-  anchor: Platform.OS === 'web' ? '(auth)' : '(onboarding)',
+  anchor: 'index',
+  initialRouteName: 'index',
 };
 
 export default function RootLayout() {
@@ -171,39 +172,17 @@ export default function RootLayout() {
         <StatusBar style={isDark ? 'light' : 'dark'} />
         <ToastProvider>
           <BiometricGate>
-            {Platform.OS === 'web' ? (
-              <Stack screenOptions={{ headerShown: false }}>
-                {/* Public pages (features, pricing, privacy, terms, support) are always reachable on web */}
-                <Stack.Screen name="(site)" />
-                {/* Landing / sign up → onboarding (once) → app */}
-                <Stack.Protected guard={!isSignedIn}>
-                  <Stack.Screen name="(auth)" />
-                </Stack.Protected>
-                <Stack.Protected guard={isSignedIn && !hasCompletedOnboarding}>
-                  <Stack.Screen name="(onboarding)" />
-                </Stack.Protected>
-                <Stack.Protected guard={isSignedIn && hasCompletedOnboarding}>
-                  <Stack.Screen name="(tabs)" />
-                </Stack.Protected>
-              </Stack>
-            ) : (
-              <Stack screenOptions={{ headerShown: false }}>
-                {/* Native mobile launch: new users land directly into native onboarding */}
-                <Stack.Protected guard={!hasCompletedOnboarding}>
-                  <Stack.Screen name="(onboarding)" />
-                </Stack.Protected>
-                {/* Signed-in & onboarded users access main app tabs */}
-                <Stack.Protected guard={hasCompletedOnboarding && isSignedIn}>
-                  <Stack.Screen name="(tabs)" />
-                </Stack.Protected>
-                {/* Returning users or sign-in navigation access auth */}
-                <Stack.Protected guard={!isSignedIn}>
-                  <Stack.Screen name="(auth)" />
-                </Stack.Protected>
-                {/* Legal/support public links reachable when tapped, never default initial route */}
-                <Stack.Screen name="(site)" />
-              </Stack>
-            )}
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="index" />
+              <Stack.Screen name="(onboarding)" />
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="(auth)" />
+              <Stack.Screen name="(site)" />
+              <Stack.Screen name="book-doctor" />
+              <Stack.Screen name="emergency-helplines" />
+              <Stack.Screen name="medical-aids" />
+              <Stack.Screen name="+not-found" />
+            </Stack>
           </BiometricGate>
         </ToastProvider>
       </SafeAreaProvider>
