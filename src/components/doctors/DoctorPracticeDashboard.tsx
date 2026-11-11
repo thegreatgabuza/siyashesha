@@ -1,6 +1,7 @@
 import dayjs from 'dayjs';
 import { router } from 'expo-router';
 import {
+  Building,
   Calendar,
   CheckCircle2,
   Clock,
@@ -11,7 +12,6 @@ import {
   Phone,
   Plus,
   Search,
-  ShieldAlert,
   ShieldCheck,
   Stethoscope,
   Trash2,
@@ -60,6 +60,7 @@ export function DoctorPracticeDashboard({ doctor }: DoctorPracticeDashboardProps
   // Core navigation: Focus strictly on Bookings and Patient Info
   const [activeTab, setActiveTab] = useState<'bookings' | 'patients' | 'settings'>('bookings');
   const [bookingStatusFilter, setBookingStatusFilter] = useState<'all' | 'confirmed' | 'completed' | 'cancelled'>('all');
+  const [bookingModeFilter, setBookingModeFilter] = useState<'all' | 'in_person' | 'video'>('all');
   const [patientSearchQuery, setPatientSearchQuery] = useState('');
 
   // Modals state
@@ -73,16 +74,28 @@ export function DoctorPracticeDashboard({ doctor }: DoctorPracticeDashboardProps
     [doctorBookings, currentDoctor]
   );
 
+  const physicalBookings = useMemo(
+    () => myBookings.filter((b) => b.mode === 'in_person'),
+    [myBookings]
+  );
+  const onlineBookings = useMemo(
+    () => myBookings.filter((b) => b.mode === 'video'),
+    [myBookings]
+  );
+
   const totalValue = myBookings.reduce((sum, b) => sum + (b.priceZar || 0), 0);
   const confirmedCount = myBookings.filter((b) => b.status === 'confirmed').length;
   const completedCount = myBookings.filter((b) => b.status === 'completed').length;
   const cancelledCount = myBookings.filter((b) => b.status === 'cancelled').length;
 
-  // Filtered bookings according to status selection
+  // Filtered bookings according to status & format selection
   const displayedBookings = useMemo(() => {
-    if (bookingStatusFilter === 'all') return myBookings;
-    return myBookings.filter((b) => b.status === bookingStatusFilter);
-  }, [myBookings, bookingStatusFilter]);
+    return myBookings.filter((b) => {
+      const matchesStatus = bookingStatusFilter === 'all' || b.status === bookingStatusFilter;
+      const matchesMode = bookingModeFilter === 'all' || b.mode === bookingModeFilter;
+      return matchesStatus && matchesMode;
+    });
+  }, [myBookings, bookingStatusFilter, bookingModeFilter]);
 
   // Aggregate unique patients from doctor's bookings for the "Patient Info" directory
   const uniquePatients = useMemo(() => {
@@ -335,36 +348,93 @@ export function DoctorPracticeDashboard({ doctor }: DoctorPracticeDashboardProps
         {activeTab === 'bookings' ? (
           <View>
             {/* Quick Metrics */}
-            <View className="mb-4 flex-row gap-3">
-              <View className="flex-1 rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-canvasdark-card">
+            <View className="mb-4 flex-row gap-2.5">
+              <View className="flex-1 rounded-2xl border border-slate-200/80 bg-white p-3 shadow-2xs dark:border-slate-800 dark:bg-canvasdark-card">
                 <Text className="font-sans text-[10px] uppercase tracking-wider text-slate-400">
                   Total Bookings
                 </Text>
-                <Text className="mt-1 font-display text-[24px] text-brand-900 dark:text-white">
+                <Text className="mt-0.5 font-display text-[22px] text-brand-900 dark:text-white">
                   {myBookings.length}
                 </Text>
-                <Text className="font-sans text-[11px] text-emerald-600 dark:text-emerald-400">
+                <Text className="font-sans text-[10px] text-emerald-600 dark:text-emerald-400">
                   {confirmedCount} upcoming
                 </Text>
               </View>
 
-              <View className="flex-1 rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-canvasdark-card">
+              <View className="flex-1 rounded-2xl border border-slate-200/80 bg-white p-3 shadow-2xs dark:border-slate-800 dark:bg-canvasdark-card">
                 <Text className="font-sans text-[10px] uppercase tracking-wider text-slate-400">
-                  Consultation Value
+                  Formats
                 </Text>
-                <Text className="mt-1 font-display text-[24px] text-emerald-600 dark:text-emerald-400">
+                <View className="mt-1 gap-0.5">
+                  <View className="flex-row items-center gap-1">
+                    <Building size={11} color="#16A34A" />
+                    <Text className="font-sans-bold text-[11px] text-slate-800 dark:text-slate-200">
+                      {physicalBookings.length} Physical
+                    </Text>
+                  </View>
+                  <View className="flex-row items-center gap-1">
+                    <Video size={11} color="#2563EB" />
+                    <Text className="font-sans-bold text-[11px] text-blue-600 dark:text-blue-400">
+                      {onlineBookings.length} Online
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <View className="flex-1 rounded-2xl border border-slate-200/80 bg-white p-3 shadow-2xs dark:border-slate-800 dark:bg-canvasdark-card">
+                <Text className="font-sans text-[10px] uppercase tracking-wider text-slate-400">
+                  Value (ZAR)
+                </Text>
+                <Text className="mt-0.5 font-display text-[22px] text-emerald-600 dark:text-emerald-400">
                   R{totalValue}
                 </Text>
-                <Text className="font-sans text-[11px] text-slate-400">
-                  {completedCount} completed
+                <Text className="font-sans text-[10px] text-slate-400">
+                  {completedCount} done
                 </Text>
               </View>
+            </View>
+
+            {/* Consultation Format Filter (Physical vs Online) */}
+            <View className="mb-2 flex-row gap-1.5">
+              {[
+                { key: 'all', label: `All Formats (${myBookings.length})`, icon: null },
+                { key: 'in_person', label: `Physical Rooms (${physicalBookings.length})`, icon: Building },
+                { key: 'video', label: `Online Video (${onlineBookings.length})`, icon: Video },
+              ].map((fmt) => {
+                const isSelected = bookingModeFilter === fmt.key;
+                const Icon = fmt.icon;
+                return (
+                  <Pressable
+                    key={fmt.key}
+                    onPress={() => {
+                      tapFeedback();
+                      setBookingModeFilter(fmt.key as any);
+                    }}
+                    className={`flex-row items-center gap-1 rounded-full px-3 py-1 border ${
+                      isSelected
+                        ? 'border-brand-500 bg-brand-500'
+                        : 'border-slate-200 bg-white active:bg-slate-50 dark:border-slate-700 dark:bg-slate-800'
+                    }`}
+                  >
+                    {Icon ? (
+                      <Icon size={11} color={isSelected ? '#FFFFFF' : '#64748B'} />
+                    ) : null}
+                    <Text
+                      className={`font-sans-bold text-[11px] ${
+                        isSelected ? 'text-white' : 'text-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      {fmt.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
 
             {/* Status Filter Chips */}
             <View className="mb-3.5 flex-row gap-1.5">
               {[
-                { key: 'all', label: `All (${myBookings.length})` },
+                { key: 'all', label: `All Statuses` },
                 { key: 'confirmed', label: `Upcoming (${confirmedCount})` },
                 { key: 'completed', label: `Completed (${completedCount})` },
                 { key: 'cancelled', label: `Cancelled (${cancelledCount})` },
@@ -377,15 +447,17 @@ export function DoctorPracticeDashboard({ doctor }: DoctorPracticeDashboardProps
                       tapFeedback();
                       setBookingStatusFilter(tab.key as any);
                     }}
-                    className={`rounded-full px-3 py-1 border ${
+                    className={`rounded-full px-2.5 py-0.5 border ${
                       isSelected
-                        ? 'border-brand-500 bg-brand-500'
-                        : 'border-slate-200 bg-white active:bg-slate-50 dark:border-slate-700 dark:bg-slate-800'
+                        ? 'border-slate-700 bg-slate-700 dark:border-white dark:bg-white'
+                        : 'border-slate-200 bg-slate-50 active:bg-slate-100 dark:border-slate-800 dark:bg-slate-900'
                     }`}
                   >
                     <Text
-                      className={`font-sans-bold text-[11px] ${
-                        isSelected ? 'text-white' : 'text-slate-700 dark:text-slate-300'
+                      className={`font-sans-bold text-[10px] ${
+                        isSelected
+                          ? 'text-white dark:text-slate-900'
+                          : 'text-slate-500 dark:text-slate-400'
                       }`}
                     >
                       {tab.label}
@@ -420,7 +492,38 @@ export function DoctorPracticeDashboard({ doctor }: DoctorPracticeDashboardProps
                       key={b.id}
                       className="rounded-3xl border border-slate-200/80 bg-white p-4 shadow-2xs dark:border-slate-800 dark:bg-canvasdark-card"
                     >
-                      {/* Top Row: Service & Status */}
+                      {/* CONSULTATION FORMAT BANNER (Physical vs Online) */}
+                      {b.mode === 'in_person' ? (
+                        <View className="mb-3 flex-row items-center justify-between rounded-2xl border border-emerald-200/80 bg-emerald-50 px-3.5 py-2 dark:border-emerald-900/60 dark:bg-emerald-950/40">
+                          <View className="flex-row items-center gap-1.5">
+                            <Building size={14} color="#16A34A" />
+                            <Text className="font-sans-bold text-[11px] uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+                              Physical Practice Visit
+                            </Text>
+                          </View>
+                          <View className="rounded-md bg-emerald-200/70 px-2 py-0.5 dark:bg-emerald-900/70">
+                            <Text className="font-sans-bold text-[9px] uppercase tracking-wider text-emerald-900 dark:text-emerald-200">
+                              At Rooms
+                            </Text>
+                          </View>
+                        </View>
+                      ) : (
+                        <View className="mb-3 flex-row items-center justify-between rounded-2xl border border-blue-200/80 bg-blue-50 px-3.5 py-2 dark:border-blue-900/60 dark:bg-blue-950/40">
+                          <View className="flex-row items-center gap-1.5">
+                            <Video size={14} color="#2563EB" />
+                            <Text className="font-sans-bold text-[11px] uppercase tracking-wider text-blue-700 dark:text-blue-300">
+                              Online Video Consultation
+                            </Text>
+                          </View>
+                          <View className="rounded-md bg-blue-200/70 px-2 py-0.5 dark:bg-blue-900/70">
+                            <Text className="font-sans-bold text-[9px] uppercase tracking-wider text-blue-900 dark:text-blue-200">
+                              Telehealth
+                            </Text>
+                          </View>
+                        </View>
+                      )}
+
+                      {/* Service & Status */}
                       <View className="flex-row items-start justify-between">
                         <View className="flex-1 pr-2">
                           <Text className="font-sans-bold text-[15px] text-slate-900 dark:text-white">
@@ -497,32 +600,33 @@ export function DoctorPracticeDashboard({ doctor }: DoctorPracticeDashboardProps
                           </Text>
                         ) : null}
 
-                        <View className="mt-2.5 flex-row flex-wrap items-center gap-1.5">
-                          {b.mode === 'video' ? (
-                            <View className="flex-row items-center gap-1 rounded-md bg-blue-100 px-2 py-0.5 dark:bg-blue-900/40">
-                              <Video size={10} color="#2563EB" />
-                              <Text className="font-sans-semibold text-[10px] text-blue-700 dark:text-blue-300">
-                                Video Telehealth
+                        {/* Format Location or Video Link Row */}
+                        {b.mode === 'in_person' ? (
+                          <View className="mt-2.5 flex-row items-center gap-1.5 rounded-xl bg-slate-100 px-3 py-1.5 dark:bg-slate-800">
+                            <MapPin size={11} color="#64748B" />
+                            <Text
+                              className="flex-1 font-sans text-[11px] text-slate-700 dark:text-slate-300"
+                              numberOfLines={1}
+                            >
+                              Rooms: {b.practiceAddress || currentDoctor.practiceAddress}
+                            </Text>
+                          </View>
+                        ) : (
+                          <View className="mt-2.5 flex-row items-center justify-between rounded-xl bg-blue-50/80 px-3 py-1.5 dark:bg-blue-950/30">
+                            <View className="flex-row items-center gap-1.5 flex-1 pr-2">
+                              <Video size={11} color="#2563EB" />
+                              <Text
+                                className="font-sans text-[11px] text-blue-800 dark:text-blue-300"
+                                numberOfLines={1}
+                              >
+                                Telehealth Room: siyashesha-{b.id}
                               </Text>
                             </View>
-                          ) : (
-                            <View className="flex-row items-center gap-1 rounded-md bg-slate-200 px-2 py-0.5 dark:bg-slate-700">
-                              <MapPin size={10} color="#64748B" />
-                              <Text className="font-sans-semibold text-[10px] text-slate-700 dark:text-slate-300">
-                                In-Person Practice Visit
-                              </Text>
-                            </View>
-                          )}
-
-                          {summary?.allergies && summary.allergies.length > 0 ? (
-                            <View className="flex-row items-center gap-1 rounded-md bg-rose-100 px-2 py-0.5 dark:bg-rose-950/40">
-                              <ShieldAlert size={10} color="#DC2626" />
-                              <Text className="font-sans-bold text-[10px] text-rose-700 dark:text-rose-300">
-                                {summary.allergies.length} {summary.allergies.length === 1 ? 'Allergy' : 'Allergies'}
-                              </Text>
-                            </View>
-                          ) : null}
-                        </View>
+                            <Text className="font-sans-bold text-[9px] uppercase text-blue-600 dark:text-blue-400">
+                              Ready
+                            </Text>
+                          </View>
+                        )}
                       </View>
 
                       {/* PRIMARY ACTION: VIEW PATIENT INFO */}
@@ -542,16 +646,6 @@ export function DoctorPracticeDashboard({ doctor }: DoctorPracticeDashboardProps
                       {/* Booking Operational Actions */}
                       {isConfirmed ? (
                         <View className="mt-2.5 flex-row gap-2 border-t border-slate-100 pt-2.5 dark:border-slate-800">
-                          <Pressable
-                            onPress={() => handleStatusChange(b.id, 'completed')}
-                            className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2 shadow-2xs active:bg-emerald-700"
-                          >
-                            <CheckCircle2 size={13} color="#FFFFFF" />
-                            <Text className="font-sans-bold text-[11px] text-white">
-                              Mark Completed
-                            </Text>
-                          </Pressable>
-
                           {b.mode === 'video' ? (
                             <Pressable
                               onPress={() => {
@@ -570,18 +664,28 @@ export function DoctorPracticeDashboard({ doctor }: DoctorPracticeDashboardProps
                                   ]
                                 );
                               }}
-                              className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl bg-brand-500 py-2 shadow-2xs active:bg-brand-600"
+                              className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl bg-blue-600 py-2.5 shadow-2xs active:bg-blue-700"
                             >
                               <Video size={13} color="#FFFFFF" />
                               <Text className="font-sans-bold text-[11px] text-white">
-                                Start Video
+                                Start Video Call
                               </Text>
                             </Pressable>
                           ) : null}
 
                           <Pressable
+                            onPress={() => handleStatusChange(b.id, 'completed')}
+                            className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2.5 shadow-2xs active:bg-emerald-700"
+                          >
+                            <CheckCircle2 size={13} color="#FFFFFF" />
+                            <Text className="font-sans-bold text-[11px] text-white">
+                              Mark Completed
+                            </Text>
+                          </Pressable>
+
+                          <Pressable
                             onPress={() => handleStatusChange(b.id, 'cancelled')}
-                            className="items-center justify-center rounded-xl border border-slate-200 px-3 py-2 dark:border-slate-700"
+                            className="items-center justify-center rounded-xl border border-slate-200 px-3 py-2.5 dark:border-slate-700"
                           >
                             <XCircle size={15} color="#DC2626" />
                           </Pressable>

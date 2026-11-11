@@ -1,14 +1,17 @@
 import {
   AlertTriangle,
+  Building,
   CheckCircle2,
   Droplet,
   Heart,
   Mail,
+  MapPin,
   Phone,
   Pill,
   ShieldAlert,
   Stethoscope,
   User,
+  Video,
   X,
 } from 'lucide-react-native';
 import { Linking, Modal, Pressable, ScrollView, Text, View } from 'react-native';
@@ -158,18 +161,62 @@ export function PatientClinicalSummaryModal({
             </View>
           </View>
 
-          {/* Booked Service & Consultation Reason */}
+          {/* Booked Service & Consultation Format */}
           <View className="mt-3.5 rounded-3xl border border-brand-200 bg-brand-50/70 p-4 dark:border-brand-900/50 dark:bg-brand-950/20">
-            <View className="flex-row items-center gap-1.5">
-              <Stethoscope size={15} color="#0B2559" />
-              <Text className="font-sans-bold text-[12px] uppercase tracking-wider text-brand-900 dark:text-brand-300">
-                Booked Service & Patient Notes
-              </Text>
+            <View className="flex-row items-center justify-between">
+              <View className="flex-row items-center gap-1.5">
+                <Stethoscope size={15} color="#0B2559" />
+                <Text className="font-sans-bold text-[12px] uppercase tracking-wider text-brand-900 dark:text-brand-300">
+                  Booked Consultation
+                </Text>
+              </View>
+
+              {/* Consultation Format Badge */}
+              {booking.mode === 'video' ? (
+                <View className="flex-row items-center gap-1 rounded-full bg-blue-100 px-2.5 py-1 dark:bg-blue-900/50">
+                  <Video size={11} color="#2563EB" />
+                  <Text className="font-sans-bold text-[10px] uppercase text-blue-700 dark:text-blue-300">
+                    Online Video
+                  </Text>
+                </View>
+              ) : (
+                <View className="flex-row items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 dark:bg-emerald-950/50">
+                  <Building size={11} color="#16A34A" />
+                  <Text className="font-sans-bold text-[10px] uppercase text-emerald-800 dark:text-emerald-300">
+                    Physical Rooms
+                  </Text>
+                </View>
+              )}
             </View>
-            <Text className="mt-1 font-sans-bold text-[14px] text-slate-900 dark:text-white">
+
+            <Text className="mt-2 font-sans-bold text-[14px] text-slate-900 dark:text-white">
               {booking.serviceName} ({booking.durationMinutes} mins)
             </Text>
-            <Text className="mt-1 font-sans text-[12px] leading-[18px] text-slate-700 dark:text-slate-300">
+
+            {booking.mode === 'in_person' ? (
+              <View className="mt-1.5 flex-row items-center gap-1.5">
+                <MapPin size={11} color="#64748B" />
+                <Text className="font-sans text-[11px] text-slate-600 dark:text-slate-300">
+                  {booking.practiceAddress || 'Physical Consulting Rooms'}
+                </Text>
+              </View>
+            ) : (
+              <View className="mt-1.5 flex-row items-center justify-between">
+                <Text className="font-sans text-[11px] text-blue-700 dark:text-blue-300">
+                  Telehealth Room: siyashesha-{booking.id}
+                </Text>
+                <Pressable
+                  onPress={() =>
+                    Linking.openURL('https://meet.jit.si/siyashesha-' + booking.id).catch(() => {})
+                  }
+                  className="rounded-full bg-brand-500 px-3 py-1 active:bg-brand-600"
+                >
+                  <Text className="font-sans-bold text-[10px] text-white">Join Call</Text>
+                </Pressable>
+              </View>
+            )}
+
+            <Text className="mt-2 font-sans text-[12px] leading-[18px] text-slate-700 dark:text-slate-300">
               {booking.notes ? `“${booking.notes}”` : 'Routine check-up / consultation request.'}
             </Text>
           </View>
