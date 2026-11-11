@@ -43,6 +43,54 @@ export interface DoctorProfile {
   createdAt: string;
 }
 
+export interface PatientClinicalSummary {
+  bloodGroup?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  allergies?: { substance: string; reaction: string }[];
+  chronicConditions?: string[];
+  activeMedications?: string[];
+  emergencyContact?: { name: string; relationship: string; phone: string };
+  vitalNotes?: string;
+}
+
+export interface DoctorConsultationNotes {
+  subjective: string;
+  objective: string;
+  assessment: string;
+  plan: string;
+  icd10Code?: string;
+  recordedAt: string;
+}
+
+export interface DoctorPrescriptionItem {
+  id: string;
+  medicationName: string;
+  dosage: string;
+  instructions: string;
+  durationDays: number;
+  repeats: number;
+  quantity: string;
+}
+
+export interface DoctorSickCertificate {
+  id: string;
+  certificateNumber: string;
+  patientName: string;
+  patientIdNumber?: string;
+  dateOfExamination: string;
+  incapacityStartDate: string;
+  incapacityEndDate: string;
+  resumeDutyDate: string;
+  natureOfIncapacity: 'confidential' | 'specified';
+  diagnosisStatement?: string;
+  recommendation: string;
+  doctorName: string;
+  doctorHpcsaNumber: string;
+  doctorPracticeNumber?: string;
+  issuedAt: string;
+}
+
 export interface DoctorBooking {
   id: string;
   doctorId: string;
@@ -64,6 +112,10 @@ export interface DoctorBooking {
   notes?: string;
   status: 'confirmed' | 'completed' | 'cancelled';
   linkedAppointmentId?: string;
+  patientSummary?: PatientClinicalSummary;
+  clinicalNotes?: DoctorConsultationNotes;
+  prescriptions?: DoctorPrescriptionItem[];
+  sickNote?: DoctorSickCertificate;
   createdAt: string;
 }
 
@@ -525,6 +577,23 @@ export const initialDoctorBookings: DoctorBooking[] = [
     mode: 'in_person',
     notes: 'Persistent dry cough, mild fever, and chest tightness following flu.',
     status: 'confirmed',
+    patientSummary: {
+      bloodGroup: 'O+',
+      dateOfBirth: '1988-06-14',
+      gender: 'Male',
+      allergies: [
+        { substance: 'Penicillin', reaction: 'Severe anaphylactic shock & urticaria' },
+        { substance: 'Aspirin (NSAIDs)', reaction: 'Bronchospasm / acute wheezing' },
+      ],
+      chronicConditions: ['Moderate Persistent Asthma', 'Seasonal Allergic Rhinitis'],
+      activeMedications: ['Salbutamol Inhaler 100mcg PRN', 'Budesonide Turbuhaler 200mcg BD'],
+      emergencyContact: {
+        name: 'Nomsa Sithole',
+        relationship: 'Spouse',
+        phone: '+27 82 999 1234',
+      },
+      vitalNotes: 'Known asthmatic; peak flow at last visit 380 L/min (baseline 460).',
+    },
     createdAt: new Date(Date.now() - 86400000).toISOString(),
   },
   {
@@ -547,6 +616,22 @@ export const initialDoctorBookings: DoctorBooking[] = [
     mode: 'video',
     notes: 'Routine review of chronic hypertension script and recent home blood pressure readings.',
     status: 'confirmed',
+    patientSummary: {
+      bloodGroup: 'A+',
+      dateOfBirth: '1979-11-22',
+      gender: 'Female',
+      allergies: [
+        { substance: 'Sulfa antibiotics (Bactrim)', reaction: 'Erythematous rash & facial edema' },
+      ],
+      chronicConditions: ['Essential Hypertension (Stage 2)', 'Mild Dyslipidemia'],
+      activeMedications: ['Amlodipine 5mg Daily', 'Atorvastatin 20mg Nocte'],
+      emergencyContact: {
+        name: 'Bongani Molefe',
+        relationship: 'Brother',
+        phone: '+27 83 999 5678',
+      },
+      vitalNotes: 'Home BP log average: 136/84 mmHg over past 14 days.',
+    },
     createdAt: new Date(Date.now() - 72000000).toISOString(),
   },
   {
@@ -569,6 +654,20 @@ export const initialDoctorBookings: DoctorBooking[] = [
     mode: 'in_person',
     notes: 'Annual executive corporate medical screening and resting ECG examination.',
     status: 'confirmed',
+    patientSummary: {
+      bloodGroup: 'B+',
+      dateOfBirth: '1974-03-08',
+      gender: 'Male',
+      allergies: [],
+      chronicConditions: ['Borderline Hypercholesterolemia'],
+      activeMedications: ['Omega-3 1000mg Daily', 'Vitamin D3 2000IU'],
+      emergencyContact: {
+        name: 'Clara Van Zyl',
+        relationship: 'Spouse',
+        phone: '+27 84 111 2233',
+      },
+      vitalNotes: 'Non-smoker; resting pulse 64 bpm.',
+    },
     createdAt: new Date(Date.now() - 120000000).toISOString(),
   },
   {
@@ -591,6 +690,20 @@ export const initialDoctorBookings: DoctorBooking[] = [
     mode: 'in_person',
     notes: '6-month baby developmental milestone assessment and routine vaccination schedule.',
     status: 'confirmed',
+    patientSummary: {
+      bloodGroup: 'O+',
+      dateOfBirth: '2026-05-10',
+      gender: 'Female',
+      allergies: [],
+      chronicConditions: [],
+      activeMedications: [],
+      emergencyContact: {
+        name: 'Thandi Mokoena',
+        relationship: 'Mother',
+        phone: '+27 82 901 2345',
+      },
+      vitalNotes: 'Weight: 7.8 kg (50th percentile), head circ: 43 cm.',
+    },
     createdAt: new Date(Date.now() - 150000000).toISOString(),
   },
   {
@@ -613,6 +726,38 @@ export const initialDoctorBookings: DoctorBooking[] = [
     mode: 'in_person',
     notes: 'Review of Lancet Laboratories thyroid TSH panel results; renewed Eltroxin repeat script.',
     status: 'completed',
+    patientSummary: {
+      bloodGroup: 'AB+',
+      dateOfBirth: '1982-08-30',
+      gender: 'Female',
+      allergies: [{ substance: 'Codeine', reaction: 'Severe nausea & vomiting' }],
+      chronicConditions: ['Primary Hypothyroidism'],
+      activeMedications: ['Eltroxin 100mcg Daily'],
+      emergencyContact: {
+        name: 'Jabulani Khumalo',
+        relationship: 'Husband',
+        phone: '+27 71 888 9900',
+      },
+    },
+    clinicalNotes: {
+      subjective: 'Patient presents for review of thyroid panel. Reports improved energy levels, good sleep, no heat intolerance or palpitations.',
+      objective: 'BP 122/78 mmHg, HR 68 bpm regular. Thyroid non-tender, no palpable nodules. Recent Lancet TSH 2.1 mIU/L (euthyroid).',
+      assessment: 'Primary Hypothyroidism, clinically and biochemically well-controlled on current Levothyroxine dosage (E03.9).',
+      plan: 'Continue Eltroxin 100mcg daily fasting. Repeat TSH & Free T4 in 6 months. 6-month repeat script issued.',
+      icd10Code: 'E03.9',
+      recordedAt: new Date(Date.now() - 250000000).toISOString(),
+    },
+    prescriptions: [
+      {
+        id: 'rx-005-1',
+        medicationName: 'Eltroxin (Levothyroxine Sodium) 100mcg',
+        dosage: '1 tablet daily',
+        instructions: 'Take 30 minutes before breakfast with full glass of water',
+        durationDays: 30,
+        repeats: 5,
+        quantity: '30 tablets',
+      },
+    ],
     createdAt: new Date(Date.now() - 250000000).toISOString(),
   },
   {
@@ -635,6 +780,44 @@ export const initialDoctorBookings: DoctorBooking[] = [
     mode: 'in_person',
     notes: 'Follow-up check for acute bronchitis resolution; clear lung auscultation confirmed.',
     status: 'completed',
+    patientSummary: {
+      bloodGroup: 'O-',
+      dateOfBirth: '1985-03-12',
+      gender: 'Male',
+      allergies: [],
+      chronicConditions: ['None reported'],
+      activeMedications: ['Amoxicillin 500mg completed'],
+      emergencyContact: {
+        name: 'Zodwa Dlamini',
+        relationship: 'Spouse',
+        phone: '+27 76 555 4321',
+      },
+    },
+    clinicalNotes: {
+      subjective: 'Follow-up consultation for acute bronchitis. Cough markedly reduced, productive of minimal clear phlegm. No fevers.',
+      objective: 'Temp 36.6 C, SpO2 98% room air. Chest: Vesicular breath sounds bilaterally, no wheezes or crackles remaining.',
+      assessment: 'Resolving Acute Bronchitis (J20.9). Patient recovering well.',
+      plan: 'Finish residual course of supportive therapy. Resume full physical training next week.',
+      icd10Code: 'J20.9',
+      recordedAt: new Date(Date.now() - 350000000).toISOString(),
+    },
+    sickNote: {
+      id: 'sn-006',
+      certificateNumber: 'MC-2026-08492-06',
+      patientName: 'Sipho Dlamini',
+      patientIdNumber: '8503125200084',
+      dateOfExamination: getRelativeDate(-3),
+      incapacityStartDate: getRelativeDate(-3),
+      incapacityEndDate: getRelativeDate(-1),
+      resumeDutyDate: getRelativeDate(0),
+      natureOfIncapacity: 'specified',
+      diagnosisStatement: 'Acute exacerbation of bronchitis with severe nocturnal cough',
+      recommendation: 'Unfit for normal workplace duties. Recommended rest and isolation from cold exposure.',
+      doctorName: 'Dr. Thobani Gabuza',
+      doctorHpcsaNumber: 'MP 0849210',
+      doctorPracticeNumber: '0542318',
+      issuedAt: new Date(Date.now() - 350000000).toISOString(),
+    },
     createdAt: new Date(Date.now() - 350000000).toISOString(),
   },
   {

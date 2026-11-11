@@ -16,8 +16,12 @@ import type { MedicalRecord } from '@/data/records';
 import type { SharedLink, ShareDuration } from '@/data/sharing';
 import {
   type DoctorBooking,
+  type DoctorConsultationNotes,
+  type DoctorPrescriptionItem,
   type DoctorProfile,
   type DoctorService,
+  type DoctorSickCertificate,
+  type PatientClinicalSummary,
   initialDoctorBookings,
   initialDoctors,
 } from '@/data/doctors';
@@ -409,6 +413,15 @@ interface AppState {
   updateDoctorBookingStatus: (
     bookingId: string,
     status: 'confirmed' | 'completed' | 'cancelled'
+  ) => void;
+  updateDoctorBookingClinical: (
+    bookingId: string,
+    updates: {
+      clinicalNotes?: DoctorConsultationNotes;
+      prescriptions?: DoctorPrescriptionItem[];
+      sickNote?: DoctorSickCertificate;
+      status?: 'confirmed' | 'completed' | 'cancelled';
+    }
   ) => void;
 
   // POPIA §24 / HIPAA Data Subject Erasure
@@ -1792,6 +1805,17 @@ export const useAppStore = create<AppState>()(
         const patientPhone = bookingData.patientPhone || state.patientProfile.phone || '';
         const patientEmail = bookingData.patientEmail || state.patientProfile.email || '';
 
+        const patientSummary: PatientClinicalSummary = {
+          bloodGroup: state.patientProfile.bloodGroup || undefined,
+          dateOfBirth: state.patientProfile.dateOfBirth || undefined,
+          gender: state.patientProfile.gender || undefined,
+          allergies: state.patientProfile.allergies,
+          chronicConditions: state.patientProfile.chronicConditions,
+          emergencyContact: state.patientProfile.emergencyContact?.name
+            ? state.patientProfile.emergencyContact
+            : undefined,
+        };
+
         const newBooking: DoctorBooking = {
           id: bookingId,
           doctorId: doctor.id,
@@ -1811,6 +1835,7 @@ export const useAppStore = create<AppState>()(
           time: bookingData.time,
           mode: bookingData.mode,
           notes: bookingData.notes,
+          patientSummary,
           status: 'confirmed',
           linkedAppointmentId: apptId,
           createdAt: now,
@@ -1859,6 +1884,28 @@ export const useAppStore = create<AppState>()(
           const nextAppts = linkedApptId
             ? s.appointments.map((a) => (a.id === linkedApptId ? { ...a, status } : a))
             : s.appointments;
+          return { doctorBookings: nextBookings, appointments: nextAppts };
+        }),
+      updateDoctorBookingClinical: (bookingId, updates) =>
+        set((s) => {
+          let linkedApptId: string | undefined;
+          const nextBookings = s.doctorBookings.map((b) => {
+            if (b.id === bookingId) {
+              linkedApptId = b.linkedAppointmentId;
+              return {
+                ...b,
+                ...(updates.clinicalNotes !== undefined ? { clinicalNotes: updates.clinicalNotes } : {}),
+                ...(updates.prescriptions !== undefined ? { prescriptions: updates.prescriptions } : {}),
+                ...(updates.sickNote !== undefined ? { sickNote: updates.sickNote } : {}),
+                ...(updates.status ? { status: updates.status } : {}),
+              };
+            }
+            return b;
+          });
+          const nextAppts =
+            linkedApptId && updates.status
+              ? s.appointments.map((a) => (a.id === linkedApptId ? { ...a, status: updates.status! } : a))
+              : s.appointments;
           return { doctorBookings: nextBookings, appointments: nextAppts };
         }),
 

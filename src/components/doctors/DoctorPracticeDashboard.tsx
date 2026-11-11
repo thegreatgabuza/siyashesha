@@ -4,14 +4,18 @@ import {
   CheckCircle2,
   Clock,
   Edit2,
+  FileCheck2,
+  FileText,
   LogOut,
   MapPin,
   Phone,
+  Pill,
   Plus,
   ShieldCheck,
   Stethoscope,
   Trash2,
   User,
+  UserCheck,
   Users,
   Video,
   XCircle,
@@ -20,10 +24,13 @@ import { useState } from 'react';
 import { Alert, Linking, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { DoctorClinicalEncounterModal } from '@/components/doctors/DoctorClinicalEncounterModal';
 import { DoctorServiceModal } from '@/components/doctors/DoctorServiceModal';
+import { DoctorSickNoteModal } from '@/components/doctors/DoctorSickNoteModal';
+import { PatientClinicalSummaryModal } from '@/components/doctors/PatientClinicalSummaryModal';
 import { Screen } from '@/components/ui/Screen';
 import { useToast } from '@/components/ui/Toast';
-import { initialDoctors, type DoctorProfile, type DoctorService } from '@/data/doctors';
+import { initialDoctors, type DoctorBooking, type DoctorProfile, type DoctorService } from '@/data/doctors';
 import { tapFeedback } from '@/lib/feedback';
 import { useAppStore } from '@/store/useAppStore';
 
@@ -42,6 +49,7 @@ export function DoctorPracticeDashboard({ doctor }: DoctorPracticeDashboardProps
   const updateDoctorService = useAppStore((s) => s.updateDoctorService);
   const deleteDoctorService = useAppStore((s) => s.deleteDoctorService);
   const updateDoctorBookingStatus = useAppStore((s) => s.updateDoctorBookingStatus);
+  const updateDoctorBookingClinical = useAppStore((s) => s.updateDoctorBookingClinical);
   const signOut = useAppStore((s) => s.signOut);
 
   // Active doctor profile resolution
@@ -54,6 +62,11 @@ export function DoctorPracticeDashboard({ doctor }: DoctorPracticeDashboardProps
   const [activeTab, setActiveTab] = useState<'bookings' | 'services' | 'settings'>('bookings');
   const [serviceModalOpen, setServiceModalOpen] = useState(false);
   const [editingService, setEditingService] = useState<DoctorService | null>(null);
+
+  // Clinical encounter modals state
+  const [passportModalBooking, setPassportModalBooking] = useState<DoctorBooking | null>(null);
+  const [clinicalEncounterBooking, setClinicalEncounterBooking] = useState<DoctorBooking | null>(null);
+  const [sickNoteBooking, setSickNoteBooking] = useState<DoctorBooking | null>(null);
 
   // Filter bookings for this doctor
   const myBookings = doctorBookings.filter(
@@ -398,7 +411,7 @@ export function DoctorPracticeDashboard({ doctor }: DoctorPracticeDashboardProps
                           </Text>
                         ) : null}
 
-                        <View className="mt-2 flex-row items-center gap-1.5">
+                        <View className="mt-2.5 flex-row flex-wrap items-center gap-1.5">
                           {b.mode === 'video' ? (
                             <View className="flex-row items-center gap-1 rounded-md bg-blue-100 px-2 py-0.5 dark:bg-blue-900/40">
                               <Video size={10} color="#2563EB" />
@@ -414,12 +427,100 @@ export function DoctorPracticeDashboard({ doctor }: DoctorPracticeDashboardProps
                               </Text>
                             </View>
                           )}
+
+                          {/* Badges for Recorded Clinical Artifacts */}
+                          {b.clinicalNotes ? (
+                            <Pressable
+                              onPress={() => {
+                                tapFeedback();
+                                setClinicalEncounterBooking(b);
+                              }}
+                              className="flex-row items-center gap-1 rounded-md bg-emerald-100 px-2 py-0.5 dark:bg-emerald-950/40"
+                            >
+                              <CheckCircle2 size={10} color="#16A34A" />
+                              <Text className="font-sans-bold text-[10px] text-emerald-800 dark:text-emerald-300">
+                                Notes Recorded
+                              </Text>
+                            </Pressable>
+                          ) : null}
+
+                          {b.prescriptions && b.prescriptions.length > 0 ? (
+                            <Pressable
+                              onPress={() => {
+                                tapFeedback();
+                                setClinicalEncounterBooking(b);
+                              }}
+                              className="flex-row items-center gap-1 rounded-md bg-purple-100 px-2 py-0.5 dark:bg-purple-950/40"
+                            >
+                              <Pill size={10} color="#9333EA" />
+                              <Text className="font-sans-bold text-[10px] text-purple-800 dark:text-purple-300">
+                                Rx: {b.prescriptions.length} {b.prescriptions.length === 1 ? 'Item' : 'Items'}
+                              </Text>
+                            </Pressable>
+                          ) : null}
+
+                          {b.sickNote ? (
+                            <Pressable
+                              onPress={() => {
+                                tapFeedback();
+                                setSickNoteBooking(b);
+                              }}
+                              className="flex-row items-center gap-1 rounded-md bg-blue-100 px-2 py-0.5 dark:bg-blue-950/40"
+                            >
+                              <FileText size={10} color="#2563EB" />
+                              <Text className="font-sans-bold text-[10px] text-blue-800 dark:text-blue-300">
+                                Sick Note
+                              </Text>
+                            </Pressable>
+                          ) : null}
                         </View>
                       </View>
 
-                      {/* Doctor Clinical Actions */}
+                      {/* Clinical Actions Bar (Available on ALL bookings) */}
+                      <View className="mt-3 flex-row gap-2 border-t border-slate-100 pt-2.5 dark:border-slate-800">
+                        <Pressable
+                          onPress={() => {
+                            tapFeedback();
+                            setPassportModalBooking(b);
+                          }}
+                          className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white py-2 active:bg-slate-50 dark:border-slate-700 dark:bg-slate-800"
+                        >
+                          <UserCheck size={12} color="#0B2559" />
+                          <Text className="font-sans-bold text-[11px] text-slate-800 dark:text-white">
+                            Passport
+                          </Text>
+                        </Pressable>
+
+                        <Pressable
+                          onPress={() => {
+                            tapFeedback();
+                            setClinicalEncounterBooking(b);
+                          }}
+                          className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl border border-brand-200 bg-brand-50/80 py-2 active:bg-brand-100 dark:border-brand-900/60 dark:bg-brand-950/40"
+                        >
+                          <Stethoscope size={12} color="#0B2559" />
+                          <Text className="font-sans-bold text-[11px] text-brand-900 dark:text-brand-300">
+                            Notes & Rx
+                          </Text>
+                        </Pressable>
+
+                        <Pressable
+                          onPress={() => {
+                            tapFeedback();
+                            setSickNoteBooking(b);
+                          }}
+                          className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/80 py-2 active:bg-emerald-100 dark:border-emerald-900/60 dark:bg-emerald-950/40"
+                        >
+                          <FileCheck2 size={12} color="#16A34A" />
+                          <Text className="font-sans-bold text-[11px] text-emerald-800 dark:text-emerald-300">
+                            Sick Note
+                          </Text>
+                        </Pressable>
+                      </View>
+
+                      {/* Doctor Consultation Status Actions */}
                       {isConfirmed ? (
-                        <View className="mt-3 flex-row gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
+                        <View className="mt-2 flex-row gap-2">
                           <Pressable
                             onPress={() => handleStatusChange(b.id, 'completed')}
                             className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2 shadow-2xs active:bg-emerald-700"
@@ -694,6 +795,56 @@ export function DoctorPracticeDashboard({ doctor }: DoctorPracticeDashboardProps
             updateDoctorService(editingId, data);
           } else {
             addDoctorService(data);
+          }
+        }}
+      />
+
+      {/* Patient Clinical Passport Modal */}
+      <PatientClinicalSummaryModal
+        visible={passportModalBooking !== null}
+        booking={passportModalBooking}
+        onClose={() => setPassportModalBooking(null)}
+        onOpenClinicalNotes={() => {
+          if (passportModalBooking) {
+            setClinicalEncounterBooking(passportModalBooking);
+          }
+        }}
+        onOpenSickNote={() => {
+          if (passportModalBooking) {
+            setSickNoteBooking(passportModalBooking);
+          }
+        }}
+      />
+
+      {/* Doctor Clinical Encounter & e-Script Modal */}
+      <DoctorClinicalEncounterModal
+        visible={clinicalEncounterBooking !== null}
+        booking={clinicalEncounterBooking}
+        doctor={currentDoctor}
+        onClose={() => setClinicalEncounterBooking(null)}
+        onSave={({ clinicalNotes, prescriptions, markCompleted }) => {
+          if (clinicalEncounterBooking) {
+            updateDoctorBookingClinical(clinicalEncounterBooking.id, {
+              clinicalNotes,
+              prescriptions,
+              status: markCompleted ? 'completed' : clinicalEncounterBooking.status,
+            });
+          }
+        }}
+      />
+
+      {/* HPCSA Medical Sick Certificate Modal */}
+      <DoctorSickNoteModal
+        visible={sickNoteBooking !== null}
+        booking={sickNoteBooking}
+        doctor={currentDoctor}
+        existingSickNote={sickNoteBooking?.sickNote}
+        onClose={() => setSickNoteBooking(null)}
+        onSave={(sickNote) => {
+          if (sickNoteBooking) {
+            updateDoctorBookingClinical(sickNoteBooking.id, {
+              sickNote,
+            });
           }
         }}
       />

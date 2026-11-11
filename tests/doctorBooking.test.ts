@@ -4,9 +4,15 @@ import { describe, it } from 'node:test';
 import {
   initialDoctorBookings,
   initialDoctors,
+  type DoctorBooking,
   type DoctorProfile,
   type DoctorService,
+  type DoctorSickCertificate,
 } from '@/data/doctors';
+import {
+  generateDoctorPrescriptionHtml,
+  generateHpcsaSickNoteHtml,
+} from '@/lib/clinicalPdfTemplates';
 import {
   calculateDoctorBookingStats,
   createDoctorBookingPayload,
@@ -278,5 +284,118 @@ describe('Doctor Role, Services Management & Patient Booking', () => {
     const nullAuth = resolveUserRoleForEmail(null, initialDoctors);
     assert.equal(nullAuth.userRole, 'patient');
     assert.equal(nullAuth.doctor, null);
+  });
+
+  it('validates pre-consult patient passport summaries and safety critical allergies', () => {
+    const kagisoBooking = initialDoctorBookings.find((b) => b.patientName === 'Kagiso Sithole');
+    assert.ok(kagisoBooking, 'Expected Kagiso Sithole booking');
+    assert.ok(kagisoBooking.patientSummary, 'Must contain patient clinical summary');
+    assert.equal(kagisoBooking.patientSummary.bloodGroup, 'O+');
+    assert.ok(
+      kagisoBooking.patientSummary.allergies?.some((a) => a.substance.includes('Penicillin')),
+      'Must have safety-critical Penicillin allergy recorded'
+    );
+    assert.ok(
+      kagisoBooking.patientSummary.chronicConditions?.includes('Moderate Persistent Asthma'),
+      'Must have Asthma chronic condition'
+    );
+    assert.ok(kagisoBooking.patientSummary.emergencyContact?.name, 'Must have ICE contact');
+
+    const leratoBooking = initialDoctorBookings.find((b) => b.patientName === 'Lerato Molefe');
+    assert.ok(leratoBooking?.patientSummary);
+    assert.equal(leratoBooking.patientSummary.bloodGroup, 'A+');
+    assert.ok(
+      leratoBooking.patientSummary.allergies?.some((a) => a.substance.includes('Sulfa')),
+      'Must have Sulfa allergy recorded'
+    );
+  });
+
+  it('generates HPCSA Rule 16 compliant Medical Certificate (Sick Note) HTML', () => {
+    const doctor = initialDoctors[0]; // Dr. Thobani Gabuza
+    const cert: DoctorSickCertificate = {
+      id: 'sn-test-01',
+      certificateNumber: 'MC-2026-08492-99',
+      patientName: 'Kagiso Sithole',
+      patientIdNumber: '8806145800082',
+      dateOfExamination: '2026-11-11',
+      incapacityStartDate: '2026-11-11',
+      incapacityEndDate: '2026-11-13',
+      resumeDutyDate: '2026-11-14',
+      natureOfIncapacity: 'specified',
+      diagnosisStatement: 'Acute upper respiratory tract infection (J06.9)',
+      recommendation: 'Complete bed rest and isolation from cold exposure.',
+      doctorName: `${doctor.title} ${doctor.fullName}`,
+      doctorHpcsaNumber: doctor.hpcsaNumber,
+      doctorPracticeNumber: '0542318',
+      issuedAt: '2026-11-11T12:00:00Z',
+    };
+
+    const html = generateHpcsaSickNoteHtml(cert, doctor);
+    assert.ok(html.includes('Medical Certificate of Incapacity'));
+    assert.ok(html.includes('Dr. Thobani Gabuza'));
+    assert.ok(html.includes('MP 0849210'));
+    assert.ok(html.includes('Kagiso Sithole'));
+    assert.ok(html.includes('8806145800082'));
+    assert.ok(html.includes('Acute upper respiratory tract infection (J06.9)'));
+    assert.ok(html.includes('HPCSA Rule 16'));
+    assert.ok(html.includes('11 November 2026'));
+    assert.ok(html.includes('14 November 2026'));
+
+    // Check confidentiality mode
+    const confidentialCert: DoctorSickCertificate = {
+      ...cert,
+      natureOfIncapacity: 'confidential',
+      diagnosisStatement: undefined,
+    };
+    const confidentialHtml = generateHpcsaSickNoteHtml(confidentialCert, doctor);
+    assert.ok(confidentialHtml.includes('Confidential medical condition as diagnosed by me'));
+    assert.ok(confidentialHtml.includes('HPCSA Rule 16(1)(g)'));
+    assert.ok(!confidentialHtml.includes('Acute upper respiratory tract infection'));
+  });
+
+  it('generates official South African Electronic Prescription (e-Script) HTML', () => {
+    const doctor = initialDoctors[0];
+    const booking = initialDoctorBookings[0];
+
+    const html = generateDoctorPrescriptionHtml({
+      doctor,
+      booking,
+      prescriptions: [
+        {
+          id: 'rx-test-1',
+          medicationName: 'Amoxicillin 500mg',
+          dosage: '1 capsule TDS',
+          instructions: 'Take after meals for 5 days',
+          durationDays: 5,
+          repeats: 0,
+          quantity: '15 capsules',
+        },
+        {
+          id: 'rx-test-2',
+          medicationName: 'Salbutamol Inhaler 100mcg',
+          dosage: '1-2 puffs PRN',
+          instructions: 'Inhale for acute wheezing',
+          durationDays: 30,
+          repeats: 1,
+          quantity: '1 canister',
+        },
+      ],
+      clinicalNotes: {
+        subjective: 'Persistent dry cough and wheeze',
+        objective: 'Mild expiratory wheeze bilaterally',
+        assessment: 'Acute Bronchitis with Bronchospasm',
+        plan: 'Antibiotics and bronchodilator therapy',
+        recordedAt: '2026-11-11T12:00:00Z',
+      },
+    });
+
+    assert.ok(html.includes('Electronic Prescription (e-Script)'));
+    assert.ok(html.includes('Amoxicillin 500mg'));
+    assert.ok(html.includes('1 capsule TDS'));
+    assert.ok(html.includes('Salbutamol Inhaler 100mcg'));
+    assert.ok(html.includes('1x Repeats'));
+    assert.ok(html.includes('Acute Bronchitis with Bronchospasm'));
+    assert.ok(html.includes('MP 0849210'));
+    assert.ok(html.includes(booking.patientName));
   });
 });
