@@ -14,7 +14,6 @@ import {
   Star,
   Stethoscope,
   User,
-  Video,
   X,
 } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
@@ -420,8 +419,13 @@ export default function FindDoctorsScreen() {
                   key={doc.id}
                   className="rounded-3xl border border-slate-200/80 bg-white p-4 shadow-2xs dark:border-slate-800 dark:bg-canvasdark-card"
                 >
-                  {/* Doctor Profile Row */}
-                  <View className="flex-row items-start gap-3">
+                  {/* Doctor Profile Row (clickable to view and book) */}
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`View ${doc.title} ${doc.fullName} and book appointment`}
+                    onPress={() => handleOpenBooking(doc)}
+                    className="flex-row items-start gap-3"
+                  >
                     <View className="relative">
                       <View className="h-14 w-14 overflow-hidden rounded-2xl bg-brand-100 dark:bg-brand-500/20">
                         {doc.avatarUrl ? (
@@ -481,7 +485,7 @@ export default function FindDoctorsScreen() {
                         </Text>
                       </View>
                     </View>
-                  </View>
+                  </Pressable>
 
                   {/* Patient Testimonial Quote */}
                   {doc.patientHighlight ? (
@@ -520,9 +524,11 @@ export default function FindDoctorsScreen() {
                           Next Available Slots
                         </Text>
                       </View>
-                      <Text className="font-sans-medium text-[10px] text-brand-600 dark:text-brand-300">
-                        Tap slot to book
-                      </Text>
+                      <Pressable onPress={() => handleOpenBooking(doc)}>
+                        <Text className="font-sans-medium text-[10px] text-brand-600 dark:text-brand-300">
+                          Tap slot to book &rarr;
+                        </Text>
+                      </Pressable>
                     </View>
 
                     {hasAnySlot ? (
@@ -570,21 +576,23 @@ export default function FindDoctorsScreen() {
                   </View>
 
                   {/* Card Bottom CTA Row */}
-                  <View className="mt-3 flex-row items-center justify-between">
+                  <View className="mt-3 flex-row items-center justify-between border-t border-slate-100 pt-2.5 dark:border-slate-800">
                     <View className="flex-row items-center gap-1.5">
                       <Clock size={12} color="#64748B" />
                       <Text className="font-sans text-[11px] text-slate-500 dark:text-slate-400">
-                        {activeServices.length} {activeServices.length === 1 ? 'service' : 'services'}
+                        {activeServices.length} {activeServices.length === 1 ? 'service' : 'services'} available
                       </Text>
                     </View>
 
                     <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Book appointment with ${doc.title} ${doc.fullName}`}
                       onPress={() => handleOpenBooking(doc)}
-                      className="flex-row items-center gap-1.5 rounded-xl bg-brand-500 px-3.5 py-1.5 shadow-2xs active:bg-brand-600"
+                      className="flex-row items-center gap-1.5 rounded-xl bg-brand-500 px-4 py-2 shadow-2xs active:bg-brand-600"
                     >
-                      <Video size={12} color="#FFFFFF" />
-                      <Text className="font-sans-bold text-[11px] text-white">
-                        View Times & Book
+                      <Calendar size={13} color="#FFFFFF" />
+                      <Text className="font-sans-bold text-[12px] text-white">
+                        Book Appointment
                       </Text>
                     </Pressable>
                   </View>
