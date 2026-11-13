@@ -24,6 +24,7 @@ import { Screen } from '@/components/ui/Screen';
 import { useToast } from '@/components/ui/Toast';
 import { initialDoctors, type DoctorBooking, type DoctorProfile } from '@/data/doctors';
 import { formatDayMonth } from '@/lib/date';
+import { getTelehealthRoomUrl } from '@/lib/doctorBooking';
 import { tapFeedback } from '@/lib/feedback';
 import { useAppStore } from '@/store/useAppStore';
 
@@ -108,8 +109,7 @@ export function DoctorPracticeDashboard({ doctor }: DoctorPracticeDashboardProps
 
   const handleJoinVideo = (booking: DoctorBooking) => {
     tapFeedback();
-    const roomName = `siyashesha-consult-${booking.id.replace(/[^a-zA-Z0-9]/g, '')}`;
-    const jitsiUrl = `https://meet.jit.si/${roomName}`;
+    const jitsiUrl = getTelehealthRoomUrl(booking.id);
     Linking.openURL(jitsiUrl).catch(() => {
       toast.show('Unable to launch video meeting browser', 'warning');
     });

@@ -17,9 +17,10 @@ import {
   Stethoscope,
   Target,
   Trash2,
+  Video,
 } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
-import { Alert, FlatList, Platform, Pressable, Text, View } from 'react-native';
+import { Alert, FlatList, Linking, Platform, Pressable, Text, View } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 
 import { CalendarDayCell } from '@/components/CalendarDayCell';
@@ -41,6 +42,7 @@ import { DoctorPracticeScheduleScreen } from '@/components/doctors/DoctorPractic
 import { useAccent } from '@/hooks/useAccent';
 import { getDayAgenda, getMonthMarks, upcomingHealthDays } from '@/lib/calendarMarks';
 import { formatDayMonth, formatFriendlyDate, formatTime12 } from '@/lib/date';
+import { extractTelehealthUrl, getTelehealthRoomUrl } from '@/lib/doctorBooking';
 import { healthDayIcons } from '@/lib/healthDayIcons';
 import { useI18n } from '@/i18n/useI18n';
 import { useAppStore } from '@/store/useAppStore';
@@ -62,6 +64,7 @@ function PatientCalendarScreen() {
   const toast = useToast();
 
   const appointments = useAppStore((s) => s.appointments);
+  const doctorBookings = useAppStore((s) => s.doctorBookings);
   const records = useAppStore((s) => s.records);
   const addAppointment = useAppStore((s) => s.addAppointment);
   const updateAppointment = useAppStore((s) => s.updateAppointment);
@@ -379,7 +382,13 @@ function PatientCalendarScreen() {
             {/* Appointments */}
             {agenda.appointments.map((appt) => {
               const isCompleted = appt.status === 'completed';
+              const isCancelled = appt.status === 'cancelled';
               const linkedDoc = appt.linkedRecordId ? records.find((r) => r.id === appt.linkedRecordId) : null;
+              const matchedBooking = doctorBookings.find((b) => b.linkedAppointmentId === appt.id);
+              const videoCallUrl =
+                appt.telehealthUrl ||
+                extractTelehealthUrl(appt.notes) ||
+                (matchedBooking?.mode === 'video' ? getTelehealthRoomUrl(matchedBooking.id) : undefined);
 
               return (
                 <View
@@ -517,6 +526,32 @@ function PatientCalendarScreen() {
                             Prep notes: {appt.notes}
                           </Txt>
                         </View>
+                      ) : null}
+
+                      {videoCallUrl && !isCancelled ? (
+                        <PressableScale
+                          onPress={() => {
+                            Linking.openURL(videoCallUrl).catch(() => {
+                              toast.show('Unable to open telehealth video call', 'warning');
+                            });
+                          }}
+                          style={{
+                            marginTop: 10,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 6,
+                            backgroundColor: '#059669',
+                            paddingHorizontal: 12,
+                            paddingVertical: 9,
+                            borderRadius: radii.md,
+                          }}
+                        >
+                          <Video size={14} color="#FFFFFF" />
+                          <Txt variant="footnote" color="#FFFFFF" style={{ fontFamily: fonts.semibold }}>
+                            Join Video Call
+                          </Txt>
+                        </PressableScale>
                       ) : null}
                     </View>
                   </View>

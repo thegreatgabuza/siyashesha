@@ -18,6 +18,7 @@ import { Linking, Modal, Pressable, ScrollView, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { DoctorBooking } from '@/data/doctors';
+import { getTelehealthRoomName, getTelehealthRoomUrl } from '@/lib/doctorBooking';
 import { tapFeedback } from '@/lib/feedback';
 
 interface PatientClinicalSummaryModalProps {
@@ -203,11 +204,11 @@ export function PatientClinicalSummaryModal({
             ) : (
               <View className="mt-1.5 flex-row items-center justify-between">
                 <Text className="font-sans text-[11px] text-blue-700 dark:text-blue-300">
-                  Telehealth Room: siyashesha-{booking.id}
+                  Telehealth Room: {getTelehealthRoomName(booking.id)}
                 </Text>
                 <Pressable
                   onPress={() =>
-                    Linking.openURL('https://meet.jit.si/siyashesha-' + booking.id).catch(() => {})
+                    Linking.openURL(getTelehealthRoomUrl(booking.id)).catch(() => {})
                   }
                   className="rounded-full bg-brand-500 px-3 py-1 active:bg-brand-600"
                 >

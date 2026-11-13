@@ -26,7 +26,7 @@ import {
   initialDoctors,
 } from '@/data/doctors';
 import type { LanguageCode } from '@/i18n/translations';
-import { resolveUserRoleForEmail } from '@/lib/doctorBooking';
+import { getTelehealthRoomUrl, resolveUserRoleForEmail } from '@/lib/doctorBooking';
 import { clearAllStoredFiles } from '@/lib/documents';
 import { verifyActiveStoreKitEntitlements } from '@/lib/iap';
 import { clearEnclaveKeys } from '@/lib/security/enclaveSecurity';
@@ -1841,6 +1841,8 @@ export const useAppStore = create<AppState>()(
           createdAt: now,
         };
 
+        const telehealthUrl = bookingData.mode === 'video' ? getTelehealthRoomUrl(bookingId) : undefined;
+
         const newAppointment: Appointment = {
           id: apptId,
           title: `${service.name} — ${doctor.title} ${doctor.fullName}`,
@@ -1849,9 +1851,10 @@ export const useAppStore = create<AppState>()(
           date: bookingData.date,
           time: bookingData.time,
           type: 'Appointment',
-          notes: `${bookingData.mode === 'video' ? 'Video Telehealth Consult' : 'In-person at ' + doctor.practiceAddress}. Consultation Fee: R${service.priceZar}. ${bookingData.notes ? 'Notes: ' + bookingData.notes : ''}`,
+          notes: `${bookingData.mode === 'video' ? `Video Telehealth Consult (${telehealthUrl})` : 'In-person at ' + doctor.practiceAddress}. Consultation Fee: R${service.priceZar}. ${bookingData.notes ? 'Notes: ' + bookingData.notes : ''}`,
           status: 'confirmed',
           reminderOption: '1_day',
+          telehealthUrl,
         };
 
         set((s) => ({

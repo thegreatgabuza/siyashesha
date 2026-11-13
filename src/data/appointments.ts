@@ -16,6 +16,7 @@ export interface Appointment {
   status?: AppointmentStatus;
   reminderOption?: AppointmentReminderOption;
   linkedRecordId?: string;
+  telehealthUrl?: string;
 }
 
 export const appointmentsSeed: Appointment[] = [];

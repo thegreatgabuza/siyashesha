@@ -1,6 +1,23 @@
 import type { Appointment } from '@/data/appointments';
 import type { DoctorBooking, DoctorProfile, DoctorService } from '@/data/doctors';
 
+/** Generates the canonical Jitsi room slug shared by doctor and patient for a booking. */
+export function getTelehealthRoomName(bookingId: string): string {
+  return `siyashesha-consult-${bookingId.replace(/[^a-zA-Z0-9]/g, '')}`;
+}
+
+/** Generates the canonical Jitsi meeting URL shared by doctor and patient for a booking. */
+export function getTelehealthRoomUrl(bookingId: string): string {
+  return `https://meet.jit.si/${getTelehealthRoomName(bookingId)}`;
+}
+
+/** Extracts a persisted Jitsi telehealth URL from appointment notes if present. */
+export function extractTelehealthUrl(notes?: string): string | undefined {
+  if (!notes) return undefined;
+  const match = notes.match(/https:\/\/meet\.jit\.si\/[A-Za-z0-9_-]+/);
+  return match ? match[0] : undefined;
+}
+
 /** Validates South African professional registration numbers (HPCSA MP/DP/PS, SANC, etc.) */
 export function isValidCouncilNumber(councilNumber: string): boolean {
   if (!councilNumber) return false;
@@ -141,6 +158,8 @@ export function createDoctorBookingPayload(params: {
     createdAt: now,
   };
 
+  const telehealthUrl = params.mode === 'video' ? getTelehealthRoomUrl(params.bookingId) : undefined;
+
   const appointment: Appointment = {
     id: params.apptId,
     title: `${params.service.name} — ${params.doctor.title} ${params.doctor.fullName}`,
@@ -151,13 +170,14 @@ export function createDoctorBookingPayload(params: {
     type: 'Appointment',
     notes: `${
       params.mode === 'video'
-        ? 'Video Telehealth Consult'
+        ? `Video Telehealth Consult (${telehealthUrl})`
         : 'In-person at ' + params.doctor.practiceAddress
     }. Consultation Fee: R${params.service.priceZar}. ${
       params.notes ? 'Notes: ' + params.notes : ''
     }`,
     status: 'confirmed',
     reminderOption: '1_day',
+    telehealthUrl,
   };
 
   return { booking, appointment };
