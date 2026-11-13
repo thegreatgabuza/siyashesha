@@ -1,18 +1,37 @@
 import { Redirect } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, View } from 'react-native';
 
 import { useAppStore } from '@/store/useAppStore';
 
 /**
  * Native mobile root entry (Android & iOS).
  *
- * Deterministically routes mobile launches based on patient state:
+ * Waits for persisted Zustand store hydration, then routes mobile launches:
  * 1. Fresh install or un-onboarded user -> native mobile onboarding flow.
  * 2. Authenticated user who finished onboarding -> main app tabs.
  * 3. Returning user who is signed out -> native sign-in screen.
  */
 export default function NativeRootIndex() {
+  const [hydrated, setHydrated] = useState(() => useAppStore.persist.hasHydrated());
   const isSignedIn = useAppStore((s) => s.isSignedIn);
   const hasCompletedOnboarding = useAppStore((s) => s.hasCompletedOnboarding);
+
+  useEffect(() => {
+    if (useAppStore.persist.hasHydrated()) {
+      setHydrated(true);
+      return;
+    }
+    return useAppStore.persist.onFinishHydration(() => setHydrated(true));
+  }, []);
+
+  if (!hydrated) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8FAFC' }}>
+        <ActivityIndicator size="small" color="#0B2559" />
+      </View>
+    );
+  }
 
   // New installs / un-onboarded patients land directly in the native onboarding flow
   if (!hasCompletedOnboarding) {
