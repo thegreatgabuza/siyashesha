@@ -364,7 +364,9 @@ export function generateDoctorSlotSchedule(
     const cur = new Date(base);
     cur.setDate(base.getDate() + i);
     const dayOfWeek = daysOfWeekMap[cur.getDay()];
-    const dateStr = cur.toISOString().slice(0, 10);
+    const dateStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(
+      cur.getDate()
+    ).padStart(2, '0')}`;
 
     const isAvailableDay =
       doctor.availability?.days?.includes(dayOfWeek) ??
@@ -449,6 +451,15 @@ export function filterDoctorsZocdoc(
         (a) => a.toLowerCase()
       );
       if (!aids.some((a) => a.includes(cleanMedicalAid))) {
+        return false;
+      }
+    }
+
+    // 4.5 Availability filter (today / next_3_days)
+    if (filters.availability && filters.availability !== 'all') {
+      const daysToCheck = filters.availability === 'today' ? 1 : 3;
+      const schedule = generateDoctorSlotSchedule(doc, daysToCheck);
+      if (!schedule.some((day) => day.slots.length > 0)) {
         return false;
       }
     }
