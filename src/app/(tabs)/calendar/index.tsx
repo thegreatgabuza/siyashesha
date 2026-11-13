@@ -388,7 +388,9 @@ function PatientCalendarScreen() {
               const videoCallUrl =
                 appt.telehealthUrl ||
                 extractTelehealthUrl(appt.notes) ||
-                (matchedBooking?.mode === 'video' ? getTelehealthRoomUrl(matchedBooking.id) : undefined);
+                (matchedBooking?.mode === 'video'
+                  ? getTelehealthRoomUrl(matchedBooking.id, matchedBooking.telehealthRoomToken)
+                  : undefined);
 
               return (
                 <View

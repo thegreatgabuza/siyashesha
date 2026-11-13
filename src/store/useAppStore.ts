@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Crypto from 'expo-crypto';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
@@ -43,6 +44,8 @@ import {
   eraseAllCloudData,
   fetchAppointmentsFromDatabase,
   fetchDiaryNotesFromDatabase,
+  fetchDoctorBookingsFromDatabase,
+  fetchDoctorsFromDatabase,
   fetchMedicationsFromDatabase,
   fetchPatientProfileFromDatabase,
   fetchRecordsFromDatabase,
@@ -55,6 +58,8 @@ import {
   syncAppointments,
   syncDiaryNoteToDatabase,
   syncDiaryNotes,
+  syncDoctorBookingToDatabase,
+  syncDoctorProfileToDatabase,
   syncMedicationToDatabase,
   syncMedications,
   syncPatientProfile,
@@ -1378,10 +1383,63 @@ export const useAppStore = create<AppState>()(
           return false;
         }
 
-        // Doctor practice accounts do not sync consumer patient vaults via hydrateFromCloud
+        // Doctor practice accounts sync their practitioner profile, directory, and bookings
+        // without loading consumer patient vaults into doctor mode.
         if (get().userRole === 'doctor') {
-          set({ lastCloudSyncAt: new Date().toISOString() });
-          return true;
+          set({ isSyncingCloud: true });
+          try {
+            const [remoteDoctors, remoteDoctorBookings] = await Promise.all([
+              fetchDoctorsFromDatabase(),
+              fetchDoctorBookingsFromDatabase(),
+            ]);
+
+            const current = get();
+            let mergedDoctors = current.registeredDoctors;
+            if (remoteDoctors !== null && remoteDoctors.length > 0) {
+              const byId = new Map<string, DoctorProfile>();
+              for (const d of initialDoctors) byId.set(d.id, d);
+              for (const d of current.registeredDoctors) byId.set(d.id, d);
+              for (const d of remoteDoctors) byId.set(d.id, d);
+              mergedDoctors = Array.from(byId.values());
+            }
+
+            const activeEmail = (current.doctorProfile?.email || current.patientProfile?.email || '')
+              .trim()
+              .toLowerCase();
+            const syncedOwnDoctor =
+              mergedDoctors.find((d) => d.id === current.doctorProfile?.id) ??
+              (activeEmail
+                ? mergedDoctors.find((d) => d.email.toLowerCase() === activeEmail)
+                : undefined) ??
+              current.doctorProfile;
+
+            if (syncedOwnDoctor && remoteDoctors !== null && !remoteDoctors.some((d) => d.id === syncedOwnDoctor.id)) {
+              syncDoctorProfileToDatabase(syncedOwnDoctor).catch(() => {});
+            }
+
+            let mergedBookings = current.doctorBookings;
+            if (remoteDoctorBookings !== null) {
+              const byBookingId = new Map<string, DoctorBooking>();
+              for (const b of current.doctorBookings) byBookingId.set(b.id, b);
+              for (const b of remoteDoctorBookings) byBookingId.set(b.id, b);
+              mergedBookings = Array.from(byBookingId.values()).sort((a, b) =>
+                a.createdAt < b.createdAt ? 1 : -1
+              );
+            }
+
+            set({
+              registeredDoctors: mergedDoctors,
+              ...(syncedOwnDoctor ? { doctorProfile: syncedOwnDoctor } : {}),
+              doctorBookings: mergedBookings,
+              isSyncingCloud: false,
+              lastCloudSyncAt: new Date().toISOString(),
+            });
+            return true;
+          } catch (err) {
+            console.warn('[Cloud Hydration] Doctor sync error:', err);
+            set({ isSyncingCloud: false });
+            return false;
+          }
         }
 
         set({ isSyncingCloud: true });
@@ -1395,6 +1453,8 @@ export const useAppStore = create<AppState>()(
             remoteDiaryNotes,
             remoteSharedLinks,
             remoteSubscription,
+            remoteDoctors,
+            remoteDoctorBookings,
           ] = await Promise.all([
             fetchPatientProfileFromDatabase(),
             fetchRecordsFromDatabase(),
@@ -1403,6 +1463,8 @@ export const useAppStore = create<AppState>()(
             fetchDiaryNotesFromDatabase(),
             fetchSharedLinksFromDatabase(),
             fetchSubscriptionFromDatabase(),
+            fetchDoctorsFromDatabase(),
+            fetchDoctorBookingsFromDatabase(),
           ]);
 
           const current = get();
@@ -1682,6 +1744,31 @@ export const useAppStore = create<AppState>()(
 
           const isEffectiveFree = nextSubPlan === 'free';
 
+          let mergedDoctors = current.registeredDoctors;
+          if (remoteDoctors !== null && remoteDoctors.length > 0) {
+            const byDocId = new Map<string, DoctorProfile>();
+            for (const d of initialDoctors) byDocId.set(d.id, d);
+            for (const d of current.registeredDoctors) byDocId.set(d.id, d);
+            for (const d of remoteDoctors) byDocId.set(d.id, d);
+            mergedDoctors = Array.from(byDocId.values());
+          }
+
+          let mergedDoctorBookings = current.doctorBookings;
+          if (remoteDoctorBookings !== null) {
+            const byBkId = new Map<string, DoctorBooking>();
+            for (const b of current.doctorBookings) byBkId.set(b.id, b);
+            for (const b of remoteDoctorBookings) byBkId.set(b.id, b);
+            const unsyncedLocalBookings = current.doctorBookings.filter(
+              (b) => !remoteDoctorBookings.some((rb) => rb.id === b.id) && !b.id.startsWith('bk-seed-')
+            );
+            for (const ub of unsyncedLocalBookings) {
+              syncDoctorBookingToDatabase(ub).catch(() => {});
+            }
+            mergedDoctorBookings = Array.from(byBkId.values()).sort((a, b) =>
+              a.createdAt < b.createdAt ? 1 : -1
+            );
+          }
+
           set({
             // An existing cloud profile means this account already onboarded elsewhere.
             ...(hasRemoteProfile ? { hasCompletedOnboarding: true } : {}),
@@ -1692,6 +1779,8 @@ export const useAppStore = create<AppState>()(
             diaryNotes: mergedNotes,
             sharedLinks: mergedShares,
             patientProfile: mergedProfile,
+            registeredDoctors: mergedDoctors,
+            doctorBookings: mergedDoctorBookings,
             subscriptionPlan: nextSubPlan,
             subscriptionTrialEndsAt: nextTrialEndsAt,
             subscriptionExpiresAt: nextSubExpiresAt,
@@ -1757,6 +1846,7 @@ export const useAppStore = create<AppState>()(
           ...profileData,
           email: normalizedEmail,
           id,
+          verificationStatus: 'pending',
           services,
           createdAt: now,
         };
@@ -1780,12 +1870,14 @@ export const useAppStore = create<AppState>()(
             ...s.auditEvents,
           ],
         }));
+        syncDoctorProfileToDatabase(newDoctor).catch(() => {});
         return newDoctor;
       },
       updateDoctorProfile: (patch) =>
         set((s) => {
           if (!s.doctorProfile) return s;
           const updated = { ...s.doctorProfile, ...patch };
+          syncDoctorProfileToDatabase(updated).catch(() => {});
           return {
             doctorProfile: updated,
             registeredDoctors: s.registeredDoctors.map((d) =>
@@ -1805,6 +1897,7 @@ export const useAppStore = create<AppState>()(
           };
           const nextServices = [...s.doctorProfile.services, createdService];
           const updatedDoctor = { ...s.doctorProfile, services: nextServices };
+          syncDoctorProfileToDatabase(updatedDoctor).catch(() => {});
           return {
             doctorProfile: updatedDoctor,
             registeredDoctors: s.registeredDoctors.map((d) =>
@@ -1821,6 +1914,7 @@ export const useAppStore = create<AppState>()(
             srv.id === serviceId ? { ...srv, ...patch } : srv
           );
           const updatedDoctor = { ...s.doctorProfile, services: nextServices };
+          syncDoctorProfileToDatabase(updatedDoctor).catch(() => {});
           return {
             doctorProfile: updatedDoctor,
             registeredDoctors: s.registeredDoctors.map((d) =>
@@ -1833,6 +1927,7 @@ export const useAppStore = create<AppState>()(
           if (!s.doctorProfile) return s;
           const nextServices = s.doctorProfile.services.filter((srv) => srv.id !== serviceId);
           const updatedDoctor = { ...s.doctorProfile, services: nextServices };
+          syncDoctorProfileToDatabase(updatedDoctor).catch(() => {});
           return {
             doctorProfile: updatedDoctor,
             registeredDoctors: s.registeredDoctors.map((d) =>
@@ -1892,6 +1987,11 @@ export const useAppStore = create<AppState>()(
           (normalizedPhone ? `pat-${normalizedPhone}` : '') ||
           makeId('pat');
 
+        const telehealthRoomToken =
+          bookingData.mode === 'video'
+            ? Crypto.randomUUID().replace(/-/g, '').slice(0, 16)
+            : undefined;
+
         const newBooking: DoctorBooking = {
           id: bookingId,
           doctorId: doctor.id,
@@ -1914,10 +2014,14 @@ export const useAppStore = create<AppState>()(
           patientSummary,
           status: 'confirmed',
           linkedAppointmentId: apptId,
+          telehealthRoomToken,
           createdAt: now,
         };
 
-        const telehealthUrl = bookingData.mode === 'video' ? getTelehealthRoomUrl(bookingId) : undefined;
+        const telehealthUrl =
+          bookingData.mode === 'video'
+            ? getTelehealthRoomUrl(bookingId, telehealthRoomToken)
+            : undefined;
 
         const newAppointment: Appointment = {
           id: apptId,
@@ -1947,17 +2051,20 @@ export const useAppStore = create<AppState>()(
           ],
         }));
 
+        syncDoctorBookingToDatabase(newBooking).catch(() => {});
         syncAppointmentToDatabase(newAppointment).catch(() => {});
         return { booking: newBooking, appointment: newAppointment };
       },
       updateDoctorBookingStatus: (bookingId, status) => {
         let updatedLinkedAppt: Appointment | undefined;
+        let updatedBooking: DoctorBooking | undefined;
         set((s) => {
           let linkedApptId: string | undefined;
           const nextBookings = s.doctorBookings.map((b) => {
             if (b.id === bookingId) {
               linkedApptId = b.linkedAppointmentId;
-              return { ...b, status };
+              updatedBooking = { ...b, status };
+              return updatedBooking;
             }
             return b;
           });
@@ -1972,24 +2079,29 @@ export const useAppStore = create<AppState>()(
             : s.appointments;
           return { doctorBookings: nextBookings, appointments: nextAppts };
         });
+        if (updatedBooking) {
+          syncDoctorBookingToDatabase(updatedBooking).catch(() => {});
+        }
         if (updatedLinkedAppt) {
           syncAppointmentToDatabase(updatedLinkedAppt).catch(() => {});
         }
       },
       updateDoctorBookingClinical: (bookingId, updates) => {
         let updatedLinkedAppt: Appointment | undefined;
+        let updatedBooking: DoctorBooking | undefined;
         set((s) => {
           let linkedApptId: string | undefined;
           const nextBookings = s.doctorBookings.map((b) => {
             if (b.id === bookingId) {
               linkedApptId = b.linkedAppointmentId;
-              return {
+              updatedBooking = {
                 ...b,
                 ...(updates.clinicalNotes !== undefined ? { clinicalNotes: updates.clinicalNotes } : {}),
                 ...(updates.prescriptions !== undefined ? { prescriptions: updates.prescriptions } : {}),
                 ...(updates.sickNote !== undefined ? { sickNote: updates.sickNote } : {}),
                 ...(updates.status ? { status: updates.status } : {}),
               };
+              return updatedBooking;
             }
             return b;
           });
@@ -2005,6 +2117,9 @@ export const useAppStore = create<AppState>()(
               : s.appointments;
           return { doctorBookings: nextBookings, appointments: nextAppts };
         });
+        if (updatedBooking) {
+          syncDoctorBookingToDatabase(updatedBooking).catch(() => {});
+        }
         if (updatedLinkedAppt) {
           syncAppointmentToDatabase(updatedLinkedAppt).catch(() => {});
         }

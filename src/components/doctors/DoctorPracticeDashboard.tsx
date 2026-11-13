@@ -109,7 +109,7 @@ export function DoctorPracticeDashboard({ doctor }: DoctorPracticeDashboardProps
 
   const handleJoinVideo = (booking: DoctorBooking) => {
     tapFeedback();
-    const jitsiUrl = getTelehealthRoomUrl(booking.id);
+    const jitsiUrl = getTelehealthRoomUrl(booking.id, booking.telehealthRoomToken);
     Linking.openURL(jitsiUrl).catch(() => {
       toast.show('Unable to launch video meeting browser', 'warning');
     });

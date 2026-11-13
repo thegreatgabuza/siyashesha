@@ -40,6 +40,7 @@ export interface DoctorProfile {
   services: DoctorService[];
   medicalAids?: string[];
   patientHighlight?: string;
+  verificationStatus?: 'pending' | 'verified' | 'rejected';
   createdAt: string;
 }
 
@@ -112,6 +113,7 @@ export interface DoctorBooking {
   notes?: string;
   status: 'confirmed' | 'completed' | 'cancelled';
   linkedAppointmentId?: string;
+  telehealthRoomToken?: string;
   patientSummary?: PatientClinicalSummary;
   clinicalNotes?: DoctorConsultationNotes;
   prescriptions?: DoctorPrescriptionItem[];

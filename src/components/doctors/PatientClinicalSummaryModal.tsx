@@ -204,11 +204,11 @@ export function PatientClinicalSummaryModal({
             ) : (
               <View className="mt-1.5 flex-row items-center justify-between">
                 <Text className="font-sans text-[11px] text-blue-700 dark:text-blue-300">
-                  Telehealth Room: {getTelehealthRoomName(booking.id)}
+                  Telehealth Room: {getTelehealthRoomName(booking.id, booking.telehealthRoomToken)}
                 </Text>
                 <Pressable
                   onPress={() =>
-                    Linking.openURL(getTelehealthRoomUrl(booking.id)).catch(() => {})
+                    Linking.openURL(getTelehealthRoomUrl(booking.id, booking.telehealthRoomToken)).catch(() => {})
                   }
                   className="rounded-full bg-brand-500 px-3 py-1 active:bg-brand-600"
                 >

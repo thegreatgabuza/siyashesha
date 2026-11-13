@@ -1,14 +1,24 @@
 import type { Appointment } from '@/data/appointments';
 import type { DoctorBooking, DoctorProfile, DoctorService } from '@/data/doctors';
 
-/** Generates the canonical Jitsi room slug shared by doctor and patient for a booking. */
-export function getTelehealthRoomName(bookingId: string): string {
-  return `siyashesha-consult-${bookingId.replace(/[^a-zA-Z0-9]/g, '')}`;
+/** Generates a canonical, unguessable Jitsi room slug shared by doctor and patient for a booking. */
+export function getTelehealthRoomName(bookingId: string, roomToken?: string): string {
+  const cleanId = bookingId.replace(/[^a-zA-Z0-9]/g, '');
+  const cleanToken = roomToken ? roomToken.replace(/[^a-zA-Z0-9]/g, '') : '';
+  return cleanToken
+    ? `siyashesha-consult-${cleanId}-${cleanToken}`
+    : `siyashesha-consult-${cleanId}`;
 }
 
 /** Generates the canonical Jitsi meeting URL shared by doctor and patient for a booking. */
-export function getTelehealthRoomUrl(bookingId: string): string {
-  return `https://meet.jit.si/${getTelehealthRoomName(bookingId)}`;
+export function getTelehealthRoomUrl(bookingId: string, roomToken?: string): string {
+  return `https://meet.jit.si/${getTelehealthRoomName(bookingId, roomToken)}`;
+}
+
+/** Validates standard South African HPCSA / statutory practitioner council number formats (e.g. MP 0849210, DP 123456). */
+export function isValidHpcsaFormat(code: string): boolean {
+  const compact = code.trim().toUpperCase().replace(/\s+/g, '');
+  return /^(MP|DP|PS|DT|OT|RD|MW|IN|PR)\d{5,8}$/.test(compact);
 }
 
 /** Returns active bookable services for a doctor, falling back to a default consultation if none are configured. */
@@ -249,6 +259,7 @@ export function createDoctorBookingPayload(params: {
   patientPhone: string;
   patientEmail: string;
   notes?: string;
+  telehealthRoomToken?: string;
   createdAt?: string;
 }): { booking: DoctorBooking; appointment: Appointment } {
   const now = params.createdAt || new Date().toISOString();
@@ -274,10 +285,14 @@ export function createDoctorBookingPayload(params: {
     notes: params.notes,
     status: 'confirmed',
     linkedAppointmentId: params.apptId,
+    telehealthRoomToken: params.telehealthRoomToken,
     createdAt: now,
   };
 
-  const telehealthUrl = params.mode === 'video' ? getTelehealthRoomUrl(params.bookingId) : undefined;
+  const telehealthUrl =
+    params.mode === 'video'
+      ? getTelehealthRoomUrl(params.bookingId, params.telehealthRoomToken)
+      : undefined;
 
   const appointment: Appointment = {
     id: params.apptId,

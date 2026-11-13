@@ -12,6 +12,16 @@ import type {
   AppointmentType,
 } from '@/data/appointments';
 import type { DiaryAttachment, DiaryCategory, DiaryNote } from '@/data/diarySeed';
+import type {
+  DoctorAvailability,
+  DoctorBooking,
+  DoctorConsultationNotes,
+  DoctorPrescriptionItem,
+  DoctorProfile,
+  DoctorService,
+  DoctorSickCertificate,
+  PatientClinicalSummary,
+} from '@/data/doctors';
 import type { Medication } from '@/data/medications';
 import type { EmergencyContact, PatientProfile } from '@/data/patient';
 import type { MedicalRecord } from '@/data/records';
@@ -1617,6 +1627,8 @@ export async function eraseAllCloudData(): Promise<{ success: boolean; error?: s
     await supabase.from('shared_links').delete().eq('user_id', userId);
     await supabase.from('scheduled_reminders_sync').delete().eq('user_id', userId);
     await supabase.from('push_notification_tokens').delete().eq('user_id', userId);
+    await supabase.from('doctor_bookings').delete().eq('patient_user_id', userId);
+    await supabase.from('doctors').delete().eq('user_id', userId);
     await supabase.from('patient_profiles').delete().eq('user_id', userId);
 
     // Clear cached device tenant ID so a fresh identity is generated if they re-onboard
@@ -1626,5 +1638,249 @@ export async function eraseAllCloudData(): Promise<{ success: boolean; error?: s
   } catch (err: any) {
     console.warn('[Supabase DB] Failed to erase user cloud data:', err);
     return { success: false, error: err?.message };
+  }
+}
+
+/**
+ * Fetches registered healthcare practitioners from Supabase `doctors` table.
+ */
+export async function fetchDoctorsFromDatabase(): Promise<DoctorProfile[] | null> {
+  if (!isSupabaseConfigured) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from('doctors')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error || !data) {
+      return null;
+    }
+
+    return data.map((row: any): DoctorProfile => ({
+      id: row.id,
+      userId: row.user_id,
+      title: row.title || 'Dr.',
+      fullName: row.full_name || '',
+      specialty: row.specialty || 'General Practitioner',
+      hpcsaNumber: row.hpcsa_number || '',
+      verificationStatus:
+        row.verification_status === 'verified' || row.verification_status === 'rejected'
+          ? row.verification_status
+          : 'pending',
+      practiceName: row.practice_name || '',
+      practiceAddress: row.practice_address || '',
+      city: row.city || '',
+      province: row.province || 'Gauteng',
+      phone: row.phone || '',
+      email: (row.email || '').toLowerCase(),
+      bio: row.bio || '',
+      qualifications: Array.isArray(row.qualifications) ? row.qualifications : [],
+      avatarUrl: row.avatar_url ?? undefined,
+      rating: typeof row.rating === 'number' ? row.rating : Number(row.rating || 5.0),
+      reviewsCount: typeof row.reviews_count === 'number' ? row.reviews_count : 0,
+      consultationModes: Array.isArray(row.consultation_modes)
+        ? row.consultation_modes
+        : ['in_person', 'video'],
+      availability: (row.availability && typeof row.availability === 'object'
+        ? row.availability
+        : {
+            days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+            startTime: '08:30',
+            endTime: '17:00',
+            slotDurationMinutes: 30,
+          }) as DoctorAvailability,
+      services: Array.isArray(row.services) ? (row.services as DoctorService[]) : [],
+      medicalAids: Array.isArray(row.medical_aids) ? row.medical_aids : [],
+      patientHighlight: row.patient_highlight ?? undefined,
+      createdAt: row.created_at || new Date().toISOString(),
+    }));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Persists a practitioner profile & service catalog to Supabase `doctors`.
+ */
+export async function syncDoctorProfileToDatabase(doctor: DoctorProfile): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
+
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId || userId === 'ssr-unauthenticated') return false;
+
+    const { error } = await supabase.from('doctors').upsert({
+      id: doctor.id,
+      user_id: userId,
+      title: doctor.title,
+      full_name: doctor.fullName,
+      specialty: doctor.specialty,
+      hpcsa_number: doctor.hpcsaNumber,
+      practice_name: doctor.practiceName,
+      practice_address: doctor.practiceAddress,
+      city: doctor.city,
+      province: doctor.province,
+      phone: doctor.phone,
+      email: doctor.email.trim().toLowerCase(),
+      bio: doctor.bio,
+      qualifications: (doctor.qualifications ?? []) as unknown as Json,
+      avatar_url: doctor.avatarUrl ?? null,
+      rating: doctor.rating ?? 5.0,
+      reviews_count: doctor.reviewsCount ?? 0,
+      consultation_modes: (doctor.consultationModes ?? ['in_person', 'video']) as unknown as Json,
+      availability: (doctor.availability ?? {}) as unknown as Json,
+      services: (doctor.services ?? []) as unknown as Json,
+      medical_aids: (doctor.medicalAids ?? []) as unknown as Json,
+      patient_highlight: doctor.patientHighlight ?? null,
+      created_at: doctor.createdAt || new Date().toISOString(),
+    });
+
+    if (error) {
+      console.warn('[Supabase DB] Error syncing doctor profile:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn('[Supabase DB] Unexpected error syncing doctor profile:', err);
+    return false;
+  }
+}
+
+/**
+ * Fetches bookings relevant to the signed-in user (as patient or owning doctor) from `doctor_bookings`.
+ */
+export async function fetchDoctorBookingsFromDatabase(): Promise<DoctorBooking[] | null> {
+  if (!isSupabaseConfigured) return null;
+
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId || userId === 'ssr-unauthenticated') return null;
+
+    const { data, error } = await supabase
+      .from('doctor_bookings')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error || !data) {
+      return null;
+    }
+
+    return data.map((row: any): DoctorBooking => ({
+      id: row.id,
+      doctorId: row.doctor_id,
+      doctorName: row.doctor_name,
+      doctorSpecialty: row.doctor_specialty,
+      practiceName: row.practice_name,
+      practiceAddress: row.practice_address,
+      patientId: row.patient_id,
+      patientName: row.patient_name,
+      patientPhone: row.patient_phone,
+      patientEmail: row.patient_email,
+      serviceId: row.service_id,
+      serviceName: row.service_name,
+      durationMinutes: Number(row.duration_minutes || 30),
+      priceZar: Number(row.price_zar || 0),
+      date: row.booking_date,
+      time: row.booking_time,
+      mode: row.mode === 'video' ? 'video' : 'in_person',
+      notes: row.notes ?? undefined,
+      status:
+        row.status === 'completed' || row.status === 'cancelled' ? row.status : 'confirmed',
+      linkedAppointmentId: row.linked_appointment_id ?? undefined,
+      telehealthRoomToken: row.telehealth_room_token ?? undefined,
+      patientSummary: (row.patient_summary ?? undefined) as PatientClinicalSummary | undefined,
+      clinicalNotes: (row.consultation_notes ?? undefined) as DoctorConsultationNotes | undefined,
+      prescriptions: Array.isArray(row.prescriptions)
+        ? (row.prescriptions as DoctorPrescriptionItem[])
+        : undefined,
+      sickNote: (row.sick_certificate ?? undefined) as DoctorSickCertificate | undefined,
+      createdAt: row.created_at || new Date().toISOString(),
+    }));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Upserts a doctor booking row in `doctor_bookings` and reports atomic slot conflicts across devices.
+ */
+export async function syncDoctorBookingToDatabase(
+  booking: DoctorBooking
+): Promise<{ ok: boolean; conflict?: boolean; error?: string }> {
+  if (!isSupabaseConfigured) return { ok: false };
+
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId || userId === 'ssr-unauthenticated') return { ok: false };
+
+    const { error } = await supabase.from('doctor_bookings').upsert({
+      id: booking.id,
+      doctor_id: booking.doctorId,
+      doctor_name: booking.doctorName,
+      doctor_specialty: booking.doctorSpecialty,
+      practice_name: booking.practiceName,
+      practice_address: booking.practiceAddress,
+      patient_id: booking.patientId,
+      patient_name: booking.patientName,
+      patient_phone: booking.patientPhone,
+      patient_email: booking.patientEmail,
+      service_id: booking.serviceId,
+      service_name: booking.serviceName,
+      duration_minutes: booking.durationMinutes,
+      price_zar: booking.priceZar,
+      booking_date: booking.date,
+      booking_time: booking.time,
+      mode: booking.mode,
+      notes: booking.notes ?? null,
+      patient_summary: (booking.patientSummary ?? {}) as unknown as Json,
+      consultation_notes: (booking.clinicalNotes ?? null) as unknown as Json,
+      prescriptions: (booking.prescriptions ?? []) as unknown as Json,
+      sick_certificate: (booking.sickNote ?? null) as unknown as Json,
+      status: booking.status,
+      linked_appointment_id: booking.linkedAppointmentId ?? null,
+      telehealth_room_token: booking.telehealthRoomToken ?? null,
+      created_at: booking.createdAt || new Date().toISOString(),
+    });
+
+    if (error) {
+      const isConflict =
+        error.code === '23505' ||
+        error.message?.toLowerCase().includes('idx_doctor_bookings_active_slot');
+      return {
+        ok: false,
+        conflict: isConflict,
+        error: isConflict
+          ? 'This appointment time slot was just booked by another patient.'
+          : error.message,
+      };
+    }
+
+    return { ok: true };
+  } catch (err: any) {
+    return { ok: false, error: err?.message || 'Failed to sync booking.' };
+  }
+}
+
+/**
+ * Fetches anonymized booked HH:mm slots for a practitioner on a given date across all devices.
+ */
+export async function fetchBookedSlotsFromDatabase(
+  doctorId: string,
+  dateStr: string
+): Promise<string[]> {
+  if (!isSupabaseConfigured || !doctorId || !dateStr) return [];
+
+  try {
+    const { data, error } = await supabase.rpc('get_doctor_booked_slots', {
+      p_doctor_id: doctorId,
+      p_date: dateStr,
+    });
+    if (error || !Array.isArray(data)) return [];
+    return data
+      .map((r: any) => (typeof r?.booking_time === 'string' ? r.booking_time : ''))
+      .filter(Boolean);
+  } catch {
+    return [];
   }
 }

@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChunkyButton } from '@/components/onboarding/ChunkyButton';
 import { useToast } from '@/components/ui/Toast';
 import { DOCTOR_SPECIALTIES, type DoctorService } from '@/data/doctors';
+import { isValidHpcsaFormat } from '@/lib/doctorBooking';
 import { tapFeedback } from '@/lib/feedback';
 import { useAppStore } from '@/store/useAppStore';
 
@@ -25,6 +26,7 @@ export default function DoctorSignupScreen() {
   const insets = useSafeAreaInsets();
   const toast = useToast();
 
+  const isSignedIn = useAppStore((s) => s.isSignedIn);
   const registerAsDoctor = useAppStore((s) => s.registerAsDoctor);
   const existingDoctor = useAppStore((s) => s.doctorProfile);
   const patient = useAppStore((s) => s.patientProfile);
@@ -53,16 +55,26 @@ export default function DoctorSignupScreen() {
   const [initialFee, setInitialFee] = useState('550');
 
   const handleRegister = () => {
+    if (!isSignedIn) {
+      toast.show('Please verify your email via Sign In before registering a medical practice.', 'warning');
+      router.push('/(auth)/sign-in');
+      return;
+    }
     if (!fullName.trim()) {
       toast.show('Please enter your full name', 'warning');
       return;
     }
-    if (!hpcsaNumber.trim() || hpcsaNumber.trim() === 'MP') {
-      toast.show('Please enter your HPCSA / Professional registration number', 'warning');
+    if (!isValidHpcsaFormat(hpcsaNumber)) {
+      toast.show('Enter a valid HPCSA number (e.g. MP 0849210 or DP 123456)', 'warning');
       return;
     }
     if (!practiceName.trim()) {
       toast.show('Please enter your practice or clinic name', 'warning');
+      return;
+    }
+    const cleanEmail = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      toast.show('Please enter a valid practice email address', 'warning');
       return;
     }
     if (!phone.trim()) {
@@ -164,15 +176,15 @@ export default function DoctorSignupScreen() {
         contentContainerStyle={{ paddingBottom: 60 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Verification Trust Pill */}
-        <View className="mb-5 flex-row items-center gap-2 rounded-2xl border border-emerald-500/20 bg-emerald-50 p-3.5 dark:bg-emerald-950/20">
-          <ShieldCheck size={20} color="#16A34A" />
+        {/* Verification Review Notice */}
+        <View className="mb-5 flex-row items-center gap-2 rounded-2xl border border-amber-500/25 bg-amber-50 p-3.5 dark:bg-amber-950/20">
+          <ShieldCheck size={20} color="#D97706" />
           <View className="flex-1">
-            <Text className="font-sans-bold text-[13px] text-emerald-900 dark:text-emerald-300">
-              Verified Healthcare Provider Network
+            <Text className="font-sans-bold text-[13px] text-amber-900 dark:text-amber-300">
+              Practitioner Credential Review
             </Text>
-            <Text className="font-sans text-[12px] text-emerald-700 dark:text-emerald-400">
-              Your HPCSA / Professional council number will display on your profile with a verified badge.
+            <Text className="font-sans text-[12px] text-amber-800 dark:text-amber-400">
+              Your HPCSA registration number is submitted in pending review status until verified by Siyashesha clinical ops.
             </Text>
           </View>
         </View>

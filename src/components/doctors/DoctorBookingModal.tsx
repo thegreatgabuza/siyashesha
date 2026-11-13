@@ -13,7 +13,7 @@ import {
   Video,
   X,
 } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
@@ -37,6 +37,7 @@ import {
   resolveSupportedMode,
 } from '@/lib/doctorBooking';
 import { tapFeedback } from '@/lib/feedback';
+import { fetchBookedSlotsFromDatabase } from '@/lib/supabase';
 import { useAppStore } from '@/store/useAppStore';
 
 export interface DoctorBookingModalProps {
@@ -132,30 +133,55 @@ function BookingModalContent({
   const currentService =
     servicesToDisplay.find((s) => s.id === selectedServiceId) ?? servicesToDisplay[0];
 
+  const [remoteBusySlots, setRemoteBusySlots] = useState<string[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    fetchBookedSlotsFromDatabase(doctor.id, selectedDate)
+      .then((slots) => {
+        if (active) setRemoteBusySlots(slots);
+      })
+      .catch(() => {
+        if (active) setRemoteBusySlots([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [doctor.id, selectedDate]);
+
   const dateSlotSchedule = useMemo(() => {
     const res = getDoctorDateSlots(doctor, selectedDate, doctorBookings);
+    const remoteSet = new Set(remoteBusySlots);
+    const withRemote = {
+      ...res,
+      slots: res.slots.map((slot) =>
+        remoteSet.has(slot.time) ? { ...slot, isBooked: true } : slot
+      ),
+    };
     if (
-      res.isAvailableDay &&
+      withRemote.isAvailableDay &&
       initialTime &&
       selectedDate === (initialDate || todayStr) &&
-      !res.slots.some((s) => s.time === initialTime)
+      !withRemote.slots.some((s) => s.time === initialTime)
     ) {
-      const isBooked = doctorBookings.some(
-        (b) =>
-          b.doctorId === doctor.id &&
-          b.date === selectedDate &&
-          b.time === initialTime &&
-          b.status !== 'cancelled'
-      );
+      const isBooked =
+        remoteSet.has(initialTime) ||
+        doctorBookings.some(
+          (b) =>
+            b.doctorId === doctor.id &&
+            b.date === selectedDate &&
+            b.time === initialTime &&
+            b.status !== 'cancelled'
+        );
       return {
-        ...res,
-        slots: [...res.slots, { time: initialTime, isBooked }].sort((a, b) =>
+        ...withRemote,
+        slots: [...withRemote.slots, { time: initialTime, isBooked }].sort((a, b) =>
           a.time.localeCompare(b.time)
         ),
       };
     }
-    return res;
-  }, [doctor, selectedDate, doctorBookings, initialTime, initialDate, todayStr]);
+    return withRemote;
+  }, [doctor, selectedDate, doctorBookings, remoteBusySlots, initialTime, initialDate, todayStr]);
 
   const [selectedTime, setSelectedTime] = useState<string>(() => {
     if (initialTime) return initialTime;
