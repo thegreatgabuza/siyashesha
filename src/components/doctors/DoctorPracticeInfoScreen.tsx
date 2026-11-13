@@ -17,7 +17,6 @@ import {
 import { useState } from 'react';
 import { Alert, Pressable, Text, View } from 'react-native';
 
-import { AccountDeletionModal } from '@/components/security/AccountDeletionModal';
 import { LegalDocumentModal, type LegalDocKind } from '@/components/security/LegalDocumentModal';
 import { BrandLockup } from '@/components/ui/BrandLockup';
 import { Screen } from '@/components/ui/Screen';
@@ -39,7 +38,6 @@ export function DoctorPracticeInfoScreen() {
     registeredDoctors[0];
 
   const [legalDoc, setLegalDoc] = useState<LegalDocKind>(null);
-  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
 
   const confirmSignOut = () => {
     Alert.alert(
@@ -168,7 +166,7 @@ export function DoctorPracticeInfoScreen() {
           </View>
           <View className="rounded-full bg-slate-100 px-2 py-0.5 dark:bg-slate-800">
             <Text className="font-sans text-[10px] text-slate-600 dark:text-slate-400">
-              {activeDoctor?.services?.length || 4} Active Services
+              {activeDoctor?.services?.filter((s) => s.isActive).length ?? 0} Active Services
             </Text>
           </View>
         </View>
@@ -320,12 +318,6 @@ export function DoctorPracticeInfoScreen() {
       <LegalDocumentModal
         visibleDoc={legalDoc}
         onClose={() => setLegalDoc(null)}
-      />
-
-      {/* Account Deletion Modal */}
-      <AccountDeletionModal
-        visible={deleteModalVisible}
-        onClose={() => setDeleteModalVisible(false)}
       />
     </Screen>
   );

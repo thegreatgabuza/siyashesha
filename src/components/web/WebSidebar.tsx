@@ -157,16 +157,18 @@ export function WebSidebar() {
 
       <View style={{ flex: 1 }} />
 
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => void hydrate()}
-        style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8 }}
-      >
-        <CloudCheck size={15} color={isSyncing ? '#B45309' : '#0D7C66'} />
-        <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 12, color: '#5B6478' }}>
-          {isSyncing ? 'Syncing…' : lastSync ? `Synced ${new Date(lastSync).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Sync now'}
-        </Text>
-      </Pressable>
+      {!isDoctor ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => void hydrate()}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8 }}
+        >
+          <CloudCheck size={15} color={isSyncing ? '#B45309' : '#0D7C66'} />
+          <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 12, color: '#5B6478' }}>
+            {isSyncing ? 'Syncing…' : lastSync ? `Synced ${new Date(lastSync).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Sync now'}
+          </Text>
+        </Pressable>
+      ) : null}
 
       <View
         style={{
