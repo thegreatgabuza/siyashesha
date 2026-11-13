@@ -152,6 +152,24 @@ function stripDemoSeedProfile(current: PatientProfile): PatientProfile {
   };
 }
 
+function buildDoctorSessionProfile(doctor: DoctorProfile): PatientProfile {
+  const parts = doctor.fullName.trim().split(/\s+/).filter(Boolean);
+  const firstName = parts[0] || doctor.fullName;
+  const lastName = parts.slice(1).join(' ');
+  return {
+    ...emptyPatientProfile,
+    firstName,
+    lastName,
+    preferredName: firstName,
+    phone: doctor.phone,
+    email: doctor.email.trim().toLowerCase(),
+    province: doctor.province || emptyPatientProfile.province,
+    address: doctor.practiceAddress || '',
+    avatarUrl: doctor.avatarUrl,
+    memberSince: doctor.createdAt?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+  };
+}
+
 function buildShareSnapshot(
   profile: PatientProfile,
   records: MedicalRecord[],
@@ -1706,20 +1724,28 @@ export const useAppStore = create<AppState>()(
       registerAsDoctor: (profileData, initialServices = []) => {
         const id = makeId('doc');
         const now = new Date().toISOString();
-        const services: DoctorService[] = initialServices.map((s, index) => ({
+        const normalizedEmail = profileData.email.trim().toLowerCase();
+        const services: DoctorService[] = initialServices.map((s) => ({
           ...s,
-          id: `srv-${Date.now()}-${index + 1}`,
+          id: makeId('srv'),
           doctorId: id,
         }));
         const newDoctor: DoctorProfile = {
           ...profileData,
+          email: normalizedEmail,
           id,
           services,
           createdAt: now,
         };
+        const practitionerSessionProfile = buildDoctorSessionProfile(newDoctor);
         set((s) => ({
+          isSignedIn: true,
+          hasCompletedOnboarding: true,
+          pendingEmail: '',
+          clerkFlow: 'sign_in',
           userRole: 'doctor',
           doctorProfile: newDoctor,
+          patientProfile: practitionerSessionProfile,
           registeredDoctors: [newDoctor, ...s.registeredDoctors.filter((d) => d.id !== id)],
           auditEvents: [
             {

@@ -126,7 +126,7 @@ export default function DoctorSignupScreen() {
     );
 
     toast.show(`Welcome, ${newDoc.title} ${newDoc.fullName}! Your practice is live.`, 'success');
-    router.replace('/more/doctor-portal');
+    router.replace('/(tabs)');
   };
 
   return (
