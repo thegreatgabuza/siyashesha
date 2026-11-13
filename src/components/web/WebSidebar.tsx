@@ -185,7 +185,9 @@ export function WebSidebar() {
         </View>
         <View style={{ flex: 1 }}>
           <Text numberOfLines={1} style={{ fontFamily: 'Inter_600SemiBold', fontSize: 13, color: '#1B2540' }}>{name}</Text>
-          <Text numberOfLines={1} style={{ fontFamily: 'Inter_400Regular', fontSize: 11, color: '#5B6478' }}>{patient.email}</Text>
+          <Text numberOfLines={1} style={{ fontFamily: 'Inter_400Regular', fontSize: 11, color: '#5B6478' }}>
+            {isDoctor && currentDoctor ? currentDoctor.email : patient.email}
+          </Text>
         </View>
         <Pressable
           accessibilityRole="button"

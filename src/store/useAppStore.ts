@@ -483,18 +483,17 @@ export const useAppStore = create<AppState>()(
           const isDoctorAccount = userRole === 'doctor';
 
           const cleanedBaseProfile = stripDemoSeedProfile(s.patientProfile);
-          const nextProfile: PatientProfile = {
-            ...cleanedBaseProfile,
-            ...(email ? { email } : {}),
-            ...(matchedDoctor
-              ? {
-                  firstName: matchedDoctor.fullName.split(' ')[0] || 'Thobani',
-                  lastName: matchedDoctor.fullName.split(' ').slice(1).join(' ') || 'Gabuza',
-                  preferredName: matchedDoctor.fullName.split(' ')[0] || 'Thobani',
-                  phone: matchedDoctor.phone || s.patientProfile.phone,
-                }
-              : {}),
-          };
+          const isDifferentAccount =
+            Boolean(email) &&
+            Boolean(cleanedBaseProfile.email) &&
+            cleanedBaseProfile.email.trim().toLowerCase() !== email;
+          const basePatientProfile = isDifferentAccount ? emptyPatientProfile : cleanedBaseProfile;
+          const nextProfile: PatientProfile = matchedDoctor
+            ? buildDoctorSessionProfile(matchedDoctor)
+            : {
+                ...basePatientProfile,
+                ...(email ? { email } : {}),
+              };
           const cleanedRecords = s.records.filter((r) => !DEMO_RECORD_IDS.has(r.id));
           const cleanedMeds = s.medications.filter((m) => !DEMO_MED_IDS.has(m.id));
           const cleanedAppts = s.appointments.filter((a) => !DEMO_APPT_IDS.has(a.id));
