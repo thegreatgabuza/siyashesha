@@ -1,8 +1,12 @@
 import { Redirect } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 
 import { useAppStore } from '@/store/useAppStore';
+
+const subscribeHydration = (onStoreChange: () => void) =>
+  useAppStore.persist.onFinishHydration(onStoreChange);
+const getHydratedSnapshot = () => useAppStore.persist.hasHydrated();
 
 /**
  * Native mobile root entry (Android & iOS).
@@ -13,17 +17,9 @@ import { useAppStore } from '@/store/useAppStore';
  * 3. Returning user who is signed out -> native sign-in screen.
  */
 export default function NativeRootIndex() {
-  const [hydrated, setHydrated] = useState(() => useAppStore.persist.hasHydrated());
+  const hydrated = useSyncExternalStore(subscribeHydration, getHydratedSnapshot, () => false);
   const isSignedIn = useAppStore((s) => s.isSignedIn);
   const hasCompletedOnboarding = useAppStore((s) => s.hasCompletedOnboarding);
-
-  useEffect(() => {
-    if (useAppStore.persist.hasHydrated()) {
-      setHydrated(true);
-      return;
-    }
-    return useAppStore.persist.onFinishHydration(() => setHydrated(true));
-  }, []);
 
   if (!hydrated) {
     return (
