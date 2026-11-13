@@ -26,7 +26,11 @@ import {
   initialDoctors,
 } from '@/data/doctors';
 import type { LanguageCode } from '@/i18n/translations';
-import { getTelehealthRoomUrl, resolveUserRoleForEmail } from '@/lib/doctorBooking';
+import {
+  getDoctorBookableServices,
+  getTelehealthRoomUrl,
+  resolveUserRoleForEmail,
+} from '@/lib/doctorBooking';
 import { clearAllStoredFiles } from '@/lib/documents';
 import { verifyActiveStoreKitEntitlements } from '@/lib/iap';
 import { clearEnclaveKeys } from '@/lib/security/enclaveSecurity';
@@ -1791,7 +1795,9 @@ export const useAppStore = create<AppState>()(
         const state = get();
         const doctor = state.registeredDoctors.find((d) => d.id === bookingData.doctorId);
         if (!doctor) throw new Error('Doctor not found');
-        const service = doctor.services.find((s) => s.id === bookingData.serviceId);
+        const service =
+          doctor.services.find((s) => s.id === bookingData.serviceId) ??
+          getDoctorBookableServices(doctor).find((s) => s.id === bookingData.serviceId);
         if (!service) throw new Error('Service not found');
 
         const bookingId = makeId('bk');

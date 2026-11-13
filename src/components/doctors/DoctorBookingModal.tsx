@@ -28,8 +28,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ChunkyButton } from '@/components/onboarding/ChunkyButton';
 import { useToast } from '@/components/ui/Toast';
-import { type DoctorProfile, type DoctorService } from '@/data/doctors';
-import { COMMON_MEDICAL_AIDS } from '@/lib/doctorBooking';
+import { type DoctorProfile } from '@/data/doctors';
+import { COMMON_MEDICAL_AIDS, getDoctorBookableServices } from '@/lib/doctorBooking';
 import { tapFeedback } from '@/lib/feedback';
 import { useAppStore } from '@/store/useAppStore';
 
@@ -104,23 +104,8 @@ function BookingModalContent({
   const patient = useAppStore((s) => s.patientProfile);
   const bookDoctorService = useAppStore((s) => s.bookDoctorService);
 
-  // Fallback service guarantee if doctor profile has empty services
-  const rawServices = doctor.services && Array.isArray(doctor.services) ? doctor.services : [];
-  const activeServices = rawServices.filter((s) => s.isActive);
-  const fallbackServices: DoctorService[] = [
-    {
-      id: `srv-default-${doctor.id}`,
-      doctorId: doctor.id,
-      name: 'General Medical Consultation',
-      description: 'Comprehensive clinical evaluation and consultation',
-      durationMinutes: 30,
-      priceZar: 650,
-      category: 'Consultation',
-      mode: 'both',
-      isActive: true,
-    },
-  ];
-  const servicesToDisplay = activeServices.length > 0 ? activeServices : fallbackServices;
+  // Shared active/fallback services guarantee so booking always resolves in store
+  const servicesToDisplay = getDoctorBookableServices(doctor);
 
   const defaultService =
     (initialServiceId && servicesToDisplay.find((s) => s.id === initialServiceId)) ||

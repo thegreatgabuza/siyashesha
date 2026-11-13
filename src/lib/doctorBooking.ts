@@ -11,6 +11,36 @@ export function getTelehealthRoomUrl(bookingId: string): string {
   return `https://meet.jit.si/${getTelehealthRoomName(bookingId)}`;
 }
 
+/** Returns active bookable services for a doctor, falling back to a default consultation if none are configured. */
+export function getDoctorBookableServices(doctor: DoctorProfile): DoctorService[] {
+  const rawServices = Array.isArray(doctor.services) ? doctor.services : [];
+  const activeServices = rawServices.filter((s) => s.isActive);
+  if (activeServices.length > 0) return activeServices;
+
+  const supportsInPerson = doctor.consultationModes.includes('in_person');
+  const supportsVideo = doctor.consultationModes.includes('video');
+  const defaultMode: DoctorService['mode'] =
+    supportsInPerson && supportsVideo
+      ? 'both'
+      : supportsVideo
+        ? 'video'
+        : 'in_person';
+
+  return [
+    {
+      id: `srv-default-${doctor.id}`,
+      doctorId: doctor.id,
+      name: 'General Medical Consultation',
+      description: 'Comprehensive clinical evaluation and consultation',
+      durationMinutes: doctor.availability?.slotDurationMinutes || 30,
+      priceZar: 650,
+      category: 'Consultation',
+      mode: defaultMode,
+      isActive: true,
+    },
+  ];
+}
+
 /** Extracts a persisted Jitsi telehealth URL from appointment notes if present. */
 export function extractTelehealthUrl(notes?: string): string | undefined {
   if (!notes) return undefined;
