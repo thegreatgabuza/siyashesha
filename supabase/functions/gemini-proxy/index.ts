@@ -5,7 +5,14 @@
  * `clinical_ner`, `translate`, `transcribe`) so `GEMINI_API_KEY` stays in
  * Supabase Edge Function secrets (`supabase secrets set GEMINI_API_KEY=...`)
  * and is never embedded in client mobile binaries.
+ *
+ * Hardened for production:
+ * - Rejects unauthenticated callers and raw `anon` key requests
+ * - Enforces per-user sliding-window rate limits via `check_api_rate_limit`
+ * - Enforces maximum request size and model/feature allowlists
  */
+
+import { enforceRateLimit, verifyAuthenticatedCaller } from '../_shared/auth.ts';
 
 declare const Deno: {
   serve: (handler: (req: Request) => Promise<Response> | Response) => void;
@@ -33,10 +40,27 @@ const DEFAULT_FALLBACK_MODELS = [
   'gemini-3.1-flash-lite-preview',
 ];
 
+const ALLOWED_FEATURES = new Set([
+  'assistant',
+  'vision_ocr',
+  'clinical_ner',
+  'translate',
+  'transcribe',
+]);
+
+const MAX_BODY_BYTES = 1024 * 1024; // 1 MB cap for base64 document scans / audio payloads
+
 interface ProxyRequestBody {
   models?: string[];
   payload?: Record<string, unknown>;
   feature?: string;
+}
+
+function jsonResponse(body: Record<string, unknown>, status: number, extraHeaders?: Record<string, string>) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json', ...(extraHeaders ?? {}) },
+  });
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -45,62 +69,64 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   if (req.method !== 'POST') {
-    return new Response(
-      JSON.stringify({ ok: false, error: 'Method not allowed. Use POST.' }),
-      {
-        status: 405,
-        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-      }
-    );
+    return jsonResponse({ ok: false, error: 'Method not allowed. Use POST.' }, 405);
   }
 
   const geminiApiKey = (Deno.env.get('GEMINI_API_KEY') ?? '').trim();
   if (!geminiApiKey) {
-    return new Response(
-      JSON.stringify({
-        ok: false,
-        error: 'GEMINI_API_KEY secret is not configured on the Supabase Edge Function.',
-      }),
-      {
-        status: 503,
-        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-      }
+    return jsonResponse(
+      { ok: false, error: 'GEMINI_API_KEY secret is not configured on the Supabase Edge Function.' },
+      503
     );
   }
 
-  // Require either a Supabase/Clerk Authorization header or apikey header
-  const authHeader = req.headers.get('authorization') ?? '';
-  const apiKeyHeader = req.headers.get('apikey') ?? '';
-  if (!authHeader && !apiKeyHeader) {
-    return new Response(
-      JSON.stringify({ ok: false, error: 'Missing authorization headers.' }),
-      {
-        status: 401,
-        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-      }
-    );
+  const authResult = await verifyAuthenticatedCaller(req);
+  if (!authResult.ok) {
+    return jsonResponse({ ok: false, error: authResult.error }, authResult.status);
+  }
+
+  const contentLength = Number(req.headers.get('content-length') || '0');
+  if (contentLength > MAX_BODY_BYTES) {
+    return jsonResponse({ ok: false, error: 'Request payload exceeds maximum 1 MB limit.' }, 413);
+  }
+
+  let rawText = '';
+  try {
+    rawText = await req.text();
+  } catch {
+    return jsonResponse({ ok: false, error: 'Unable to read request body.' }, 400);
+  }
+
+  if (rawText.length > MAX_BODY_BYTES) {
+    return jsonResponse({ ok: false, error: 'Request payload exceeds maximum 1 MB limit.' }, 413);
   }
 
   let body: ProxyRequestBody;
   try {
-    body = (await req.json()) as ProxyRequestBody;
+    body = JSON.parse(rawText) as ProxyRequestBody;
   } catch {
-    return new Response(
-      JSON.stringify({ ok: false, error: 'Invalid JSON request body.' }),
-      {
-        status: 400,
-        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-      }
-    );
+    return jsonResponse({ ok: false, error: 'Invalid JSON request body.' }, 400);
   }
 
-  if (!body.payload || typeof body.payload !== 'object') {
-    return new Response(
-      JSON.stringify({ ok: false, error: 'Missing Gemini generation payload.' }),
-      {
-        status: 400,
-        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-      }
+  if (!body.payload || typeof body.payload !== 'object' || Array.isArray(body.payload)) {
+    return jsonResponse({ ok: false, error: 'Missing Gemini generation payload.' }, 400);
+  }
+
+  const feature =
+    typeof body.feature === 'string' && ALLOWED_FEATURES.has(body.feature)
+      ? body.feature
+      : 'assistant';
+
+  const rate = await enforceRateLimit(
+    `gemini:${authResult.caller.userId}:${feature}`,
+    40,
+    600
+  );
+  if (!rate.allowed) {
+    return jsonResponse(
+      { ok: false, error: 'Rate limit exceeded. Please wait before trying again.' },
+      429,
+      { 'Retry-After': String(rate.retryAfterSeconds) }
     );
   }
 
@@ -121,31 +147,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
       if (upstreamRes.status === 200) {
         const data = await upstreamRes.json();
-        return new Response(
-          JSON.stringify({
-            ok: true,
-            modelUsed: model,
-            data,
-          }),
-          {
-            status: 200,
-            headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-          }
-        );
+        return jsonResponse({ ok: true, modelUsed: model, data }, 200);
       }
     } catch {
       // Try next fallback model
     }
   }
 
-  return new Response(
-    JSON.stringify({
-      ok: false,
-      error: 'All upstream Gemini models failed or timed out.',
-    }),
-    {
-      status: 502,
-      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-    }
-  );
+  return jsonResponse({ ok: false, error: 'All upstream Gemini models failed or timed out.' }, 502);
 });

@@ -120,6 +120,192 @@ export type Database = {
         }
         Relationships: []
       }
+      doctor_bookings: {
+        Row: {
+          booking_date: string
+          booking_time: string
+          consultation_notes: Json | null
+          created_at: string
+          doctor_email: string | null
+          doctor_id: string
+          doctor_name: string
+          doctor_specialty: string
+          doctor_user_id: string | null
+          duration_minutes: number
+          id: string
+          linked_appointment_id: string | null
+          mode: string
+          notes: string | null
+          patient_email: string
+          patient_id: string
+          patient_name: string
+          patient_phone: string
+          patient_summary: Json | null
+          patient_user_id: string
+          practice_address: string
+          practice_name: string
+          prescriptions: Json | null
+          price_zar: number
+          service_id: string
+          service_name: string
+          sick_certificate: Json | null
+          status: string
+          telehealth_room_token: string | null
+          updated_at: string
+        }
+        Insert: {
+          booking_date: string
+          booking_time: string
+          consultation_notes?: Json | null
+          created_at?: string
+          doctor_email?: string | null
+          doctor_id: string
+          doctor_name: string
+          doctor_specialty: string
+          doctor_user_id?: string | null
+          duration_minutes: number
+          id: string
+          linked_appointment_id?: string | null
+          mode: string
+          notes?: string | null
+          patient_email: string
+          patient_id: string
+          patient_name: string
+          patient_phone: string
+          patient_summary?: Json | null
+          patient_user_id?: string
+          practice_address: string
+          practice_name: string
+          prescriptions?: Json | null
+          price_zar: number
+          service_id: string
+          service_name: string
+          sick_certificate?: Json | null
+          status?: string
+          telehealth_room_token?: string | null
+          updated_at?: string
+        }
+        Update: {
+          booking_date?: string
+          booking_time?: string
+          consultation_notes?: Json | null
+          created_at?: string
+          doctor_email?: string | null
+          doctor_id?: string
+          doctor_name?: string
+          doctor_specialty?: string
+          doctor_user_id?: string | null
+          duration_minutes?: number
+          id?: string
+          linked_appointment_id?: string | null
+          mode?: string
+          notes?: string | null
+          patient_email?: string
+          patient_id?: string
+          patient_name?: string
+          patient_phone?: string
+          patient_summary?: Json | null
+          patient_user_id?: string
+          practice_address?: string
+          practice_name?: string
+          prescriptions?: Json | null
+          price_zar?: number
+          service_id?: string
+          service_name?: string
+          sick_certificate?: Json | null
+          status?: string
+          telehealth_room_token?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      doctors: {
+        Row: {
+          availability: Json
+          avatar_url: string | null
+          bio: string
+          city: string
+          consultation_modes: Json
+          created_at: string
+          email: string
+          full_name: string
+          hpcsa_number: string
+          id: string
+          medical_aids: Json
+          patient_highlight: string | null
+          phone: string
+          practice_address: string
+          practice_name: string
+          province: string
+          qualifications: Json
+          rating: number
+          reviews_count: number
+          services: Json
+          specialty: string
+          title: string
+          updated_at: string
+          user_id: string
+          verification_status: string
+          verified_at: string | null
+        }
+        Insert: {
+          availability?: Json
+          avatar_url?: string | null
+          bio: string
+          city: string
+          consultation_modes?: Json
+          created_at?: string
+          email: string
+          full_name: string
+          hpcsa_number: string
+          id: string
+          medical_aids?: Json
+          patient_highlight?: string | null
+          phone: string
+          practice_address: string
+          practice_name: string
+          province: string
+          qualifications?: Json
+          rating?: number
+          reviews_count?: number
+          services?: Json
+          specialty: string
+          title: string
+          updated_at?: string
+          user_id?: string
+          verification_status?: string
+          verified_at?: string | null
+        }
+        Update: {
+          availability?: Json
+          avatar_url?: string | null
+          bio?: string
+          city?: string
+          consultation_modes?: Json
+          created_at?: string
+          email?: string
+          full_name?: string
+          hpcsa_number?: string
+          id?: string
+          medical_aids?: Json
+          patient_highlight?: string | null
+          phone?: string
+          practice_address?: string
+          practice_name?: string
+          province?: string
+          qualifications?: Json
+          rating?: number
+          reviews_count?: number
+          services?: Json
+          specialty?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+          verification_status?: string
+          verified_at?: string | null
+        }
+        Relationships: []
+      }
       medical_records: {
         Row: {
           category: string
@@ -420,14 +606,70 @@ export type Database = {
         }
         Relationships: []
       }
+      subscriptions: {
+        Row: {
+          created_at: string
+          expires_at: string | null
+          original_transaction_id: string | null
+          plan: string
+          product_id: string | null
+          raw_metadata: Json | null
+          source: string
+          transaction_id: string | null
+          trial_ends_at: string | null
+          trial_started_at: string | null
+          updated_at: string
+          user_id: string
+          verification_status: string
+          verified_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string | null
+          original_transaction_id?: string | null
+          plan?: string
+          product_id?: string | null
+          raw_metadata?: Json | null
+          source?: string
+          transaction_id?: string | null
+          trial_ends_at?: string | null
+          trial_started_at?: string | null
+          updated_at?: string
+          user_id?: string
+          verification_status?: string
+          verified_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string | null
+          original_transaction_id?: string | null
+          plan?: string
+          product_id?: string | null
+          raw_metadata?: Json | null
+          source?: string
+          transaction_id?: string | null
+          trial_ends_at?: string | null
+          trial_started_at?: string | null
+          updated_at?: string
+          user_id?: string
+          verification_status?: string
+          verified_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      get_doctor_booked_slots: {
+        Args: { p_date: string; p_doctor_id: string }
+        Returns: { booking_time: string }[]
+      }
       requesting_user_id: { Args: never; Returns: string }
+      start_free_annual_trial: { Args: never; Returns: Json }
       verify_shared_link: {
-        Args: { p_share_code: string; p_pin: string }
+        Args: { p_pin: string; p_share_code: string }
         Returns: Json
       }
     }
