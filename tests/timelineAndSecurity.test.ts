@@ -100,8 +100,21 @@ describe('Clinical Timeline derivation & API Key Hardening (#4)', () => {
           false,
           `${envName} must not expose EXPO_PUBLIC_GEMINI_API_KEY to the client bundle`
         );
+        assert.equal(
+          content.includes('http://localhost:3000'),
+          false,
+          `${envName} must not contain development localhost:3000 API URLs`
+        );
       }
     }
+
+    const easConfig = JSON.parse(fs.readFileSync(path.join(ROOT_DIR, 'eas.json'), 'utf8'));
+    const prodEnv = { ...(easConfig.build?.base?.env ?? {}), ...(easConfig.build?.production?.env ?? {}) };
+    assert.equal(
+      String(prodEnv.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY || '').startsWith('pk_test_'),
+      false,
+      'eas.json production profile must not inherit or hardcode a Clerk pk_test_ key'
+    );
   });
 
   it('enforces zero pre-seeded mock data across all production data modules', () => {

@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChunkyButton } from '@/components/onboarding/ChunkyButton';
 import { useToast } from '@/components/ui/Toast';
 import { DOCTOR_SPECIALTIES, type DoctorService } from '@/data/doctors';
-import { isValidHpcsaFormat } from '@/lib/doctorBooking';
+import { isValidCouncilNumber } from '@/lib/doctorBooking';
 import { tapFeedback } from '@/lib/feedback';
 import { useAppStore } from '@/store/useAppStore';
 
@@ -64,8 +64,8 @@ export default function DoctorSignupScreen() {
       toast.show('Please enter your full name', 'warning');
       return;
     }
-    if (!isValidHpcsaFormat(hpcsaNumber)) {
-      toast.show('Enter a valid HPCSA number (e.g. MP 0849210 or DP 123456)', 'warning');
+    if (!isValidCouncilNumber(hpcsaNumber)) {
+      toast.show('Enter a valid HPCSA / Council number (e.g. MP 0849210 or DP 123456)', 'warning');
       return;
     }
     if (!practiceName.trim()) {

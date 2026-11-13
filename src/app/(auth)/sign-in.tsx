@@ -44,8 +44,15 @@ export default function SignInScreen() {
       return;
     }
 
-    // Offline / local build fallback when Clerk is not configured
+    // Fail closed in production builds if Clerk key is absent; allow offline bypass only in __DEV__
     if (!hasClerkKey) {
+      if (!__DEV__) {
+        toast.show(
+          'Authentication service is not configured for this production build. Contact support.',
+          'warning'
+        );
+        return;
+      }
       signInWithEmail(cleanEmail, 'sign_in');
       updatePatientProfile({ email: cleanEmail });
       completeSignIn();

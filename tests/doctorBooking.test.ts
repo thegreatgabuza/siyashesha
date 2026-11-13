@@ -20,6 +20,7 @@ import {
   filterDoctorsZocdoc,
   formatZarPrice,
   generateDoctorSlotSchedule,
+  getTelehealthRoomUrl,
   isValidCouncilNumber,
   resolveUserRoleForEmail,
 } from '@/lib/doctorBooking';
@@ -462,5 +463,10 @@ describe('Doctor Role, Services Management & Patient Booking', () => {
     const lerato = patientsMap.get('pat-thobani-p2');
     assert.ok(lerato, 'Lerato Molefe must exist in patient records');
     assert.ok(lerato.hasAllergies, 'Lerato must have recorded allergy');
+  });
+
+  it('appends high-entropy room tokens to telehealth URLs when provided', () => {
+    const tokenUrl = getTelehealthRoomUrl('bk-1234', 'a9f8c7d6e5b41234');
+    assert.equal(tokenUrl, 'https://meet.jit.si/siyashesha-consult-bk1234-a9f8c7d6e5b41234');
   });
 });

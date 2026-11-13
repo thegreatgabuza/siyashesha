@@ -15,12 +15,6 @@ export function getTelehealthRoomUrl(bookingId: string, roomToken?: string): str
   return `https://meet.jit.si/${getTelehealthRoomName(bookingId, roomToken)}`;
 }
 
-/** Validates standard South African HPCSA / statutory practitioner council number formats (e.g. MP 0849210, DP 123456). */
-export function isValidHpcsaFormat(code: string): boolean {
-  const compact = code.trim().toUpperCase().replace(/\s+/g, '');
-  return /^(MP|DP|PS|DT|OT|RD|MW|IN|PR)\d{5,8}$/.test(compact);
-}
-
 /** Returns active bookable services for a doctor, falling back to a default consultation if none are configured. */
 export function getDoctorBookableServices(doctor: DoctorProfile): DoctorService[] {
   const rawServices = Array.isArray(doctor.services) ? doctor.services : [];
