@@ -66,7 +66,16 @@ export function DoctorPatientRecordsScreen() {
     const map = new Map<string, DirectoryPatient>();
 
     myBookings.forEach((b) => {
-      const key = b.patientId || b.patientEmail.toLowerCase() || b.patientName.toLowerCase();
+      const normalizedEmail = b.patientEmail?.trim().toLowerCase() || '';
+      const normalizedPhone = b.patientPhone?.replace(/\D/g, '') || '';
+      const stableId =
+        b.patientId && !/^pat-[a-z0-9]+-[a-z0-9]+$/i.test(b.patientId) ? b.patientId : '';
+      const key =
+        normalizedEmail ||
+        stableId ||
+        normalizedPhone ||
+        b.patientName.trim().toLowerCase() ||
+        b.patientId;
       const existing = map.get(key);
 
       if (!existing) {
@@ -90,12 +99,24 @@ export function DoctorPatientRecordsScreen() {
         if (b.mode === 'video') existing.videoConsultations += 1;
         existing.allBookings.push(b);
 
-        // Keep latest booking as reference
-        if (b.date > existing.lastConsultationDate) {
+        if (b.patientSummary) {
+          existing.summary = b.patientSummary;
+        }
+
+        const candidateStamp = `${b.date} ${b.time || '00:00'}`;
+        const existingStamp = `${existing.lastConsultationDate} ${existing.lastBooking.time || '00:00'}`;
+        if (candidateStamp >= existingStamp) {
           existing.lastConsultationDate = b.date;
           existing.lastConsultationMode = b.mode;
-          existing.lastBooking = b;
-          if (b.patientSummary) existing.summary = b.patientSummary;
+          existing.lastBooking = {
+            ...b,
+            patientSummary: b.patientSummary ?? existing.summary,
+          };
+        } else if (existing.summary && !existing.lastBooking.patientSummary) {
+          existing.lastBooking = {
+            ...existing.lastBooking,
+            patientSummary: existing.summary,
+          };
         }
       }
     });
@@ -477,7 +498,11 @@ export function DoctorPatientRecordsScreen() {
                   <Pressable
                     onPress={() => {
                       tapFeedback();
-                      setSelectedBookingForModal(p.lastBooking);
+                      setSelectedBookingForModal(
+                        p.summary
+                          ? { ...p.lastBooking, patientSummary: p.lastBooking.patientSummary ?? p.summary }
+                          : p.lastBooking
+                      );
                     }}
                     className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl bg-brand-500 py-2.5 active:bg-brand-600 shadow-2xs"
                   >

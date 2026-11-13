@@ -1870,6 +1870,14 @@ export const useAppStore = create<AppState>()(
             : undefined,
         };
 
+        const normalizedEmail = patientEmail.trim().toLowerCase();
+        const normalizedPhone = patientPhone.replace(/\D/g, '');
+        const stablePatientId =
+          state.patientProfile.idNumber?.trim() ||
+          (normalizedEmail ? `pat-${normalizedEmail}` : '') ||
+          (normalizedPhone ? `pat-${normalizedPhone}` : '') ||
+          makeId('pat');
+
         const newBooking: DoctorBooking = {
           id: bookingId,
           doctorId: doctor.id,
@@ -1877,7 +1885,7 @@ export const useAppStore = create<AppState>()(
           doctorSpecialty: doctor.specialty,
           practiceName: doctor.practiceName,
           practiceAddress: doctor.practiceAddress,
-          patientId: state.patientProfile.idNumber || makeId('pat'),
+          patientId: stablePatientId,
           patientName,
           patientPhone,
           patientEmail,
