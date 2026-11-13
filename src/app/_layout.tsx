@@ -69,6 +69,7 @@ export default function RootLayout() {
     const schedule = () => {
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
+        if (useAppStore.getState().userRole === 'doctor') return;
         syncReminders().catch(() => {});
       }, 500);
     };
@@ -106,6 +107,16 @@ export default function RootLayout() {
         linkedNoteId?: string;
         noteId?: string;
       };
+
+      const isDoctor = useAppStore.getState().userRole === 'doctor';
+      if (isDoctor) {
+        if (actionId === 'view_calendar' || data?.type === 'appointment') {
+          router.push('/calendar');
+        } else {
+          router.push('/');
+        }
+        return;
+      }
 
       // Interactive Action 1: Mark taken directly from notification banner/lockscreen
       if (actionId === 'take_dose' && data?.reminderId) {

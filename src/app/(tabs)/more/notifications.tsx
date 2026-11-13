@@ -1,7 +1,7 @@
 import { PlatformDatePicker } from '@/components/ui/PlatformDatePicker';
 import dayjs from 'dayjs';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import { safeBack } from '@/lib/navigation';
 import {
   AlertTriangle,
@@ -57,6 +57,16 @@ type Item = { id: string; label: string; time: string; custom: boolean };
 
 /** Notifications: today's reminders with Taken, Snooze and Skip, WHO health days, push server sync, and custom reminders. */
 export default function NotificationsScreen() {
+  const userRole = useAppStore((s) => s.userRole);
+
+  if (userRole === 'doctor') {
+    return <Redirect href="/" />;
+  }
+
+  return <PatientNotificationsScreen />;
+}
+
+function PatientNotificationsScreen() {
   const { accent } = useAccent();
   const t = useTokens();
   const toast = useToast();

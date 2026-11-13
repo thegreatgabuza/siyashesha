@@ -1,5 +1,5 @@
 import dayjs from 'dayjs';
-import { router, useLocalSearchParams } from 'expo-router';
+import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { ArrowUp, BookOpen, ChevronLeft, ChevronRight, Flag, Lock, Mic, ShieldCheck, Sparkles } from 'lucide-react-native';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Keyboard, KeyboardAvoidingView, Linking, Platform, ScrollView, TextInput, View } from 'react-native';
@@ -48,6 +48,16 @@ function dayLabel(key: string) {
  * Siyashesha Assistant with full clinical context, rich cards, and automatic on-device offline fallback.
  */
 export default function AssistantScreen() {
+  const userRole = useAppStore((s) => s.userRole);
+
+  if (userRole === 'doctor') {
+    return <Redirect href="/" />;
+  }
+
+  return <PatientAssistantScreen />;
+}
+
+function PatientAssistantScreen() {
   const t = useTokens();
   const insets = useSafeAreaInsets();
   const aboveTabBar = useAboveTabBar(10);

@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { router, useLocalSearchParams } from 'expo-router';
+import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { safeBack } from '@/lib/navigation';
 import { BookHeart } from 'lucide-react-native';
 import { useState } from 'react';
@@ -15,8 +15,19 @@ import { SectionHeader } from '@/components/ui/SectionHeader';
 import { healthDays } from '@/data/healthDays';
 import { passportTargetRoutes } from '@/lib/routes';
 import { useAccent } from '@/hooks/useAccent';
+import { useAppStore } from '@/store/useAppStore';
 
-export default function HealthDayDetailScreen() {
+export default function HealthDayDetailRoute() {
+  const userRole = useAppStore((s) => s.userRole);
+
+  if (userRole === 'doctor') {
+    return <Redirect href="/" />;
+  }
+
+  return <HealthDayDetailScreen />;
+}
+
+function HealthDayDetailScreen() {
   const { accent } = useAccent();
   const { day } = useLocalSearchParams<{ day: string }>();
   const [citationsOpen, setCitationsOpen] = useState(false);
