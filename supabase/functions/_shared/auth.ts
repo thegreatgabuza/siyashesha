@@ -24,25 +24,34 @@ function getRemoteJwks(jwksUrl: string) {
 }
 
 /**
- * Resolves an allowlisted Clerk JWKS URL strictly from server-side Edge Function secrets.
+ * Resolves allowlisted Clerk JWKS URLs strictly from server-side Edge Function secrets.
  * Never derives JWKS dynamically from an untrusted incoming JWT's `iss` claim.
  */
-function resolveConfiguredClerkJwksUrl(): { jwksUrl: string; issuer?: string } | null {
+function resolveConfiguredClerkIssuers(): Array<{ jwksUrl: string; issuer?: string }> {
+  const results: Array<{ jwksUrl: string; issuer?: string }> = [];
   const explicitJwks = (Deno.env.get('CLERK_JWKS_URL') ?? '').trim();
-  const explicitIssuer = (Deno.env.get('CLERK_ISSUER') ?? '').trim().replace(/\/+$/, '');
+  const explicitIssuer = (Deno.env.get('CLERK_ISSUER') ?? '').trim();
+
   if (explicitJwks) {
-    return {
+    results.push({
       jwksUrl: explicitJwks,
-      issuer: explicitIssuer || undefined,
-    };
+      issuer: explicitIssuer && !explicitIssuer.includes(',') ? explicitIssuer.replace(/\/+$/, '') : undefined,
+    });
   }
-  if (explicitIssuer && explicitIssuer.startsWith('https://')) {
-    return {
-      jwksUrl: `${explicitIssuer}/.well-known/jwks.json`,
-      issuer: explicitIssuer,
-    };
+
+  if (explicitIssuer) {
+    for (const raw of explicitIssuer.split(',')) {
+      const cleaned = raw.trim().replace(/\/+$/, '');
+      if (cleaned.startsWith('https://')) {
+        results.push({
+          jwksUrl: `${cleaned}/.well-known/jwks.json`,
+          issuer: cleaned,
+        });
+      }
+    }
   }
-  return null;
+
+  return results;
 }
 
 export function createServiceRoleClient() {
@@ -82,8 +91,8 @@ export async function verifyAuthenticatedCaller(
   }
 
   // 1. Verify Clerk RS256 session JWT against allowlisted server-configured JWKS
-  const clerkConfig = resolveConfiguredClerkJwksUrl();
-  if (clerkConfig) {
+  const clerkConfigs = resolveConfiguredClerkIssuers();
+  for (const clerkConfig of clerkConfigs) {
     try {
       const jwks = getRemoteJwks(clerkConfig.jwksUrl);
       const { payload } = await jwtVerify(
@@ -97,7 +106,7 @@ export async function verifyAuthenticatedCaller(
         return { ok: true, caller: { userId: sub, token } };
       }
     } catch {
-      // Continue to Supabase HS256 / GoTrue fallback
+      // Try next issuer or Supabase fallback
     }
   }
 

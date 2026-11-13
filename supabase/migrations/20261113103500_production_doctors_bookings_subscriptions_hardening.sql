@@ -1,5 +1,43 @@
--- Migration: Production hardening for shared link brute-force protection,
+-- Migration: Production hardening for shared links + brute-force protection,
 -- cross-device doctors & bookings sync, server-verified subscriptions, and API rate limits.
+
+-- ==============================================================================
+-- 0. Ensure shared_links Table Exists (Idempotent)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.shared_links (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL DEFAULT public.requesting_user_id(),
+  share_code TEXT NOT NULL,
+  recipient_name TEXT NOT NULL,
+  recipient_facility TEXT NOT NULL,
+  record_ids JSONB DEFAULT '[]'::jsonb,
+  diary_note_ids JSONB DEFAULT '[]'::jsonb,
+  duration_id TEXT NOT NULL,
+  pin TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active',
+  payload JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_shared_links_user_id ON public.shared_links(user_id);
+CREATE INDEX IF NOT EXISTS idx_shared_links_share_code ON public.shared_links(share_code);
+
+ALTER TABLE public.shared_links ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.shared_links FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Owner access on shared_links" ON public.shared_links;
+CREATE POLICY "Owner access on shared_links"
+ON public.shared_links FOR ALL
+USING (public.requesting_user_id() IS NOT NULL AND user_id = public.requesting_user_id())
+WITH CHECK (public.requesting_user_id() IS NOT NULL AND user_id = public.requesting_user_id());
+
+DROP TRIGGER IF EXISTS trg_shared_links_updated_at ON public.shared_links;
+CREATE TRIGGER trg_shared_links_updated_at
+BEFORE UPDATE ON public.shared_links
+FOR EACH ROW
+EXECUTE FUNCTION public.handle_updated_at();
 
 -- ==============================================================================
 -- 1. Brute-Force Protection Ledger for verify_shared_link
