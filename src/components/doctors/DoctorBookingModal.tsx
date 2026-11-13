@@ -13,7 +13,7 @@ import {
   Video,
   X,
 } from 'lucide-react-native';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
@@ -29,7 +29,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChunkyButton } from '@/components/onboarding/ChunkyButton';
 import { useToast } from '@/components/ui/Toast';
 import { type DoctorProfile } from '@/data/doctors';
-import { COMMON_MEDICAL_AIDS, getDoctorBookableServices } from '@/lib/doctorBooking';
+import {
+  COMMON_MEDICAL_AIDS,
+  getDoctorBookableServices,
+  getDoctorDateSlots,
+  isConsultationModeAllowed,
+  resolveSupportedMode,
+} from '@/lib/doctorBooking';
 import { tapFeedback } from '@/lib/feedback';
 import { useAppStore } from '@/store/useAppStore';
 
@@ -102,6 +108,7 @@ function BookingModalContent({
   const insets = useSafeAreaInsets();
   const toast = useToast();
   const patient = useAppStore((s) => s.patientProfile);
+  const doctorBookings = useAppStore((s) => s.doctorBookings);
   const bookDoctorService = useAppStore((s) => s.bookDoctorService);
 
   // Shared active/fallback services guarantee so booking always resolves in store
@@ -116,19 +123,60 @@ function BookingModalContent({
     defaultService?.id ?? ''
   );
   const [selectedDate, setSelectedDate] = useState(initialDate || todayStr);
-  const [selectedTime, setSelectedTime] = useState(initialTime || '09:30');
-  const [mode, setMode] = useState<'in_person' | 'video'>(initialMode || 'in_person');
+  const [mode, setMode] = useState<'in_person' | 'video'>(() =>
+    defaultService
+      ? resolveSupportedMode(doctor, defaultService, initialMode)
+      : initialMode || 'in_person'
+  );
+
+  const currentService =
+    servicesToDisplay.find((s) => s.id === selectedServiceId) ?? servicesToDisplay[0];
+
+  const dateSlotSchedule = useMemo(() => {
+    const res = getDoctorDateSlots(doctor, selectedDate, doctorBookings);
+    if (
+      res.isAvailableDay &&
+      initialTime &&
+      selectedDate === (initialDate || todayStr) &&
+      !res.slots.some((s) => s.time === initialTime)
+    ) {
+      const isBooked = doctorBookings.some(
+        (b) =>
+          b.doctorId === doctor.id &&
+          b.date === selectedDate &&
+          b.time === initialTime &&
+          b.status !== 'cancelled'
+      );
+      return {
+        ...res,
+        slots: [...res.slots, { time: initialTime, isBooked }].sort((a, b) =>
+          a.time.localeCompare(b.time)
+        ),
+      };
+    }
+    return res;
+  }, [doctor, selectedDate, doctorBookings, initialTime, initialDate, todayStr]);
+
+  const [selectedTime, setSelectedTime] = useState<string>(() => {
+    if (initialTime) return initialTime;
+    const initialSchedule = getDoctorDateSlots(doctor, initialDate || todayStr, doctorBookings);
+    return initialSchedule.slots.find((s) => !s.isBooked)?.time || '';
+  });
   const [medicalAid, setMedicalAid] = useState<string>('Discovery Health');
   const [patientName, setPatientName] = useState(
-    [patient?.firstName, patient?.lastName].filter(Boolean).join(' ') || 'Jessica Tebatso'
+    [patient?.firstName, patient?.lastName].filter(Boolean).join(' ').trim()
   );
-  const [patientPhone, setPatientPhone] = useState(patient?.phone || '+27 82 456 7890');
+  const [patientPhone, setPatientPhone] = useState((patient?.phone || '').trim());
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmedBooking, setConfirmedBooking] = useState<any | null>(null);
 
-  const currentService =
-    servicesToDisplay.find((s) => s.id === selectedServiceId) ?? servicesToDisplay[0];
+  const supportsInPerson = currentService
+    ? isConsultationModeAllowed(doctor, currentService, 'in_person')
+    : doctor.consultationModes.includes('in_person');
+  const supportsVideo = currentService
+    ? isConsultationModeAllowed(doctor, currentService, 'video')
+    : doctor.consultationModes.includes('video');
 
   // Generate next 14 calendar days
   const daysList = Array.from({ length: 14 }).map((_, i) => {
@@ -141,29 +189,33 @@ function BookingModalContent({
     };
   });
 
-  // Clinical Time slots (standard 30-min schedule)
-  const timeSlots = [
-    '08:30',
-    '09:00',
-    '09:30',
-    '10:00',
-    '10:30',
-    '11:00',
-    '11:30',
-    '14:00',
-    '14:30',
-    '15:00',
-    '15:30',
-    '16:00',
-  ];
-
   const handleConfirm = () => {
     if (!currentService) {
       toast.show('Please select a service', 'warning');
       return;
     }
-    if (!selectedDate || !selectedTime) {
-      toast.show('Please select an appointment date and time', 'warning');
+    if (!isConsultationModeAllowed(doctor, currentService, mode)) {
+      toast.show(
+        `${currentService.name} is not available for ${mode === 'video' ? 'video telehealth' : 'in-person'} booking.`,
+        'warning'
+      );
+      return;
+    }
+    if (!selectedDate || !selectedTime || !dateSlotSchedule.isAvailableDay) {
+      toast.show('Please select an available consultation date and time slot', 'warning');
+      return;
+    }
+    const chosenSlot = dateSlotSchedule.slots.find((s) => s.time === selectedTime);
+    if (!chosenSlot || chosenSlot.isBooked) {
+      toast.show('That time slot is already booked. Please choose another time.', 'warning');
+      return;
+    }
+    if (!patientName.trim()) {
+      toast.show('Please enter the patient full name', 'warning');
+      return;
+    }
+    if (!patientPhone.trim()) {
+      toast.show('Please enter a contact phone number', 'warning');
       return;
     }
 
@@ -443,6 +495,7 @@ function BookingModalContent({
                       onPress={() => {
                         tapFeedback();
                         setSelectedServiceId(srv.id);
+                        setMode(resolveSupportedMode(doctor, srv, mode));
                       }}
                       className={`rounded-2xl border p-3.5 ${
                         isSelected
@@ -492,14 +545,17 @@ function BookingModalContent({
               </Text>
               <View className="flex-row gap-2">
                 <Pressable
+                  disabled={!supportsInPerson}
                   onPress={() => {
                     tapFeedback();
                     setMode('in_person');
                   }}
                   className={`flex-1 flex-row items-center justify-center gap-2 rounded-xl border p-2.5 ${
-                    mode === 'in_person'
-                      ? 'border-brand-500 bg-brand-50/80 dark:border-brand-400 dark:bg-brand-500/20'
-                      : 'border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800'
+                    !supportsInPerson
+                      ? 'border-slate-200 bg-slate-100 opacity-40 dark:border-slate-800 dark:bg-slate-900'
+                      : mode === 'in_person'
+                        ? 'border-brand-500 bg-brand-50/80 dark:border-brand-400 dark:bg-brand-500/20'
+                        : 'border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800'
                   }`}
                 >
                   <MapPin size={15} color={mode === 'in_person' ? '#0B2559' : '#64748B'} />
@@ -515,14 +571,17 @@ function BookingModalContent({
                 </Pressable>
 
                 <Pressable
+                  disabled={!supportsVideo}
                   onPress={() => {
                     tapFeedback();
                     setMode('video');
                   }}
                   className={`flex-1 flex-row items-center justify-center gap-2 rounded-xl border p-2.5 ${
-                    mode === 'video'
-                      ? 'border-brand-500 bg-brand-50/80 dark:border-brand-400 dark:bg-brand-500/20'
-                      : 'border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800'
+                    !supportsVideo
+                      ? 'border-slate-200 bg-slate-100 opacity-40 dark:border-slate-800 dark:bg-slate-900'
+                      : mode === 'video'
+                        ? 'border-brand-500 bg-brand-50/80 dark:border-brand-400 dark:bg-brand-500/20'
+                        : 'border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800'
                   }`}
                 >
                   <Video size={15} color={mode === 'video' ? '#0B2559' : '#64748B'} />
@@ -553,6 +612,10 @@ function BookingModalContent({
                       onPress={() => {
                         tapFeedback();
                         setSelectedDate(day.dateStr);
+                        const dayRes = getDoctorDateSlots(doctor, day.dateStr, doctorBookings);
+                        if (!dayRes.slots.some((s) => s.time === selectedTime && !s.isBooked)) {
+                          setSelectedTime(dayRes.slots.find((s) => !s.isBooked)?.time || '');
+                        }
                       }}
                       className={`h-[68px] w-[58px] items-center justify-center rounded-2xl border ${
                         isSelected
@@ -592,34 +655,49 @@ function BookingModalContent({
               <Text className="mb-2 font-sans-bold text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Select Time Slot
               </Text>
-              <View className="flex-row flex-wrap gap-2">
-                {timeSlots.map((slot) => {
-                  const isSelected = selectedTime === slot;
-                  return (
-                    <Pressable
-                      key={slot}
-                      onPress={() => {
-                        tapFeedback();
-                        setSelectedTime(slot);
-                      }}
-                      style={{ width: '22.8%' }}
-                      className={`items-center justify-center rounded-xl border py-2 ${
-                        isSelected
-                          ? 'border-brand-500 bg-brand-500'
-                          : 'border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800'
-                      }`}
-                    >
-                      <Text
-                        className={`font-sans-semibold text-[12px] ${
-                          isSelected ? 'text-white' : 'text-slate-700 dark:text-slate-300'
+              {!dateSlotSchedule.isAvailableDay || dateSlotSchedule.slots.length === 0 ? (
+                <View className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/40">
+                  <Text className="text-center font-sans text-[12px] text-slate-500 dark:text-slate-400">
+                    Practice is closed on this day. Please choose another date.
+                  </Text>
+                </View>
+              ) : (
+                <View className="flex-row flex-wrap gap-2">
+                  {dateSlotSchedule.slots.map((slot) => {
+                    const isSelected = selectedTime === slot.time && !slot.isBooked;
+                    return (
+                      <Pressable
+                        key={slot.time}
+                        disabled={slot.isBooked}
+                        onPress={() => {
+                          tapFeedback();
+                          setSelectedTime(slot.time);
+                        }}
+                        style={{ width: '22.8%' }}
+                        className={`items-center justify-center rounded-xl border py-2 ${
+                          slot.isBooked
+                            ? 'border-slate-200 bg-slate-100 opacity-40 dark:border-slate-800 dark:bg-slate-900'
+                            : isSelected
+                              ? 'border-brand-500 bg-brand-500'
+                              : 'border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800'
                         }`}
                       >
-                        {slot}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
+                        <Text
+                          className={`font-sans-semibold text-[12px] ${
+                            slot.isBooked
+                              ? 'line-through text-slate-400'
+                              : isSelected
+                                ? 'text-white'
+                                : 'text-slate-700 dark:text-slate-300'
+                          }`}
+                        >
+                          {slot.time}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
             </View>
 
             {/* 5. Medical Aid / Insurance Scheme */}

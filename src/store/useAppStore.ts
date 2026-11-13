@@ -29,6 +29,7 @@ import type { LanguageCode } from '@/i18n/translations';
 import {
   getDoctorBookableServices,
   getTelehealthRoomUrl,
+  isConsultationModeAllowed,
   resolveUserRoleForEmail,
 } from '@/lib/doctorBooking';
 import { clearAllStoredFiles } from '@/lib/documents';
@@ -1847,6 +1848,19 @@ export const useAppStore = create<AppState>()(
           doctor.services.find((s) => s.id === bookingData.serviceId) ??
           getDoctorBookableServices(doctor).find((s) => s.id === bookingData.serviceId);
         if (!service) throw new Error('Service not found');
+        if (!isConsultationModeAllowed(doctor, service, bookingData.mode)) {
+          throw new Error('Selected consultation mode is not available for this service');
+        }
+        const slotConflict = state.doctorBookings.some(
+          (b) =>
+            b.doctorId === doctor.id &&
+            b.date === bookingData.date &&
+            b.time === bookingData.time &&
+            b.status !== 'cancelled'
+        );
+        if (slotConflict) {
+          throw new Error('This time slot has already been booked');
+        }
 
         const bookingId = makeId('bk');
         const apptId = makeId('appt');

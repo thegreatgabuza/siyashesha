@@ -41,6 +41,95 @@ export function getDoctorBookableServices(doctor: DoctorProfile): DoctorService[
   ];
 }
 
+/** Checks whether a consultation mode is supported by both the doctor and the chosen service. */
+export function isConsultationModeAllowed(
+  doctor: DoctorProfile,
+  service: DoctorService,
+  mode: 'in_person' | 'video'
+): boolean {
+  const doctorSupports = doctor.consultationModes.includes(mode);
+  const serviceSupports = service.mode === 'both' || service.mode === mode;
+  return doctorSupports && serviceSupports;
+}
+
+/** Resolves a valid consultation mode given doctor capabilities, service mode, and preferred mode. */
+export function resolveSupportedMode(
+  doctor: DoctorProfile,
+  service: DoctorService,
+  preferredMode?: 'in_person' | 'video'
+): 'in_person' | 'video' {
+  if (preferredMode && isConsultationModeAllowed(doctor, service, preferredMode)) {
+    return preferredMode;
+  }
+  if (isConsultationModeAllowed(doctor, service, 'in_person')) return 'in_person';
+  if (isConsultationModeAllowed(doctor, service, 'video')) return 'video';
+  return service.mode === 'video' ? 'video' : 'in_person';
+}
+
+export interface DoctorTimeSlotOption {
+  time: string;
+  isBooked: boolean;
+}
+
+/** Generates time slots from a doctor's configured availability window and flags booked slots. */
+export function getDoctorDateSlots(
+  doctor: DoctorProfile,
+  dateStr: string,
+  existingBookings: DoctorBooking[] = []
+): { isAvailableDay: boolean; slots: DoctorTimeSlotOption[] } {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dateObj = new Date(y, (m || 1) - 1, d || 1);
+  const daysOfWeekMap: ('Sun' | 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat')[] = [
+    'Sun',
+    'Mon',
+    'Tue',
+    'Wed',
+    'Thu',
+    'Fri',
+    'Sat',
+  ];
+  const dayOfWeek = daysOfWeekMap[dateObj.getDay()];
+  const isAvailableDay =
+    doctor.availability?.days?.includes(dayOfWeek) ?? dayOfWeek !== 'Sun';
+
+  if (!isAvailableDay) {
+    return { isAvailableDay: false, slots: [] };
+  }
+
+  const parseMinutes = (hhmm: string, fallback: number): number => {
+    const [hh, mm] = hhmm.split(':').map(Number);
+    if (Number.isNaN(hh) || Number.isNaN(mm)) return fallback;
+    return hh * 60 + mm;
+  };
+
+  const startMin = parseMinutes(doctor.availability?.startTime || '08:30', 8 * 60 + 30);
+  const endMin = parseMinutes(doctor.availability?.endTime || '17:00', 17 * 60);
+  const stepMin = Math.max(15, doctor.availability?.slotDurationMinutes || 30);
+
+  const bookedTimes = new Set(
+    existingBookings
+      .filter(
+        (b) =>
+          b.doctorId === doctor.id &&
+          b.date === dateStr &&
+          b.status !== 'cancelled'
+      )
+      .map((b) => b.time)
+  );
+
+  const slots: DoctorTimeSlotOption[] = [];
+  for (let cur = startMin; cur + stepMin <= endMin; cur += stepMin) {
+    // Skip standard 13:00–13:59 lunch hour
+    if (cur >= 13 * 60 && cur < 14 * 60) continue;
+    const hh = String(Math.floor(cur / 60)).padStart(2, '0');
+    const mm = String(cur % 60).padStart(2, '0');
+    const time = `${hh}:${mm}`;
+    slots.push({ time, isBooked: bookedTimes.has(time) });
+  }
+
+  return { isAvailableDay: true, slots };
+}
+
 /** Extracts a persisted Jitsi telehealth URL from appointment notes if present. */
 export function extractTelehealthUrl(notes?: string): string | undefined {
   if (!notes) return undefined;
