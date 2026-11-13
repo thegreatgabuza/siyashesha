@@ -28,6 +28,7 @@ import {
   IAP_PRODUCT_IDS,
   purchasePlanWithStoreKit,
   restoreStoreKitPurchases,
+  verifyIapReceiptWithBackend,
 } from '@/lib/iap';
 import { safeBack } from '@/lib/navigation';
 import { FREE_RECORD_LIMIT, getPlanEntitlements } from '@/lib/subscription';
@@ -171,11 +172,25 @@ export default function BillingScreen() {
       setPurchasingPlanId(null);
 
       if (result.status === 'purchased') {
-        setCurrentPlan(result.planId, {
-          startTrial: result.planId === 'annual_premium',
-          expiresAt: result.expiresAt,
+        const verification = await verifyIapReceiptWithBackend({
+          planId: result.planId,
           productId: result.productId,
           transactionId: result.transactionId,
+          transactionReceipt: result.transactionReceipt,
+          purchaseToken: result.purchaseToken,
+        });
+        if (verification.configured && !verification.verified) {
+          Alert.alert(
+            'Receipt Verification Failed',
+            verification.error || 'We could not verify this purchase with the App Store / Google Play.'
+          );
+          return;
+        }
+        setCurrentPlan(verification.plan ?? result.planId, {
+          startTrial: (verification.plan ?? result.planId) === 'annual_premium',
+          expiresAt: verification.expiresAt ?? result.expiresAt,
+          productId: verification.productId ?? result.productId,
+          transactionId: verification.transactionId ?? result.transactionId,
         });
         toast.show(`Active plan updated to ${plan.name}`, 'success');
         return;
@@ -224,19 +239,42 @@ export default function BillingScreen() {
     tapFeedback();
     setRestoring(true);
     try {
-      const { restoredPlan, productId, transactionId, expiresAt } = await restoreStoreKitPurchases();
-      setRestoring(false);
+      const {
+        restoredPlan,
+        productId,
+        transactionId,
+        transactionReceipt,
+        purchaseToken,
+        expiresAt,
+      } = await restoreStoreKitPurchases();
       if (restoredPlan) {
-        const matched = plans.find((p) => p.id === restoredPlan);
-        setCurrentPlan(restoredPlan, {
-          startTrial: false,
-          expiresAt,
-          productId,
+        const verification = await verifyIapReceiptWithBackend({
+          planId: restoredPlan,
+          productId: productId || '',
           transactionId,
+          transactionReceipt,
+          purchaseToken,
+        });
+        setRestoring(false);
+        if (verification.configured && !verification.verified) {
+          Alert.alert(
+            'Restore Verification Failed',
+            verification.error || 'We could not verify your previous store receipt.'
+          );
+          return;
+        }
+        const effectivePlan = verification.plan ?? restoredPlan;
+        const matched = plans.find((p) => p.id === effectivePlan);
+        setCurrentPlan(effectivePlan, {
+          startTrial: false,
+          expiresAt: verification.expiresAt ?? expiresAt,
+          productId: verification.productId ?? productId,
+          transactionId: verification.transactionId ?? transactionId,
         });
         toast.show(`Restored ${matched?.name ?? 'Pro Plan'}`, 'success');
         return;
       }
+      setRestoring(false);
       Alert.alert(
         'Restore Purchases',
         `Your ${storeLabel} receipt status has been verified. Current active tier: ${activePlanData.officialTitle}.`,

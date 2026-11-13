@@ -24,6 +24,7 @@ import {
   IAP_PRODUCT_IDS,
   purchasePlanWithStoreKit,
   restoreStoreKitPurchases,
+  verifyIapReceiptWithBackend,
 } from '@/lib/iap';
 import { safeBack } from '@/lib/navigation';
 import type { SubscriptionPlanId } from '@/store/useAppStore';
@@ -159,16 +160,31 @@ export default function OnboardingPaywallScreen() {
     setProcessing(true);
     try {
       const result = await purchasePlanWithStoreKit(selectedOffer.id);
-      setProcessing(false);
 
       if (result.status === 'purchased') {
-        activatePlanAndFinish(result.planId, selectedOffer.hasFreeTrial, {
+        const verification = await verifyIapReceiptWithBackend({
+          planId: result.planId,
           productId: result.productId,
           transactionId: result.transactionId,
-          expiresAt: result.expiresAt,
+          transactionReceipt: result.transactionReceipt,
+          purchaseToken: result.purchaseToken,
+        });
+        setProcessing(false);
+        if (verification.configured && !verification.verified) {
+          Alert.alert(
+            'Receipt Verification Failed',
+            verification.error || 'We could not verify this purchase with the store.'
+          );
+          return;
+        }
+        activatePlanAndFinish(verification.plan ?? result.planId, selectedOffer.hasFreeTrial, {
+          productId: verification.productId ?? result.productId,
+          transactionId: verification.transactionId ?? result.transactionId,
+          expiresAt: verification.expiresAt ?? result.expiresAt,
         });
         return;
       }
+      setProcessing(false);
 
       if (result.status === 'cancelled') {
         return;
@@ -216,20 +232,43 @@ export default function OnboardingPaywallScreen() {
     tapFeedback();
     setRestoring(true);
     try {
-      const { restoredPlan, productId, transactionId, expiresAt } = await restoreStoreKitPurchases();
-      setRestoring(false);
+      const {
+        restoredPlan,
+        productId,
+        transactionId,
+        transactionReceipt,
+        purchaseToken,
+        expiresAt,
+      } = await restoreStoreKitPurchases();
       if (restoredPlan) {
-        const matchedOffer = offers.find((o) => o.id === restoredPlan);
+        const verification = await verifyIapReceiptWithBackend({
+          planId: restoredPlan,
+          productId: productId || '',
+          transactionId,
+          transactionReceipt,
+          purchaseToken,
+        });
+        setRestoring(false);
+        if (verification.configured && !verification.verified) {
+          Alert.alert(
+            'Restore Verification Failed',
+            verification.error || 'We could not verify your previous store receipt.'
+          );
+          return;
+        }
+        const effectivePlan = verification.plan ?? restoredPlan;
+        const matchedOffer = offers.find((o) => o.id === effectivePlan);
         toast.show(`Restored ${matchedOffer?.shortName ?? 'Siyashesha Pro'}!`, 'success');
         finishOnboarding({
-          plan: restoredPlan,
+          plan: effectivePlan,
           startTrial: false,
-          productId,
-          transactionId,
-          expiresAt,
+          productId: verification.productId ?? productId,
+          transactionId: verification.transactionId ?? transactionId,
+          expiresAt: verification.expiresAt ?? expiresAt,
         });
         return;
       }
+      setRestoring(false);
       Alert.alert(
         'Restore Purchases',
         'We checked your App Store / Google Play receipt history. No previous active subscription was found for this account, or you can continue with your new passport.',

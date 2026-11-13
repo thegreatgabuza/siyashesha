@@ -34,7 +34,11 @@ import {
   resolveUserRoleForEmail,
 } from '@/lib/doctorBooking';
 import { clearAllStoredFiles } from '@/lib/documents';
-import { verifyActiveStoreKitEntitlements } from '@/lib/iap';
+import {
+  startTrialWithBackend,
+  verifyActiveStoreKitEntitlements,
+  verifyIapReceiptWithBackend,
+} from '@/lib/iap';
 import { clearEnclaveKeys } from '@/lib/security/enclaveSecurity';
 import {
   deleteAppointmentFromDatabase,
@@ -1029,6 +1033,9 @@ export const useAppStore = create<AppState>()(
           const activeEmail = s.patientProfile.email || s.pendingEmail;
           const isDemo = s.clerkFlow === 'demo' || isDemoAccountEmail(activeEmail);
           if (!options?.silentSync && !isDemo) {
+            if (options?.startTrial) {
+              startTrialWithBackend().catch(() => {});
+            }
             syncSubscriptionToDatabase({
               plan,
               trialEndsAt: trialEnd,
@@ -1071,6 +1078,15 @@ export const useAppStore = create<AppState>()(
         // 1. Check native StoreKit 2 / Google Play Billing active entitlements
         const storeEntitlement = await verifyActiveStoreKitEntitlements();
         if (storeEntitlement.activePlan) {
+          if (storeEntitlement.transactionReceipt || storeEntitlement.purchaseToken) {
+            verifyIapReceiptWithBackend({
+              planId: storeEntitlement.activePlan,
+              productId: storeEntitlement.productId || '',
+              transactionId: storeEntitlement.transactionId,
+              transactionReceipt: storeEntitlement.transactionReceipt,
+              purchaseToken: storeEntitlement.purchaseToken,
+            }).catch(() => {});
+          }
           const prevPlan = s.subscriptionPlan;
           const nowIso = new Date().toISOString();
           const changed =
@@ -1338,6 +1354,9 @@ export const useAppStore = create<AppState>()(
           syncPatientProfile(mergedProfile).catch(() => {});
           syncMedications(mergedMeds).catch(() => {});
           syncRecords(nonDemoRecords).catch(() => {});
+          if (options?.startTrial) {
+            startTrialWithBackend().catch(() => {});
+          }
           syncSubscriptionToDatabase({
             plan: chosenPlan,
             trialEndsAt: finalTrialEnd,

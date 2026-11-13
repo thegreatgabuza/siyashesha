@@ -1457,6 +1457,32 @@ export async function fetchSubscriptionFromDatabase(): Promise<CloudSubscription
     const userId = await getCurrentUserId();
     if (!userId) return null;
 
+    // 1. Prefer server-verified `public.subscriptions` table
+    const { data: subRow, error: subErr } = await supabase
+      .from('subscriptions')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!subErr && subRow) {
+      const validPlans = ['free', 'monthly_premium', 'annual_premium', 'lifetime_premium'];
+      const isTrusted =
+        subRow.verification_status === 'verified' || subRow.verification_status === 'trial';
+      const resolvedPlan = (
+        isTrusted && validPlans.includes(subRow.plan) ? subRow.plan : 'free'
+      ) as CloudSubscriptionEntitlement['plan'];
+
+      return {
+        plan: resolvedPlan,
+        trialEndsAt: subRow.trial_ends_at ?? undefined,
+        expiresAt: subRow.expires_at ?? undefined,
+        productId: subRow.product_id ?? undefined,
+        transactionId: subRow.transaction_id ?? undefined,
+        updatedAt: subRow.updated_at || new Date().toISOString(),
+      };
+    }
+
+    // 2. Legacy fallback for pre-migration rows in scheduled_reminders_sync
     const { data, error } = await supabase
       .from('scheduled_reminders_sync')
       .select('*')

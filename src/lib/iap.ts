@@ -1,6 +1,7 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
+import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import type { SubscriptionPlanId } from '@/store/useAppStore';
 
 export type PaidPlanId = Exclude<SubscriptionPlanId, 'free'>;
@@ -173,6 +174,8 @@ export type PurchaseResult =
       planId: PaidPlanId;
       productId: string;
       transactionId?: string;
+      transactionReceipt?: string;
+      purchaseToken?: string;
       purchasedAt?: string;
       expiresAt?: string;
     }
@@ -184,6 +187,8 @@ export interface ActiveStoreKitEntitlement {
   activePlan: PaidPlanId | null;
   productId?: string;
   transactionId?: string;
+  transactionReceipt?: string;
+  purchaseToken?: string;
   purchasedAt?: string;
   expiresAt?: string;
 }
@@ -193,6 +198,8 @@ function extractPurchaseMetadata(
   planId: PaidPlanId
 ): {
   transactionId?: string;
+  transactionReceipt?: string;
+  purchaseToken?: string;
   purchasedAt: string;
   expiresAt?: string;
   isExpiredInStore: boolean;
@@ -203,6 +210,12 @@ function extractPurchaseMetadata(
     purchase?.transactionId ||
     purchase?.purchaseToken ||
     undefined;
+  const transactionReceipt: string | undefined =
+    purchase?.transactionReceipt ||
+    purchase?.verificationResultIOS ||
+    purchase?.jwsRepresentationIOS ||
+    undefined;
+  const purchaseToken: string | undefined = purchase?.purchaseToken || undefined;
 
   const rawTxDate = purchase?.transactionDate;
   const purchasedMs =
@@ -216,6 +229,8 @@ function extractPurchaseMetadata(
   if (planId === 'lifetime_premium') {
     return {
       transactionId: txId,
+      transactionReceipt,
+      purchaseToken,
       purchasedAt,
       expiresAt: undefined,
       isExpiredInStore: false,
@@ -227,6 +242,8 @@ function extractPurchaseMetadata(
     const expMs = rawExpIos < 1e12 ? rawExpIos * 1000 : rawExpIos;
     return {
       transactionId: txId,
+      transactionReceipt,
+      purchaseToken,
       purchasedAt,
       expiresAt: new Date(expMs).toISOString(),
       isExpiredInStore: expMs <= nowMs,
@@ -240,6 +257,8 @@ function extractPurchaseMetadata(
 
   return {
     transactionId: txId,
+    transactionReceipt,
+    purchaseToken,
     purchasedAt,
     expiresAt: new Date(purchasedMs + defaultDurationMs).toISOString(),
     isExpiredInStore: false,
@@ -326,6 +345,8 @@ export async function purchasePlanWithStoreKit(planId: PaidPlanId): Promise<Purc
           planId: matchedPlan,
           productId: purchase?.productId || spec.productId,
           transactionId: meta.transactionId,
+          transactionReceipt: meta.transactionReceipt,
+          purchaseToken: meta.purchaseToken,
           purchasedAt: meta.purchasedAt,
           expiresAt: meta.expiresAt,
         });
@@ -382,6 +403,8 @@ export async function purchasePlanWithStoreKit(planId: PaidPlanId): Promise<Purc
                   planId: matchedPlan,
                   productId: purchaseItem.productId || spec.productId,
                   transactionId: meta.transactionId,
+                  transactionReceipt: meta.transactionReceipt,
+                  purchaseToken: meta.purchaseToken,
                   purchasedAt: meta.purchasedAt,
                   expiresAt: meta.expiresAt,
                 });
@@ -421,6 +444,8 @@ export async function restoreStoreKitPurchases(): Promise<{
   restoredPlan: PaidPlanId | null;
   productId?: string;
   transactionId?: string;
+  transactionReceipt?: string;
+  purchaseToken?: string;
   purchasedAt?: string;
   expiresAt?: string;
 }> {
@@ -437,7 +462,14 @@ export async function restoreStoreKitPurchases(): Promise<{
     const priority: PaidPlanId[] = ['lifetime_premium', 'annual_premium', 'monthly_premium'];
     const foundPlans = new Map<
       PaidPlanId,
-      { productId: string; transactionId?: string; purchasedAt?: string; expiresAt?: string }
+      {
+        productId: string;
+        transactionId?: string;
+        transactionReceipt?: string;
+        purchaseToken?: string;
+        purchasedAt?: string;
+        expiresAt?: string;
+      }
     >();
 
     for (const p of purchases ?? []) {
@@ -449,6 +481,8 @@ export async function restoreStoreKitPurchases(): Promise<{
           foundPlans.set(matched, {
             productId: sku,
             transactionId: meta.transactionId,
+            transactionReceipt: meta.transactionReceipt,
+            purchaseToken: meta.purchaseToken,
             purchasedAt: meta.purchasedAt,
             expiresAt: meta.expiresAt,
           });
@@ -464,6 +498,8 @@ export async function restoreStoreKitPurchases(): Promise<{
           restoredPlan: pId,
           productId: match.productId,
           transactionId: match.transactionId,
+          transactionReceipt: match.transactionReceipt,
+          purchaseToken: match.purchaseToken,
           purchasedAt: match.purchasedAt,
           expiresAt: match.expiresAt,
         };
@@ -491,7 +527,14 @@ export async function verifyActiveStoreKitEntitlements(): Promise<ActiveStoreKit
     const priority: PaidPlanId[] = ['lifetime_premium', 'annual_premium', 'monthly_premium'];
     const foundPlans = new Map<
       PaidPlanId,
-      { productId: string; transactionId?: string; purchasedAt?: string; expiresAt?: string }
+      {
+        productId: string;
+        transactionId?: string;
+        transactionReceipt?: string;
+        purchaseToken?: string;
+        purchasedAt?: string;
+        expiresAt?: string;
+      }
     >();
 
     for (const p of purchases ?? []) {
@@ -503,6 +546,8 @@ export async function verifyActiveStoreKitEntitlements(): Promise<ActiveStoreKit
           foundPlans.set(matched, {
             productId: sku,
             transactionId: meta.transactionId,
+            transactionReceipt: meta.transactionReceipt,
+            purchaseToken: meta.purchaseToken,
             purchasedAt: meta.purchasedAt,
             expiresAt: meta.expiresAt,
           });
@@ -519,6 +564,8 @@ export async function verifyActiveStoreKitEntitlements(): Promise<ActiveStoreKit
           activePlan: pId,
           productId: match.productId,
           transactionId: match.transactionId,
+          transactionReceipt: match.transactionReceipt,
+          purchaseToken: match.purchaseToken,
           purchasedAt: match.purchasedAt,
           expiresAt: match.expiresAt,
         };
@@ -528,5 +575,106 @@ export async function verifyActiveStoreKitEntitlements(): Promise<ActiveStoreKit
     return { storeReachable: true, activePlan: null };
   } catch {
     return { storeReachable: false, activePlan: null };
+  }
+}
+
+export interface BackendIapVerificationResult {
+  verified: boolean;
+  configured: boolean;
+  plan?: PaidPlanId;
+  productId?: string;
+  transactionId?: string;
+  expiresAt?: string;
+  error?: string;
+}
+
+/**
+ * Verifies an Apple App Store receipt or Google Play purchaseToken against the
+ * server-side `verify-iap` Supabase Edge Function before unlocking cloud entitlements.
+ */
+export async function verifyIapReceiptWithBackend(params: {
+  planId: PaidPlanId;
+  productId: string;
+  transactionId?: string;
+  transactionReceipt?: string;
+  purchaseToken?: string;
+}): Promise<BackendIapVerificationResult> {
+  if (!isSupabaseConfigured || Platform.OS === 'web') {
+    return { verified: false, configured: false, error: 'Backend verification unavailable offline.' };
+  }
+
+  try {
+    const { data, error } = await supabase.functions.invoke('verify-iap', {
+      body: {
+        action: 'verify',
+        platform: Platform.OS === 'android' ? 'android' : 'ios',
+        planId: params.planId,
+        productId: params.productId,
+        transactionId: params.transactionId,
+        transactionReceipt: params.transactionReceipt,
+        purchaseToken: params.purchaseToken,
+      },
+    });
+
+    if (!error && data?.ok && data?.plan) {
+      return {
+        verified: true,
+        configured: true,
+        plan: data.plan as PaidPlanId,
+        productId: data.productId,
+        transactionId: data.transactionId,
+        expiresAt: data.expiresAt,
+      };
+    }
+
+    if (data && data.configured === false) {
+      return {
+        verified: false,
+        configured: false,
+        error: data.error || 'Store receipt secret is not configured on backend.',
+      };
+    }
+
+    return {
+      verified: false,
+      configured: true,
+      error: data?.error || error?.message || 'Store receipt verification failed.',
+    };
+  } catch (err: any) {
+    return {
+      verified: false,
+      configured: false,
+      error: err?.message || 'Network error while verifying store receipt.',
+    };
+  }
+}
+
+/**
+ * Activates the one-time 7-day Annual Pro trial via the server-side `verify-iap` Edge Function
+ * so trial eligibility is enforced per authenticated user in Postgres.
+ */
+export async function startTrialWithBackend(): Promise<{
+  ok: boolean;
+  alreadyClaimed?: boolean;
+  trialEndsAt?: string;
+}> {
+  if (!isSupabaseConfigured) {
+    return { ok: true };
+  }
+
+  try {
+    const { data, error } = await supabase.functions.invoke('verify-iap', {
+      body: { action: 'start_trial' },
+    });
+    if (error || !data) {
+      return { ok: true };
+    }
+    return {
+      ok: Boolean(data.ok),
+      alreadyClaimed: Boolean(data.alreadyClaimed),
+      trialEndsAt: typeof data.trialEndsAt === 'string' ? data.trialEndsAt : undefined,
+    };
+  } catch {
+    return { ok: true };
   }
 }
