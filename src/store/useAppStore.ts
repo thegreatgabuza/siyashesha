@@ -1375,6 +1375,12 @@ export const useAppStore = create<AppState>()(
           return false;
         }
 
+        // Doctor practice accounts do not sync consumer patient vaults via hydrateFromCloud
+        if (get().userRole === 'doctor') {
+          set({ lastCloudSyncAt: new Date().toISOString() });
+          return true;
+        }
+
         set({ isSyncingCloud: true });
 
         try {
@@ -1691,8 +1697,6 @@ export const useAppStore = create<AppState>()(
             subscriptionUpdatedAt: nextSubUpdatedAt,
             ...(isEffectiveFree
               ? {
-                  biometricLock: false,
-                  isAppLocked: false,
                   sharingRequiresPin: false,
                   aiConsentGranted: false,
                 }
@@ -1922,7 +1926,8 @@ export const useAppStore = create<AppState>()(
         syncAppointmentToDatabase(newAppointment).catch(() => {});
         return { booking: newBooking, appointment: newAppointment };
       },
-      updateDoctorBookingStatus: (bookingId, status) =>
+      updateDoctorBookingStatus: (bookingId, status) => {
+        let updatedLinkedAppt: Appointment | undefined;
         set((s) => {
           let linkedApptId: string | undefined;
           const nextBookings = s.doctorBookings.map((b) => {
@@ -1933,11 +1938,22 @@ export const useAppStore = create<AppState>()(
             return b;
           });
           const nextAppts = linkedApptId
-            ? s.appointments.map((a) => (a.id === linkedApptId ? { ...a, status } : a))
+            ? s.appointments.map((a) => {
+                if (a.id === linkedApptId) {
+                  updatedLinkedAppt = { ...a, status };
+                  return updatedLinkedAppt;
+                }
+                return a;
+              })
             : s.appointments;
           return { doctorBookings: nextBookings, appointments: nextAppts };
-        }),
-      updateDoctorBookingClinical: (bookingId, updates) =>
+        });
+        if (updatedLinkedAppt) {
+          syncAppointmentToDatabase(updatedLinkedAppt).catch(() => {});
+        }
+      },
+      updateDoctorBookingClinical: (bookingId, updates) => {
+        let updatedLinkedAppt: Appointment | undefined;
         set((s) => {
           let linkedApptId: string | undefined;
           const nextBookings = s.doctorBookings.map((b) => {
@@ -1955,10 +1971,20 @@ export const useAppStore = create<AppState>()(
           });
           const nextAppts =
             linkedApptId && updates.status
-              ? s.appointments.map((a) => (a.id === linkedApptId ? { ...a, status: updates.status! } : a))
+              ? s.appointments.map((a) => {
+                  if (a.id === linkedApptId) {
+                    updatedLinkedAppt = { ...a, status: updates.status! };
+                    return updatedLinkedAppt;
+                  }
+                  return a;
+                })
               : s.appointments;
           return { doctorBookings: nextBookings, appointments: nextAppts };
-        }),
+        });
+        if (updatedLinkedAppt) {
+          syncAppointmentToDatabase(updatedLinkedAppt).catch(() => {});
+        }
+      },
 
       eraseAllPatientData: async () => {
         // 1. Wipe remote Supabase database and storage
