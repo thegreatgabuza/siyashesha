@@ -60,7 +60,7 @@ export function DoctorPatientRecordsScreen() {
     if (!activeDoctor) return [];
 
     const myBookings = doctorBookings.filter(
-      (b) => b.doctorId === activeDoctor.id || b.doctorName.includes(activeDoctor.fullName)
+      (b) => b.doctorId === activeDoctor.id
     );
 
     const map = new Map<string, DirectoryPatient>();

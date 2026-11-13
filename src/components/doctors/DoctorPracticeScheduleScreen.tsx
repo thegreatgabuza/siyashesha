@@ -51,7 +51,7 @@ export function DoctorPracticeScheduleScreen() {
   const myBookings = useMemo(() => {
     if (!activeDoctor) return [];
     return doctorBookings
-      .filter((b) => b.doctorId === activeDoctor.id || b.doctorName.includes(activeDoctor.fullName))
+      .filter((b) => b.doctorId === activeDoctor.id)
       .sort((a, b) => {
         if (a.date !== b.date) return a.date.localeCompare(b.date);
         return a.time.localeCompare(b.time);
