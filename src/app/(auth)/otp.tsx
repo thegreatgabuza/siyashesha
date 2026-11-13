@@ -103,7 +103,10 @@ export default function OtpScreen() {
         });
 
         if (result.status === 'complete') {
-          if (setSignInActive && result.createdSessionId) {
+          if (!result.createdSessionId) {
+            throw new Error('Authentication did not return an active session. Please request a new code.');
+          }
+          if (setSignInActive) {
             await setSignInActive({ session: result.createdSessionId });
           }
           if (result.userData?.imageUrl) {
@@ -114,7 +117,7 @@ export default function OtpScreen() {
             });
           }
           completeSignIn({
-            clerkSessionId: result.createdSessionId || undefined,
+            clerkSessionId: result.createdSessionId,
             email: pendingEmail,
           });
           toast.show('Signed in successfully!', 'success');
@@ -170,11 +173,14 @@ export default function OtpScreen() {
         }
 
         if (result.status === 'complete') {
-          if (setSignUpActive && result.createdSessionId) {
+          if (!result.createdSessionId) {
+            throw new Error('Verification completed without an active session. Please try signing in.');
+          }
+          if (setSignUpActive) {
             await setSignUpActive({ session: result.createdSessionId });
           }
           completeSignIn({
-            clerkSessionId: result.createdSessionId || undefined,
+            clerkSessionId: result.createdSessionId,
             email: pendingEmail,
           });
           toast.show('Account verified & signed in!', 'success');
@@ -182,24 +188,10 @@ export default function OtpScreen() {
           return;
         }
 
-        // If email verification was confirmed by Clerk, allow sign-in even if non-critical requirements remain
-        const isEmailVerified =
-          (result as any)?.verifications?.emailAddress?.status === 'verified';
-
-        if (isEmailVerified) {
-          if (setSignUpActive && result.createdSessionId) {
-            await setSignUpActive({ session: result.createdSessionId });
-          }
-          completeSignIn({
-            clerkSessionId: result.createdSessionId || undefined,
-            email: pendingEmail,
-          });
-          toast.show('Email verified! Welcome to Siyashesha.', 'success');
-          router.replace('/');
-          return;
-        }
-
-        throw new Error(`Verification status: ${result.status}`);
+        const missingList = Array.isArray(result.missingFields) && result.missingFields.length > 0
+          ? ` (missing: ${result.missingFields.join(', ')})`
+          : '';
+        throw new Error(`Sign-up incomplete (${result.status})${missingList}. Please complete verification or sign in.`);
       } else {
         completeSignIn({
           email: pendingEmail,
