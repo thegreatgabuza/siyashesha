@@ -516,7 +516,9 @@ export const useAppStore = create<AppState>()(
             doctorBookings:
               s.doctorBookings && s.doctorBookings.length > 0
                 ? s.doctorBookings
-                : initialDoctorBookings,
+                : matchedDoctor?.id === 'doc-thobani-gabuza'
+                  ? initialDoctorBookings
+                  : [],
             patientProfile: nextProfile,
             records: cleanedRecords,
             medications: cleanedMeds,
@@ -1740,7 +1742,7 @@ export const useAppStore = create<AppState>()(
       },
       doctorProfile: null,
       registeredDoctors: initialDoctors,
-      doctorBookings: initialDoctorBookings,
+      doctorBookings: [],
       registerAsDoctor: (profileData, initialServices = []) => {
         const id = makeId('doc');
         const now = new Date().toISOString();
@@ -2006,7 +2008,7 @@ export const useAppStore = create<AppState>()(
           hasCompletedOnboarding: false,
           userRole: 'patient',
           doctorProfile: null,
-          doctorBookings: initialDoctorBookings,
+          doctorBookings: [],
           registeredDoctors: initialDoctors,
           pendingEmail: '',
           clerkSessionId: undefined,
@@ -2091,10 +2093,6 @@ export const useAppStore = create<AppState>()(
         const cleanedProfile = persistedState.patientProfile
           ? stripDemoSeedProfile(persistedState.patientProfile)
           : emptyPatientProfile;
-        const doctorBookings =
-          Array.isArray(persistedState.doctorBookings) && persistedState.doctorBookings.length > 0
-            ? persistedState.doctorBookings
-            : initialDoctorBookings;
         const registeredDoctors =
           Array.isArray(persistedState.registeredDoctors) && persistedState.registeredDoctors.length > 0
             ? persistedState.registeredDoctors
@@ -2110,6 +2108,13 @@ export const useAppStore = create<AppState>()(
           Boolean(persistedState.doctorProfile && persistedState.userRole === 'doctor');
         const userRole: 'doctor' | 'patient' = isDoctorAccount ? 'doctor' : 'patient';
         const doctorProfile = isDoctorAccount ? (matchedDoctor || persistedState.doctorProfile) : null;
+        const doctorBookings = Array.isArray(persistedState.doctorBookings)
+          ? persistedState.doctorBookings.length > 0
+            ? persistedState.doctorBookings
+            : doctorProfile?.id === 'doc-thobani-gabuza'
+              ? initialDoctorBookings
+              : []
+          : [];
 
         return {
           ...persistedState,
