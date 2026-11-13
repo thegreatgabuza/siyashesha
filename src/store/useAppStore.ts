@@ -1794,7 +1794,7 @@ export const useAppStore = create<AppState>()(
           };
         }),
       addDoctorService: (serviceData) => {
-        const serviceId = `srv-${Date.now()}`;
+        const serviceId = makeId('srv');
         let createdService: DoctorService | null = null;
         set((s) => {
           if (!s.doctorProfile) return s;
