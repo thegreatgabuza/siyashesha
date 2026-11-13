@@ -517,8 +517,8 @@ export function DoctorPracticeDashboard({ doctor }: DoctorPracticeDashboardProps
                         </Text>
                       </Pressable>
 
-                      {/* Join Video Call if video */}
-                      {isVideo ? (
+                      {/* Join Video Call if active video */}
+                      {isVideo && b.status !== 'cancelled' ? (
                         <Pressable
                           onPress={() => handleJoinVideo(b)}
                           className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2.5 active:bg-emerald-700 shadow-2xs"

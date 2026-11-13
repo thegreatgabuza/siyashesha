@@ -58,31 +58,37 @@ export function DoctorPracticeScheduleScreen() {
       });
   }, [doctorBookings, activeDoctor]);
 
+  // Active (non-cancelled) bookings used for calendar dots, monthly counts, and next-booking jump
+  const activeBookings = useMemo(
+    () => myBookings.filter((b) => b.status !== 'cancelled'),
+    [myBookings]
+  );
+
   // Filtered by format (all, in-person, video)
   const filteredBookings = useMemo(() => {
     if (formatFilter === 'all') return myBookings;
     return myBookings.filter((b) => b.mode === formatFilter);
   }, [myBookings, formatFilter]);
 
-  // Aggregate monthly stats
+  // Aggregate monthly stats (active non-cancelled consultations only)
   const monthStats = useMemo(() => {
-    const inMonth = myBookings.filter((b) => b.date.startsWith(visibleMonth));
+    const inMonth = activeBookings.filter((b) => b.date.startsWith(visibleMonth));
     const physical = inMonth.filter((b) => b.mode === 'in_person').length;
     const video = inMonth.filter((b) => b.mode === 'video').length;
-    const todayCount = myBookings.filter((b) => b.date === today).length;
+    const todayCount = activeBookings.filter((b) => b.date === today).length;
     return {
       total: inMonth.length,
       physical,
       video,
       todayCount,
     };
-  }, [myBookings, visibleMonth, today]);
+  }, [activeBookings, visibleMonth, today]);
 
-  // Marked dates for Calendar
+  // Marked dates for Calendar (active non-cancelled consultations only)
   const markedDates = useMemo(() => {
     const marks: Record<string, any> = {};
 
-    myBookings.forEach((b) => {
+    activeBookings.forEach((b) => {
       const dateKey = b.date;
       if (!marks[dateKey]) {
         marks[dateKey] = {
@@ -107,7 +113,7 @@ export function DoctorPracticeScheduleScreen() {
     };
 
     return marks;
-  }, [myBookings, selectedDate]);
+  }, [activeBookings, selectedDate]);
 
   // Selected date's bookings
   const dayBookings = useMemo(() => {
@@ -370,11 +376,11 @@ export function DoctorPracticeScheduleScreen() {
                 : `No patient bookings scheduled for ${dayjs(selectedDate).format('D MMMM YYYY')}.`}
             </Text>
 
-            {myBookings.length > 0 ? (
+            {activeBookings.length > 0 ? (
               <Pressable
                 onPress={() => {
                   tapFeedback();
-                  const nextBooking = myBookings.find((b) => b.date >= today) || myBookings[0];
+                  const nextBooking = activeBookings.find((b) => b.date >= today) || activeBookings[0];
                   setSelectedDate(nextBooking.date);
                   setVisibleMonth(dayjs(nextBooking.date).format('YYYY-MM'));
                 }}
@@ -553,8 +559,8 @@ export function DoctorPracticeScheduleScreen() {
                         </Text>
                       </Pressable>
 
-                      {/* Video Call Button if video */}
-                      {isVideo ? (
+                      {/* Video Call Button if active video */}
+                      {isVideo && b.status !== 'cancelled' ? (
                         <Pressable
                           onPress={() => handleJoinVideo(b)}
                           className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2.5 active:bg-emerald-700 shadow-2xs"
